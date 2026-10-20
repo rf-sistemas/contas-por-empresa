@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v30</title>
+<title>CPE — Contas por Empresa v31</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v30">
+<meta name="rf-versao" content="v31">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v30',
+  versao : 'v31',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1719,7 +1719,7 @@ function telaEscala(){
     (podeEditar()? '<button class="bt" onclick="escAbrirLeitura()">📷 Ler escala (foto)</button>'+
       '<button class="bt g" onclick="escAbrirDia()">+ Dia</button>'+
       '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas ('+S.esc.anes.filter(a=>a.ativo!==false).length+')</button>'+
-      '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades</button>' : '')+
+      '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades ('+S.esc.locais.filter(l=>l.ativo!==false).length+')</button>' : '')+
   '</div>';
   h += '<div class="kpis" style="margin:0 0 12px">'+
     kpi('Dias de cirurgia', trab.length)+
@@ -1731,7 +1731,7 @@ function telaEscala(){
   if(!dias.length) return h + '<div class="card"><div class="vazio">Nenhuma escala lançada em '+escMesNome(S.mes)+'. Use <b>📷 Ler escala</b> com o print que o hospital manda, ou <b>+ Dia</b>.</div></div>';
   S.esc.locais.forEach(l=>{
     const ds = dias.filter(d=>d.local_id===l.id); if(!ds.length) return;
-    h += '<div class="card"><h3>'+esc(((l.hospital?l.hospital+' — ':'')+l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
+    h += '<div class="card"><h3>'+esc(String(l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+(l.hospital?' <span style="font-weight:400;color:var(--fraco);font-size:12px">'+esc(l.hospital)+'</span>':'')+'</h3>'+
       '<div style="overflow-x:auto"><table><thead><tr><th>Dia</th><th>Cirurgião</th><th>Anestesista</th><th style="text-align:right">Valor</th><th>CNPJ que paga</th><th>Situação</th><th>Pago</th><th></th></tr></thead><tbody>'+
       ds.map(d=>escLinha(d, conf)).join('')+'</tbody></table></div></div>';
   });
@@ -1833,32 +1833,64 @@ async function escSalvarAnes(){
   escAbrirAnestesistas();
 }
 
-/* ---------- unidades ---------- */
-function escAbrirLocais(){
-  const optsE = (sel)=> '<option value="">—</option>'+S.empresas.map(e=>'<option value="'+e.id+'"'+(e.id===sel?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join('');
+/* ---------- unidades (v31: editar nome e adicionar várias de uma vez) ---------- */
+let _escNovas = 1;
+function escOptsEmp(sel){ return '<option value="">—</option>'+S.empresas.map(e=>'<option value="'+e.id+'"'+(e.id===sel?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join(''); }
+function escAbrirLocais(){ _escNovas = 1; escDesenharLocais(); }
+function escNovaLinhaHTML(i){
+  return '<div class="card" style="margin-bottom:8px;border-style:dashed"><b>Nova unidade '+(i+1)+'</b>'+
+    '<div class="lin"><div><label>Nome da unidade</label><input id="en-uni-'+i+'" placeholder="HER Feira de Santana"></div>'+
+    '<div><label>Hospital</label><input id="en-hosp-'+i+'" value="Hospital Evanice Rocha"></div>'+
+    '<div><label>Cidade</label><input id="en-cid-'+i+'" placeholder="Cidade/BA"></div></div>'+
+    '<div class="lin"><div><label>CNPJ que paga</label><select id="en-emp-'+i+'">'+escOptsEmp('')+'</select></div>'+
+    '<div><label>Valor do dia (R$)</label><input id="en-val-'+i+'" type="number" step="0.01" inputmode="decimal"></div></div></div>';
+}
+function escGuardarNovas(){   // guarda o que já foi digitado antes de redesenhar
+  const g=[]; for(let i=0;i<_escNovas;i++){ const q=k=>{ const el=document.getElementById('en-'+k+'-'+i); return el?el.value:''; };
+    g.push({uni:q('uni'),hosp:q('hosp'),cid:q('cid'),emp:q('emp'),val:q('val')}); } return g;
+}
+function escMaisUnidade(){
+  const g = escGuardarNovas(); _escNovas++; escDesenharLocais();
+  g.forEach((x,i)=>{ const set=(k,v)=>{ const el=document.getElementById('en-'+k+'-'+i); if(el && v!=null) el.value=v; };
+    set('uni',x.uni); set('hosp',x.hosp); set('cid',x.cid); set('emp',x.emp); set('val',x.val); });
+}
+function escDesenharLocais(){
+  let novas=''; for(let i=0;i<_escNovas;i++) novas += escNovaLinhaHTML(i);
   abrirModal('<h2>🏥 Unidades</h2><div class="aviso">O <b>CNPJ que paga</b> e o <b>valor do dia</b> da unidade entram sozinhos quando você escolhe o anestesista do dia (o valor do anestesista, se tiver, vale mais).</div>'+
-    S.esc.locais.map(l=>'<div class="card" style="margin-bottom:8px"><b>'+esc((l.hospital?l.hospital+' — ':'')+l.unidade)+'</b> <span style="color:var(--fraco);font-size:12px">'+esc(l.cidade||'')+'</span>'+
-      '<div class="lin"><div><label>CNPJ que paga</label><select id="el-emp-'+l.id+'">'+optsE(l.empresa_id)+'</select></div>'+
-      '<div><label>Valor do dia (R$)</label><input id="el-val-'+l.id+'" type="number" step="0.01" inputmode="decimal" value="'+(l.valor_dia!=null?l.valor_dia:'')+'"></div></div></div>').join('')+
-    '<div class="card"><h3>NOVA UNIDADE</h3><div class="lin"><div><label>Hospital</label><input id="el-hosp" value="Hospital Evanice Rocha"></div><div><label>Unidade</label><input id="el-uni"></div><div><label>Cidade</label><input id="el-cid"></div></div></div>'+
-    '<div style="display:flex;gap:8px"><button class="bt" onclick="escSalvarLocais()">Salvar</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+    S.esc.locais.map(l=>'<div class="card" style="margin-bottom:8px;'+(l.ativo===false?'opacity:.55':'')+'">'+
+      '<div class="lin"><div><label>Nome da unidade</label><input id="el-uni-'+l.id+'" value="'+esc(l.unidade||'')+'"></div>'+
+      '<div><label>Hospital</label><input id="el-hosp-'+l.id+'" value="'+esc(l.hospital||'')+'"></div>'+
+      '<div><label>Cidade</label><input id="el-cid-'+l.id+'" value="'+esc(l.cidade||'')+'"></div></div>'+
+      '<div class="lin"><div><label>CNPJ que paga</label><select id="el-emp-'+l.id+'">'+escOptsEmp(l.empresa_id)+'</select></div>'+
+      '<div><label>Valor do dia (R$)</label><input id="el-val-'+l.id+'" type="number" step="0.01" inputmode="decimal" value="'+(l.valor_dia!=null?l.valor_dia:'')+'"></div></div>'+
+      '<label style="display:flex;gap:8px;align-items:center;text-transform:none"><input type="checkbox" id="el-ativo-'+l.id+'" style="width:auto"'+(l.ativo!==false?' checked':'')+'> ativa</label></div>').join('')+
+    novas+
+    '<button class="bt g" style="margin-bottom:10px" onclick="escMaisUnidade()">+ Adicionar mais uma unidade</button>'+
+    '<div style="display:flex;gap:8px"><button class="bt" onclick="escSalvarLocais()">Salvar tudo</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
 }
 async function escSalvarLocais(){
   for(const l of S.esc.locais){
-    const reg = { empresa_id: val('el-emp-'+l.id)||null, valor_dia: val('el-val-'+l.id)===''? null : Number(val('el-val-'+l.id)) };
-    if(reg.empresa_id!==l.empresa_id || reg.valor_dia!=(l.valor_dia==null?null:Number(l.valor_dia))){
+    const nome = val('el-uni-'+l.id).trim(); if(!nome) return aviso('A unidade não pode ficar sem nome.','erro');
+    const reg = { unidade: nome, hospital: val('el-hosp-'+l.id).trim()||null, cidade: val('el-cid-'+l.id).trim()||null,
+      empresa_id: val('el-emp-'+l.id)||null, valor_dia: val('el-val-'+l.id)===''? null : Number(val('el-val-'+l.id)), ativo: chk('el-ativo-'+l.id) };
+    const mudou = reg.unidade!==l.unidade || reg.hospital!==(l.hospital||null) || reg.cidade!==(l.cidade||null) || reg.empresa_id!==(l.empresa_id||null) ||
+      reg.valor_dia!=(l.valor_dia==null?null:Number(l.valor_dia)) || reg.ativo!==(l.ativo!==false);
+    if(mudou){
       const r = await sb.from('esc_locais').update(reg).eq('id',l.id).select().maybeSingle();
-      if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+      if(r.error) return aviso('Não gravou '+nome+': '+r.error.message,'erro');
       Object.assign(l, r.data);
     }
   }
-  const uni = val('el-uni').trim();
-  if(uni){
-    const r = await sb.from('esc_locais').insert({ hospital: val('el-hosp').trim(), unidade: uni, cidade: val('el-cid').trim()||null }).select().maybeSingle();
-    if(r.error) return aviso('Não gravou a unidade: '+r.error.message,'erro');
-    S.esc.locais.push(r.data);
+  let n=0;
+  for(const x of escGuardarNovas()){
+    if(!x.uni.trim()) continue;
+    const r = await sb.from('esc_locais').insert({ unidade:x.uni.trim(), hospital:x.hosp.trim()||null, cidade:x.cid.trim()||null,
+      empresa_id:x.emp||null, valor_dia: x.val===''? null : Number(x.val) }).select().maybeSingle();
+    if(r.error) return aviso('Não gravou a unidade '+x.uni+': '+r.error.message,'erro');
+    S.esc.locais.push(r.data); n++;
   }
-  S.modal = null; aviso('Unidades salvas.','ok');
+  S.esc.locais.sort((a,b)=>String(a.unidade).localeCompare(String(b.unidade),'pt-BR'));
+  S.modal = null; aviso('Unidades salvas'+(n?' · '+n+' nova(s)':'')+'.','ok');
 }
 
 /* ---------- dia avulso ---------- */
@@ -1868,7 +1900,7 @@ function escAbrirDia(id){
   const d = _escDiaEd || { data: S.mes+'-01', local_id: (S.esc.locais[0]||{}).id };
   abrirModal('<h2>'+(_escDiaEd?'Editar dia':'Novo dia de cirurgia')+'</h2>'+
     '<div class="lin"><div><label>Data</label><input type="date" id="ed-data" value="'+esc(String(d.data).slice(0,10))+'"></div>'+
-    '<div><label>Unidade</label><select id="ed-local">'+S.esc.locais.map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select></div></div>'+
+    '<div><label>Unidade</label><select id="ed-local">'+S.esc.locais.filter(l=>l.ativo!==false||l.id===d.local_id).map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select></div></div>'+
     '<div class="lin"><div><label>Cirurgião</label><input id="ed-cir" value="'+esc(d.cirurgiao||'')+'" placeholder="Dr Ramon"></div>'+
     '<div><label>Especialidade</label><input id="ed-esp" value="'+esc(d.especialidade||'')+'" placeholder="Cirurgia Geral"></div></div>'+
     '<label>Observação</label><input id="ed-obs" value="'+esc(d.obs||'')+'">'+
@@ -1917,8 +1949,9 @@ async function escLerFoto(){
   }catch(e){ st.innerHTML = '<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'; }
 }
 function escAcharLocal(nome){
-  const n = norm(nome);
-  const l = S.esc.locais.find(x=>norm(x.unidade)===n) || S.esc.locais.find(x=>n.indexOf(norm(x.unidade))>=0 || norm(x.unidade).indexOf(n)>=0);
+  const tira = t=>norm(t).replace(/^(HER|HOSPITAL EVANICE ROCHA) /,'');
+  const n = tira(nome); const norm2 = tira;
+  const l = S.esc.locais.find(x=>norm2(x.unidade)===n) || S.esc.locais.find(x=>n && (n.indexOf(norm2(x.unidade))>=0 || norm2(x.unidade).indexOf(n)>=0));
   return l ? l.id : '';
 }
 function escMostrarLeitura(){
