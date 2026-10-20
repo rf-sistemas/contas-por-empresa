@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v43</title>
+<title>CPE — Contas por Empresa v44</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v43">
+<meta name="rf-versao" content="v44">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -62,6 +62,23 @@
   .quem{margin-left:auto;text-align:right;font-size:12px;color:var(--fraco)}
   .quem b{color:var(--texto);display:block;font-size:13px}
 
+  /* v44: tela inicial em caixas */
+  .caixas{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:22px}
+  .caixa{display:flex;align-items:center;gap:16px;background:var(--carta);border:1px solid var(--linha);border-radius:16px;padding:18px;cursor:pointer;
+    text-align:left;width:100%;font:inherit;color:var(--texto);transition:border-color .15s, transform .15s;position:relative}
+  .caixa:hover{border-color:var(--ouro);transform:translateY(-1px)}
+  .caixa .ic{flex:0 0 72px;height:72px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:40px;
+    background:linear-gradient(145deg,rgba(201,162,39,.20),rgba(201,162,39,.05));border:1px solid rgba(201,162,39,.35)}
+  .caixa b{display:block;font-size:17px;margin-bottom:4px}
+  .caixa small{display:block;color:var(--fraco);font-size:13px;line-height:1.35}
+  .caixa .seta{margin-left:auto;font-size:26px;color:var(--ouro);padding-left:6px}
+  .caixa .bad{position:absolute;top:10px;left:66px;background:var(--vermelho);color:#fff;border-radius:20px;padding:1px 8px;font-size:12px;font-weight:700}
+  .secao{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--linha);padding-bottom:8px;margin:6px 0 14px}
+  .secao b{color:var(--ouro);letter-spacing:2px;font-size:15px}
+  .secao span{color:var(--fraco);font-size:13px}
+  .trilha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0}
+  .trilha .cam{color:var(--fraco);font-size:14px}
+  .trilha .cam b{color:var(--texto)}
   nav.abas{display:flex;gap:6px;flex-wrap:wrap;padding:10px 0}
   nav.abas button{background:var(--carta);border:1px solid var(--linha);color:var(--fraco);
        padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px}
@@ -144,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v43',
+  versao : 'v44',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -163,7 +180,7 @@ let sb = null;
 const S = {
   user:null, perfil:null, empresasPermitidas:[],
   empresas:[], origens:[], movimentos:[], regras:[], perfis:[],
-  tela:'painel', mes:mesHoje(), aberta:null, resumoAberto:false,
+  tela:'inicio', mes:mesHoje(), aberta:null, resumoAberto:false,
   msg:null, msgTipo:'ok', carregando:false, modal:null
 };
 
@@ -185,13 +202,8 @@ function validaCNPJ(t){
   return d1===Number(c[12]) && d2===Number(c[13]);
 }
 function norm(t){ return String(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-function marcaSVG(px){
-  return '<svg width="'+px+'" height="'+px+'" viewBox="0 0 100 100" aria-hidden="true">'+
-    '<rect width="100" height="100" rx="22" fill="#0b0b0b" stroke="#242424"/>'+
-    '<rect x="22" y="60" width="14" height="20" rx="3" fill="#ffffff"/>'+
-    '<rect x="43" y="45" width="14" height="35" rx="3" fill="#ffffff"/>'+
-    '<rect x="64" y="26" width="14" height="54" rx="3" fill="#D4A017"/></svg>';
-}
+const CPE_LOGO = 'data:image/webp;base64,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';   // logo oficial MR (v44)
+function marcaSVG(px){ return '<img src="'+CPE_LOGO+'" width="'+px+'" height="'+px+'" alt="MR" style="display:block;object-fit:contain">'; }
 function aviso(txt,tipo){ S.msg=txt; S.msgTipo=tipo||'ok'; render(); if(txt) setTimeout(()=>{ if(S.msg===txt){S.msg=null;render();} },6000); }
 function val(id){ const e=document.getElementById(id); return e? e.value : ''; }
 function chk(id){ const e=document.getElementById(id); return e? e.checked : false; }
@@ -260,7 +272,7 @@ async function entrar(){
   await carregarTudo();
   render();
 }
-async function sair(){ await sb.auth.signOut(); S.user=null; S.perfil=null; S.movimentos=[]; S.empresas=[]; S.esc.carregado=false; S.tela='painel'; render(); }
+async function sair(){ await sb.auth.signOut(); S.user=null; S.perfil=null; S.movimentos=[]; S.empresas=[]; S.esc.carregado=false; S.tela='inicio'; render(); }
 
 /* ===================== carga ===================== */
 async function carregarTudo(){
@@ -314,6 +326,8 @@ function render(){
 
   let corpo = '';
   if(S.carregando && !S.empresas.length) corpo = '<div class="vazio">Carregando…</div>';
+  else if(S.tela==='inicio')   corpo = telaInicio();
+  else if(S.tela==='escalahub') corpo = telaEscalaHub();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='fila')     corpo = telaFila();
   else if(S.tela==='nomes')    corpo = telaNomes();
@@ -326,22 +340,13 @@ function render(){
   const nf = fila().length;
   app.innerHTML =
     '<header class="top"><div class="topin">'+
-      '<div class="marca">'+marcaSVG(34)+'<div><b>CONTAS POR EMPRESA</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
+      '<div class="marca" style="cursor:pointer" onclick="irPara(\'inicio\')">'+marcaSVG(38)+'<div><b>CONTAS POR EMPRESA</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
       '<button class="bt g mini" style="margin-left:auto" onclick="trocarTema()" title="Claro / escuro">'+(temaAtual()==='escuro'?'☀ claro':'🌙 escuro')+'</button>'+
       '<div class="quem" style="margin-left:12px"><b>'+esc(S.perfil? (S.perfil.nome||S.perfil.email) : '')+'</b>'+
         esc(papel()||'')+' · <a href="#" onclick="sair();return false">sair</a></div>'+
     '</div></header>'+
     '<div class="wrap">'+
-      '<nav class="abas">'+
-        aba('painel','Painel')+
-        aba('fila','Apontar depois'+(nf?'<span class="bad">'+nf+'</span>':''))+
-        aba('nomes','Nomes')+
-        aba('origens','Cartões e contas')+
-        aba('escala','📅 Add plantão')+
-        aba('escalas','🗓 Escalas')+
-        aba('empresas','Empresas')+
-        (podeUsuarios()? aba('usuarios','Usuários') : '')+
-      '</nav>'+
+      cpeTrilha()+
       (S.msg? '<div class="'+S.msgTipo+'">'+esc(S.msg)+'</div>' : '')+
       corpo+
     '</div>'+
@@ -2414,6 +2419,51 @@ async function cpeInstalar(){
     '<div style="margin-top:12px"><button class="bt" onclick="fecharModal()">Entendi</button></div>');
 }
 window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBotaoInstalar(); });
+
+/* ===== v44: tela inicial em CAIXAS (como o sistema da RF) =====
+   Financeiro: caixa "CNPJs" (abre as empresas) + Apontar depois, Cartões e contas, Nomes.
+   Escala: caixa "Escala" → dentro: Anestesia (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
+const CPE_TELAS = {
+  painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
+  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
+  escalahub:{t:'Escala', pai:'inicio'}, escala:{t:'Anestesia · Add plantão', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
+};
+function cpeTrilha(){
+  if(S.tela==='inicio') return '<div style="height:8px"></div>';
+  const cam = []; let t = S.tela, g = 0;
+  while(t && t!=='inicio' && CPE_TELAS[t] && g++<5){ cam.unshift(t); t = CPE_TELAS[t].pai; }
+  const pai = (CPE_TELAS[S.tela]||{}).pai || 'inicio';
+  return '<div class="trilha"><button class="bt g" onclick="irPara(\''+pai+'\')">‹ Voltar</button>'+
+    '<span class="cam"><a href="#" onclick="irPara(\'inicio\');return false">Início</a>'+
+    cam.map((x,i)=>' › '+(i===cam.length-1 ? '<b>'+CPE_TELAS[x].t+'</b>' : '<a href="#" onclick="irPara(\''+x+'\');return false">'+CPE_TELAS[x].t+'</a>')).join('')+'</span></div>';
+}
+function cpeCaixa(id, ic, titulo, desc, bad){
+  return '<button type="button" class="caixa" onclick="irPara(\''+id+'\')"><div class="ic">'+ic+'</div>'+(bad?'<span class="bad">'+bad+'</span>':'')+
+    '<div><b>'+titulo+'</b><small>'+desc+'</small></div><span class="seta">›</span></button>';
+}
+function telaInicio(){
+  const nf = fila().length, ne = S.empresas.length;
+  let h = '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="caixas">'+
+    cpeCaixa('painel','🏢','CNPJs', ne+' empresa'+(ne===1?'':'s')+': entradas, saídas, contas a pagar e saldo do mês')+
+    cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||'')+
+    cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura')+
+    cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu')+
+  '</div>';
+  h += '<div class="secao"><b>ESCALA</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="caixas">'+
+    cpeCaixa('escalahub','🩺','Escala','Anestesia (adicionar plantão) e escalas por hospital e por anestesista')+
+  '</div>';
+  h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="caixas">'+
+    cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs')+
+    (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa e o que cada um pode fazer') : '')+
+  '</div>';
+  return h;
+}
+function telaEscalaHub(){
+  return '<div class="secao"><b>ESCALA</b><span>'+escMesNome(S.mes)+'</span></div><div class="caixas">'+
+    cpeCaixa('escala','💉','Anestesia','Adicionar plantão: toque no dia, escolha o hospital e o anestesista')+
+    cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
+  '</div>';
+}
 </script>
 </body>
 </html>
