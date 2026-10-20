@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v46</title>
+<title>CPE — Contas por Empresa v47</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v46">
+<meta name="rf-versao" content="v47">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v46',
+  versao : 'v47',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1718,12 +1718,15 @@ function escValorPadrao(d, anesId){
   if(a && a.valor_dia!=null) return Number(a.valor_dia);
   return l.valor_dia!=null ? Number(l.valor_dia) : null;
 }
-function escConflitos(){   // mesmo anestesista em duas unidades no mesmo dia
+function escConflitos(){   // v47: mesmo anestesista em dois lugares no MESMO TURNO (M, T ou MT marcados) — sem turno não acusa
   const m={}, out={};
-  escDoMes().filter(d=>d.anestesista_id && escTrabalho(d)).forEach(d=>{ const k=d.data+'|'+d.anestesista_id; (m[k]=m[k]||[]).push(d.id); });
-  Object.keys(m).forEach(k=>{ if(m[k].length>1) m[k].forEach(id=>out[id]=1); });
+  escDoMes().filter(d=>d.anestesista_id && escTrabalho(d) && d.turno).forEach(d=>{ const k=d.data+'|'+d.anestesista_id; (m[k]=m[k]||[]).push(d); });
+  const bate = (a,b)=> a===b || a==='MT' || b==='MT';
+  Object.keys(m).forEach(k=>{ const xs=m[k]; for(let i=0;i<xs.length;i++) for(let j=i+1;j<xs.length;j++) if(xs[i].local_id!==xs[j].local_id && bate(xs[i].turno,xs[j].turno)){ out[xs[i].id]=1; out[xs[j].id]=1; } });
   return out;
 }
+function escTurno(x){ return x && x.turno ? ' ('+x.turno+')' : ''; }
+function escAEscalar(x){ return x && !x.anestesista_id && /escalar/i.test(x.obs||''); }
 
 /* v34: aba "Hospitais" — entrada com um cartão por hospital; tocando abre as cirurgias/escala só dele */
 function escHospNome(l){ return (l && (l.hospital||l.unidade)) || '—'; }
@@ -2205,9 +2208,9 @@ function telaCalendario(){
     const cor = !tr.length ? 'var(--linha)' : ((sem||cf) ? 'var(--vermelho)' : 'var(--verde)');
     g += '<div onclick="escAbrirData(\''+iso+'\')" style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-top:4px solid '+cor+';border-radius:9px;padding:5px 6px;cursor:pointer;background:var(--carta);overflow:hidden">'+
       '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
-      com.slice(0,3).map(x=>'<div style="font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome))+' · '+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>').join('')+
+      com.slice(0,3).map(x=>'<div style="font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome))+' · '+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+esc(escTurno(x))+'</div>').join('')+
       (com.length>3 ? '<div style="font-size:11px;color:var(--fraco)">+'+(com.length-3)+'</div>' : '')+
-      (sem ? '<div style="font-size:11px;color:var(--vermelho);font-weight:700">'+sem+' sem anest.</div>' : '')+
+      (sem ? '<div style="font-size:11px;color:var(--vermelho);font-weight:700">'+sem+' a escalar</div>' : '')+
     '</div>';
   }
   h += '<div class="card"><div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
@@ -2223,6 +2226,7 @@ function escAbrirData(iso, localId){
   const ds = S.esc.dias.filter(x=>String(x.data).slice(0,10)===iso)
     .sort((a,b)=>escHospNome(escLocal(a.local_id)).localeCompare(escHospNome(escLocal(b.local_id)))||String(escLocal(a.local_id).unidade).localeCompare(String(escLocal(b.local_id).unidade)));
   const doLocal = id => ds.find(x=>x.local_id===id);
+  const doLocalTodos = id => ds.filter(x=>x.local_id===id && x.status!=='cancelado');
   const usados = {}; ds.filter(escTrabalho).forEach(x=>{ if(x.anestesista_id) usados[x.anestesista_id] = escLocal(x.local_id).unidade; });
   const chip = (sel, txt, sub, onclick, apagado) => '<button type="button" onclick="'+onclick+'" style="padding:9px 13px;border-radius:9px;cursor:pointer;font-size:14px;text-align:left;'+
     (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+(apagado&&!sel?';opacity:.6':'')+'">'+
@@ -2231,24 +2235,26 @@ function escAbrirData(iso, localId){
   if(ed){
     const hosp = escHospitais().map(hh=>{ const ls = hh.locais.filter(l=>l.ativo!==false); if(!ls.length) return '';
       return '<div style="margin-bottom:6px"><div style="font-size:12.5px;font-weight:700;margin-bottom:4px">🏥 '+esc(hh.nome)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
-        ls.map(l=>{ const j = doLocal(l.id), quem = j && j.anestesista_id ? (escAnes(j.anestesista_id)||{nome:'?'}).nome : '';
-          return chip(_escSelLocal===l.id, esc(l.unidade), quem?'já tem: '+esc(quem):'', "_escSelLocal='"+l.id+"';escAbrirData('"+iso+"')", !!quem); }).join('')+'</div></div>'; }).join('');
+        ls.map(l=>{ const js = doLocalTodos(l.id), quem = js.filter(x=>x.anestesista_id).map(x=>escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome)+escTurno(x)).join(', '), falta = js.filter(x=>!x.anestesista_id).length;
+          return chip(_escSelLocal===l.id, esc(l.unidade), (quem?'já tem: '+esc(quem):'')+(falta?(quem?' · ':'')+'<b style="color:var(--vermelho)">'+falta+' a escalar</b>':''), "_escSelLocal='"+l.id+"';escAbrirData('"+iso+"')", !!quem && !falta); }).join('')+'</div></div>'; }).join('');
     const anes = S.esc.anes.filter(a=>a.ativo!==false).map(a=>chip(_escSelAnes===a.id, esc(a.nome), usados[a.id]?'já em '+esc(usados[a.id]):'', "_escSelAnes='"+a.id+"';escAbrirData('"+iso+"')", !!usados[a.id])).join('');
     const pronto = _escSelLocal && _escSelAnes;
+    const turnos = [['','Dia todo'],['M','Manhã'],['T','Tarde'],['MT','Manhã e tarde']].map(t=>chip((_escSelTurno||'')===t[0], t[1], '', "_escSelTurno='"+t[0]+"';escAbrirData('"+iso+"')")).join('');
     let resumo = 'Escolha o hospital e o anestesista.';
-    if(pronto){ const j = doLocal(_escSelLocal); resumo = '<b>'+esc((escAnes(_escSelAnes)||{}).nome||'')+'</b> em <b>'+esc(escLocal(_escSelLocal).unidade)+'</b>'+
-      (j && j.anestesista_id && j.anestesista_id!==_escSelAnes ? ' <span style="color:var(--vermelho)">(substitui '+esc((escAnes(j.anestesista_id)||{nome:'?'}).nome)+')</span>' : ''); }
+    if(pronto){ const vaga = escVaga(iso, _escSelLocal, _escSelTurno); resumo = '<b>'+esc((escAnes(_escSelAnes)||{}).nome||'')+'</b> em <b>'+esc(escLocal(_escSelLocal).unidade)+'</b>'+esc(escTurno({turno:_escSelTurno}))+
+      (vaga ? ' <span style="color:var(--verde)">(preenche a vaga a escalar)</span>' : ''); }
     montar = '<div class="card" style="margin:12px 0;background:var(--campo)">'+
       '<div style="font-size:12px;color:var(--fraco);font-weight:700;margin-bottom:6px">HOSPITAL / UNIDADE</div>'+(hosp || '<div class="vazio">Cadastre em 🏥 Hospitais.</div>')+
       '<div style="font-size:12px;color:var(--fraco);font-weight:700;margin:10px 0 6px">ANESTESISTA</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+(anes || '<span class="vazio">Cadastre em 👤 Anestesistas.</span>')+'</div>'+
+      '<div style="font-size:12px;color:var(--fraco);font-weight:700;margin:10px 0 6px">TURNO</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+turnos+'</div>'+
       '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button class="bt"'+(pronto?'':' disabled style="opacity:.5"')+' onclick="escDataAdicionar()">+ Adicionar</button>'+
       '<span style="font-size:13px">'+resumo+'</span></div></div>';
   }
   const lista = ds.filter(x=>x.status!=='cancelado').map(x=>{
     const l = escLocal(x.local_id), a = x.anestesista_id ? escAnes(x.anestesista_id) : null, fer = x.status==='feriado';
     return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--linha)">'+
-      '<div style="flex:1;min-width:170px"><b>'+(a?esc(a.nome):(fer?'<span style="color:var(--vermelho)">FERIADO</span>':'<span style="color:var(--vermelho)">sem anestesista</span>'))+'</b>'+
-        '<div style="font-size:12px;color:var(--fraco)">'+esc(l.unidade||'?')+' · '+esc(escHospNome(l))+(x.cirurgiao?' · '+esc(x.cirurgiao):'')+'</div></div>'+
+      '<div style="flex:1;min-width:170px"><b>'+(a?esc(a.nome):(fer?'<span style="color:var(--vermelho)">FERIADO</span>':'<span style="color:var(--vermelho)">'+(escAEscalar(x)?'A ESCALAR':'sem anestesista')+'</span>'))+'</b>'+
+        '<div style="font-size:12px;color:var(--fraco)">'+esc(l.unidade||'?')+esc(escTurno(x))+(escHospNome(l)!==l.unidade?' · '+esc(escHospNome(l)):'')+(x.cirurgiao?' · '+esc(x.cirurgiao):'')+(x.obs && !escAEscalar(x)?' · '+esc(x.obs):'')+'</div></div>'+
       (fer?'':'<div style="width:110px"><input type="number" step="0.01" inputmode="decimal" placeholder="R$"'+(ed?'':' disabled')+' value="'+(x.valor!=null?x.valor:'')+'" style="text-align:right" onchange="escDataSet(\''+x.id+'\',\'valor\',this.value===\'\'?null:Number(this.value))"></div>'+
       '<div style="width:140px"><select'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'empresa_id\',this.value||null)">'+escOptsEmp(x.empresa_id)+'</select></div>'+
       '<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>')+
@@ -2261,19 +2267,22 @@ function escAbrirData(iso, localId){
     (lista || '<div class="vazio">Nada lançado neste dia ainda.</div>')+
     '<div style="margin-top:12px"><button class="bt g" onclick="_escDataAberta=null;fecharModal()">Fechar</button></div>');
 }
+var _escSelTurno = '';
+function escVaga(iso, local_id, turno){ return S.esc.dias.find(x=>x.local_id===local_id && String(x.data).slice(0,10)===iso && !x.anestesista_id && x.status!=='cancelado' && (!turno || !x.turno || x.turno===turno)); }
 async function escDataAdicionar(){
-  const iso = _escDataAberta, local_id = _escSelLocal, anes = _escSelAnes; if(!iso || !local_id || !anes) return;
-  const l = escLocal(local_id), j = S.esc.dias.find(x=>x.local_id===local_id && String(x.data).slice(0,10)===iso);
-  const c = { anestesista_id: anes, status:'previsto' };
-  const v = escValorPadrao({ local_id }, anes);
-  if(!j || j.valor==null || j.anestesista_id!==anes) c.valor = v;
+  const iso = _escDataAberta, local_id = _escSelLocal, anes = _escSelAnes, turno = _escSelTurno || null; if(!iso || !local_id || !anes) return;
+  const ja = S.esc.dias.find(x=>x.local_id===local_id && String(x.data).slice(0,10)===iso && x.anestesista_id===anes && (x.turno||null)===turno && x.status!=='cancelado');
+  if(ja){ aviso('Esse anestesista já está nesse serviço nesse turno.','erro'); return; }
+  const l = escLocal(local_id), j = escVaga(iso, local_id, turno);
+  const c = { anestesista_id: anes, status:'previsto', valor: escValorPadrao({ local_id }, anes), turno: turno || (j && j.turno) || null };
   if(!j || !j.empresa_id) c.empresa_id = l.empresa_id || null;
+  if(j && escAEscalar(j)) c.obs = null;
   const r = j ? await sb.from('esc_dias').update(c).eq('id', j.id).select().maybeSingle()
               : await sb.from('esc_dias').insert(Object.assign({ data: iso, local_id }, c)).select().maybeSingle();
   if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
   if(j) Object.assign(j, r.data); else S.esc.dias.push(r.data);
   S.esc.dias.sort((a,b)=>a.data<b.data?-1:1);
-  _escSelLocal = null; _escSelAnes = null; S.msg = null;
+  _escSelLocal = null; _escSelAnes = null; _escSelTurno = ''; S.msg = null;
   escAbrirData(iso);
 }
 async function escDataRemover(id){
@@ -2328,10 +2337,10 @@ function telaEscalas(){
     if(_escvSel.indexOf('H:')===0){
       const hh = hs.find(x=>'H:'+x.nome===_escvSel), ids = hh.locais.map(l=>l.id), varias = ids.length>1;
       meus = dias.filter(d=>ids.indexOf(d.local_id)>=0); titulo = hh.nome;
-      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+(varias?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>':'');
+      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+esc(escTurno(x))+(varias?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>':'');
     } else {
       meus = dias.filter(d=>d.local_id===_escvSel); const l = escLocal(_escvSel); titulo = l.unidade+(l.hospital?' — '+l.hospital:'');
-      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>';
+      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+esc(escTurno(x));
     }
   } else {
     const anes = S.esc.anes.filter(a=>a.ativo!==false || dias.some(d=>d.anestesista_id===a.id));
@@ -2340,7 +2349,7 @@ function telaEscalas(){
       (anes.map(a=>chip(a.id===_escvSel, esc(a.nome), dias.filter(d=>d.anestesista_id===a.id).length+' dia(s)', "escvEscolher('"+a.id+"')")).join('') || '<div class="vazio">Nenhum anestesista cadastrado.</div>')+'</div></div>';
     if(!_escvSel) return h;
     meus = dias.filter(d=>d.anestesista_id===_escvSel); titulo = (escAnes(_escvSel)||{}).nome||'';
-    celula = x => '<b>'+esc(String(escLocal(x.local_id).unidade||'?'))+'</b>';
+    celula = x => '<b>'+esc(String(escLocal(x.local_id).unidade||'?'))+'</b>'+esc(escTurno(x))+(x.obs?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(x.obs)+'</div>':'');
   }
   const p = S.mes.split('-'), ano=+p[0], mes=+p[1], ini = new Date(ano, mes-1, 1).getDay(), fim = new Date(ano, mes, 0).getDate(), hoje = hojeISO();
   let g = '';
