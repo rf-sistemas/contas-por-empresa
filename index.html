@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v41</title>
+<title>CPE — Contas por Empresa v42</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v41">
+<meta name="rf-versao" content="v42">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v41',
+  versao : 'v42',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2281,56 +2281,68 @@ async function escDataAnes(id, anesId){
   if(await escSalvarDia(id, c)) escAbrirData(_escDataAberta);
 }
 
-/* ===== v41: aba "🗓 Escalas" — calendário do mês por ANESTESISTA (onde ele trabalha cada dia) ou por SERVIÇO (quem está na unidade cada dia). Só consulta. ===== */
-var _escvModo = 'anes', _escvSel = null;
+/* ===== v42: aba "🗓 Escalas" — abre por SERVIÇO: botões dos hospitais/unidades; tocando, o calendário do mês vem preenchido com o nome do anestesista
+   de cada dia. "Por anestesista" continua como segunda visão. Só consulta. Seleção: 'H:<hospital>' (todas as unidades) ou id da unidade. ===== */
+var _escvModo = 'serv', _escvSel = null;
 function escvModo(m){ _escvModo = m; _escvSel = null; render(); }
 function escvEscolher(id){ _escvSel = id; render(); }
 function telaEscalas(){
   if(!S.esc.carregado) { escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
   const dias = escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id);
-  const anes = S.esc.anes.filter(a=>a.ativo!==false || dias.some(d=>d.anestesista_id===a.id));
-  const locs = S.esc.locais.filter(l=>l.ativo!==false || dias.some(d=>d.local_id===l.id));
-  const lista = _escvModo==='anes' ? anes : locs;
-  if(!_escvSel || !lista.some(x=>x.id===_escvSel)) _escvSel = lista.length ? lista[0].id : null;
-  const chip = (sel, txt, sub, onclick) => '<button type="button" onclick="'+onclick+'" style="padding:9px 13px;border-radius:9px;cursor:pointer;font-size:14px;text-align:left;'+
+  const chip = (sel, txt, sub, onclick, grande) => '<button type="button" onclick="'+onclick+'" style="padding:'+(grande?'12px 16px':'9px 13px')+';border-radius:10px;cursor:pointer;font-size:'+(grande?'15px':'14px')+';text-align:left;'+
     (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+
-    (sub?'<div style="font-size:10.5px;font-weight:400;opacity:.85">'+sub+'</div>':'')+'</button>';
+    (sub?'<div style="font-size:11px;font-weight:400;opacity:.85">'+sub+'</div>':'')+'</button>';
   let h = '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
     '<button class="bt g" onclick="escCalMesMover(-1)">‹</button>'+
     '<div style="font-size:19px;font-weight:700;min-width:170px;text-align:center">'+escMesNome(S.mes)+'</div>'+
     '<button class="bt g" onclick="escCalMesMover(1)">›</button><div style="flex:1"></div>'+
-    chip(_escvModo==='anes','👤 Por anestesista','',"escvModo('anes')")+chip(_escvModo==='serv','🏥 Por serviço','',"escvModo('serv')")+
+    chip(_escvModo==='serv','🏥 Por hospital','',"escvModo('serv')")+chip(_escvModo==='anes','👤 Por anestesista','',"escvModo('anes')")+
   '</div>';
-  h += '<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap">'+
-    (lista.map(x=>{ const n = dias.filter(d=>(_escvModo==='anes'?d.anestesista_id:d.local_id)===x.id).length;
-      return chip(x.id===_escvSel, esc(_escvModo==='anes'?x.nome:x.unidade), n+' dia(s)'+(_escvModo==='serv'&&x.hospital?' · '+esc(x.hospital):''), "escvEscolher('"+x.id+"')"); }).join('')
-     || '<div class="vazio">Nada cadastrado ainda.</div>')+'</div></div>';
-  if(!_escvSel) return h;
-  const meus = dias.filter(d=>(_escvModo==='anes'?d.anestesista_id:d.local_id)===_escvSel);
-  let total=0, pago=0; meus.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
-  const nomeSel = _escvModo==='anes' ? ((escAnes(_escvSel)||{}).nome||'') : (escLocal(_escvSel).unidade||'');
-  h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Dias no mês', meus.length)+kpi('Total', brl(total))+kpi('Pago', brl(pago))+kpi('Falta', brl(total-pago))+'</div>';
+  let meus = [], titulo = '', celula;
+  if(_escvModo==='serv'){
+    const hs = escHospitais().map(x=>({ nome:x.nome, locais:x.locais.filter(l=>l.ativo!==false || dias.some(d=>d.local_id===l.id)) })).filter(x=>x.locais.length);
+    const valido = id => id && (id.indexOf('H:')===0 ? hs.some(x=>'H:'+x.nome===id) : hs.some(x=>x.locais.some(l=>l.id===id)));
+    if(!valido(_escvSel)) _escvSel = hs.length ? 'H:'+hs[0].nome : null;
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:12px">'+
+      (hs.map(x=>{ const ids = x.locais.map(l=>l.id), nh = dias.filter(d=>ids.indexOf(d.local_id)>=0).length;
+        return '<div class="card" style="margin:0;border-left:4px solid var(--ouro)">'+
+          chip(_escvSel==='H:'+x.nome, '🏥 '+esc(x.nome), nh+' dia(s) com anestesista · todas as unidades', "escvEscolher('H:"+esc(x.nome).replace(/'/g,"\\'")+"')", true)+
+          (x.locais.length>1 ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+x.locais.map(l=>chip(_escvSel===l.id, esc(l.unidade), dias.filter(d=>d.local_id===l.id).length+' dia(s)', "escvEscolher('"+l.id+"')")).join('')+'</div>' : '')+
+        '</div>'; }).join('') || '<div class="card"><div class="vazio">Nenhum hospital cadastrado.</div></div>')+'</div>';
+    if(!_escvSel) return h;
+    if(_escvSel.indexOf('H:')===0){
+      const hh = hs.find(x=>'H:'+x.nome===_escvSel), ids = hh.locais.map(l=>l.id), varias = ids.length>1;
+      meus = dias.filter(d=>ids.indexOf(d.local_id)>=0); titulo = hh.nome;
+      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+(varias?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>':'');
+    } else {
+      meus = dias.filter(d=>d.local_id===_escvSel); const l = escLocal(_escvSel); titulo = l.unidade+(l.hospital?' — '+l.hospital:'');
+      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>';
+    }
+  } else {
+    const anes = S.esc.anes.filter(a=>a.ativo!==false || dias.some(d=>d.anestesista_id===a.id));
+    if(!_escvSel || !anes.some(x=>x.id===_escvSel)) _escvSel = anes.length ? anes[0].id : null;
+    h += '<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      (anes.map(a=>chip(a.id===_escvSel, esc(a.nome), dias.filter(d=>d.anestesista_id===a.id).length+' dia(s)', "escvEscolher('"+a.id+"')")).join('') || '<div class="vazio">Nenhum anestesista cadastrado.</div>')+'</div></div>';
+    if(!_escvSel) return h;
+    meus = dias.filter(d=>d.anestesista_id===_escvSel); titulo = (escAnes(_escvSel)||{}).nome||'';
+    celula = x => '<b>'+esc(String(escLocal(x.local_id).unidade||'?'))+'</b>';
+  }
   const p = S.mes.split('-'), ano=+p[0], mes=+p[1], ini = new Date(ano, mes-1, 1).getDay(), fim = new Date(ano, mes, 0).getDate(), hoje = hojeISO();
   let g = '';
   ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(x=>g+='<div style="text-align:center;font-size:12px;color:var(--fraco);font-weight:700;padding:4px 0">'+x+'</div>');
   for(let i=0;i<ini;i++) g += '<div></div>';
   for(let d=1; d<=fim; d++){
     const iso = S.mes+'-'+String(d).padStart(2,'0'), ds = meus.filter(x=>String(x.data).slice(0,10)===iso);
-    g += '<div style="min-height:70px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
+    g += '<div style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
       (ds.length?'background:var(--ok-bg);border-top:4px solid var(--verde)':'background:var(--carta)')+'">'+
       '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
-      ds.map(x=>'<div style="font-size:11.5px;line-height:1.25;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+
-        esc(_escvModo==='anes' ? String(escLocal(x.local_id).unidade||'').replace(/^HER /,'') : escPrimeiroNome((escAnes(x.anestesista_id)||{}).nome))+'</div>').join('')+
+      ds.map(x=>'<div style="font-size:12px;line-height:1.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis">'+celula(x)+'</div>').join('')+
     '</div>';
   }
-  h += '<div class="card"><h3>'+esc(nomeSel.toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
-    '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div></div>';
-  h += '<div class="card"><h3>DIAS</h3>'+(meus.length ? '<div style="overflow-x:auto"><table><thead><tr><th>Dia</th><th>'+(_escvModo==='anes'?'Serviço':'Anestesista')+'</th><th style="text-align:right">Valor</th><th>CNPJ</th><th>Pago</th></tr></thead><tbody>'+
-    meus.map(x=>{ const l = escLocal(x.local_id);
-      return '<tr><td style="white-space:nowrap"><b>'+dataBR(x.data).slice(0,5)+'</b> <span style="color:var(--fraco)">'+escDow(x.data)+'</span></td>'+
-        '<td>'+(_escvModo==='anes' ? esc(l.unidade||'?')+'<div style="font-size:11px;color:var(--fraco)">'+esc(escHospNome(l))+'</div>' : esc((escAnes(x.anestesista_id)||{}).nome||'?'))+'</td>'+
-        '<td style="text-align:right">'+(x.valor!=null?brl(x.valor):'—')+'</td><td>'+(x.empresa_id?esc(nomeEmpresa(x.empresa_id)):'<span style="color:var(--vermelho)">—</span>')+'</td>'+
-        '<td>'+(x.pago?'<span style="color:var(--verde)">✓ pago</span>':'')+'</td></tr>'; }).join('')+'</tbody></table></div>' : '<div class="vazio">Nenhum dia em '+escMesNome(S.mes)+'.</div>')+
+  let total=0, pago=0; meus.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
+  h += '<div class="card"><h3>ESCALA · '+esc(String(titulo).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s) · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
     (_escvModo==='anes' && meus.length ? '<div style="margin-top:10px"><button class="bt g" onclick="escWhats(\''+_escvSel+'\')">📲 Mandar escala por WhatsApp</button></div>' : '')+'</div>';
   return h;
 }
