@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v31</title>
+<title>CPE — Contas por Empresa v32</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v31">
+<meta name="rf-versao" content="v32">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v31',
+  versao : 'v32',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1728,14 +1728,16 @@ function telaEscala(){
   if(!S.esc.anes.length) h += '<div class="aviso">Primeiro cadastre os anestesistas em <b>👤 Anestesistas</b> (nome, telefone, PIX e valor do dia). Depois é só escolher um por dia.</div>';
   if(Object.keys(conf).length) h += '<div class="erro">⚠ Tem anestesista escalado em duas unidades no mesmo dia — as linhas estão em vermelho.</div>';
   if(semValor) h += '<div class="aviso">'+semValor+' dia(s) com anestesista mas sem valor. Defina o valor do dia no cadastro do anestesista ou da unidade (ou digite na linha).</div>';
-  if(!dias.length) return h + '<div class="card"><div class="vazio">Nenhuma escala lançada em '+escMesNome(S.mes)+'. Use <b>📷 Ler escala</b> com o print que o hospital manda, ou <b>+ Dia</b>.</div></div>';
+  if(!dias.length) h += '<div class="aviso">Nenhuma escala lançada em '+escMesNome(S.mes)+'. Use <b>📷 Ler escala</b> com o print que o hospital manda, ou <b>+ Dia</b> na unidade.</div>';
   S.esc.locais.forEach(l=>{
-    const ds = dias.filter(d=>d.local_id===l.id); if(!ds.length) return;
+    const ds = dias.filter(d=>d.local_id===l.id); if(!ds.length && l.ativo===false) return;
     h += '<div class="card"><h3>'+esc(String(l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+(l.hospital?' <span style="font-weight:400;color:var(--fraco);font-size:12px">'+esc(l.hospital)+'</span>':'')+'</h3>'+
       '<div style="overflow-x:auto"><table><thead><tr><th>Dia</th><th>Cirurgião</th><th>Anestesista</th><th style="text-align:right">Valor</th><th>CNPJ que paga</th><th>Situação</th><th>Pago</th><th></th></tr></thead><tbody>'+
-      ds.map(d=>escLinha(d, conf)).join('')+'</tbody></table></div></div>';
+      (ds.length? ds.map(d=>escLinha(d, conf)).join('') : '<tr><td colspan="8" class="vazio">Nenhum dia lançado nesta unidade em '+escMesNome(S.mes)+'.</td></tr>')+'</tbody></table></div>'+
+      (podeEditar()? '<button class="bt g mini" style="margin-top:8px" onclick="escAbrirDia(null,\''+l.id+'\')">+ Dia em '+esc(l.unidade)+'</button>' : '')+'</div>';
   });
   h += escResumoAnes(trab) + escResumoEmpresas(trab);
+  if(podeEditar()) h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap"><button class="bt g" onclick="escAbrirDia()">+ Dia</button><button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button><button class="bt g" onclick="escAbrirLocais()">🏥 Unidades</button><button class="bt g" onclick="scrollTo(0,0)">⬆ Topo</button></div>';
   return h;
 }
 function escLinha(d, conf){
@@ -1895,9 +1897,9 @@ async function escSalvarLocais(){
 
 /* ---------- dia avulso ---------- */
 let _escDiaEd = null;
-function escAbrirDia(id){
+function escAbrirDia(id, localId){
   _escDiaEd = id ? S.esc.dias.find(x=>x.id===id) : null;
-  const d = _escDiaEd || { data: S.mes+'-01', local_id: (S.esc.locais[0]||{}).id };
+  const d = _escDiaEd || { data: S.mes+'-01', local_id: localId || (S.esc.locais.find(l=>l.ativo!==false)||{}).id };
   abrirModal('<h2>'+(_escDiaEd?'Editar dia':'Novo dia de cirurgia')+'</h2>'+
     '<div class="lin"><div><label>Data</label><input type="date" id="ed-data" value="'+esc(String(d.data).slice(0,10))+'"></div>'+
     '<div><label>Unidade</label><select id="ed-local">'+S.esc.locais.filter(l=>l.ativo!==false||l.id===d.local_id).map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select></div></div>'+
