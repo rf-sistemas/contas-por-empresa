@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v48</title>
+<title>CPE — Contas por Empresa v49</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v48">
+<meta name="rf-versao" content="v49">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v48',
+  versao : 'v49',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2228,15 +2228,19 @@ function escAbrirData(iso, localId){
   const doLocal = id => ds.find(x=>x.local_id===id);
   const doLocalTodos = id => ds.filter(x=>x.local_id===id && x.status!=='cancelado');
   const usados = {}; ds.filter(escTrabalho).forEach(x=>{ if(x.anestesista_id) usados[x.anestesista_id] = escLocal(x.local_id).unidade; });
-  const chip = (sel, txt, sub, onclick, apagado) => '<button type="button" onclick="'+onclick+'" style="padding:9px 13px;border-radius:9px;cursor:pointer;font-size:14px;text-align:left;'+
+  const chip = (sel, txt, sub, onclick, apagado) => '<button type="button" onclick="'+onclick+'" style="padding:7px 11px;border-radius:9px;cursor:pointer;font-size:13.5px;text-align:left;line-height:1.2;'+
     (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+(apagado&&!sel?';opacity:.6':'')+'">'+
     (sel?'✓ ':'')+txt+(sub?'<div style="font-size:10.5px;font-weight:400;opacity:.85">'+sub+'</div>':'')+'</button>';
   let montar = '';
   if(ed){
-    const hosp = escHospitais().map(hh=>{ const ls = hh.locais.filter(l=>l.ativo!==false); if(!ls.length) return '';
-      return '<div style="margin-bottom:6px"><div style="font-size:12.5px;font-weight:700;margin-bottom:4px">🏥 '+esc(hh.nome)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
-        ls.map(l=>{ const js = doLocalTodos(l.id), quem = js.filter(x=>x.anestesista_id).map(x=>escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome)+escTurno(x)).join(', '), falta = js.filter(x=>!x.anestesista_id).length;
-          return chip(_escSelLocal===l.id, esc(l.unidade), (quem?'já tem: '+esc(quem):'')+(falta?(quem?' · ':'')+'<b style="color:var(--vermelho)">'+falta+' a escalar</b>':''), "_escSelLocal='"+l.id+"';escAbrirData('"+iso+"')", !!quem && !falta); }).join('')+'</div></div>'; }).join('');
+    /* v49: serviço avulso (hospital com uma unidade só, ex.: CLIHON, DOR, HEMO) fica tudo numa linha, lado a lado;
+       título só para hospital com mais de uma unidade (ex.: Evanice Rocha) */
+    const chipLocal = l => { const js = doLocalTodos(l.id), quem = js.filter(x=>x.anestesista_id).map(x=>escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome)+escTurno(x)).join(', '), falta = js.filter(x=>!x.anestesista_id).length;
+      return chip(_escSelLocal===l.id, esc(l.unidade), (quem?esc(quem):'')+(falta?(quem?' · ':'')+'<b style="color:var(--vermelho)">'+falta+' a escalar</b>':''), "_escSelLocal='"+l.id+"';escAbrirData('"+iso+"')", false); };
+    const grupos = escHospitais().map(hh=>({ nome:hh.nome, ls:hh.locais.filter(l=>l.ativo!==false) })).filter(g=>g.ls.length);
+    const avulsos = [].concat.apply([], grupos.filter(g=>g.ls.length===1).map(g=>g.ls));
+    const hosp = grupos.filter(g=>g.ls.length>1).map(g=>'<div style="margin-bottom:8px"><div style="font-size:12.5px;font-weight:700;margin-bottom:4px">🏥 '+esc(g.nome)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+g.ls.map(chipLocal).join('')+'</div></div>').join('')+
+      (avulsos.length ? '<div style="display:flex;gap:6px;flex-wrap:wrap">'+avulsos.sort((x,y)=>String(x.unidade).localeCompare(String(y.unidade),'pt-BR')).map(chipLocal).join('')+'</div>' : '');
     const ondes = {}; ds.filter(escTrabalho).forEach(x=>{ if(x.anestesista_id) (ondes[x.anestesista_id]=ondes[x.anestesista_id]||[]).push(escLocal(x.local_id).unidade+escTurno(x)); });
     const anes = S.esc.anes.filter(a=>a.ativo!==false).map(a=>chip(_escSelAnes===a.id, esc(a.nome), ondes[a.id]?'também em '+esc(ondes[a.id].join(', ')):'', "_escSelAnes='"+a.id+"';escAbrirData('"+iso+"')", false)).join('');
     const pronto = _escSelLocal && _escSelAnes;
