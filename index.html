@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v35</title>
+<title>CPE — Contas por Empresa v36</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v35">
+<meta name="rf-versao" content="v36">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v35',
+  versao : 'v36',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1943,7 +1943,73 @@ async function escSalvarLocais(){
 
 /* ---------- dia avulso (v33: várias datas de uma vez + anestesista no mesmo formulário) ---------- */
 let _escDiaEd = null, _escDatas = [];
+/* v36: "+ Adicionar plantão" em passos — 1) calendário  2) hospitais/unidades  3) cirurgião, anestesista, valor */
+let _escCalMes = null, _escLocalSel = null;
+function escNovoPlantao(localId){
+  _escDiaEd = null; _escDatas = []; _escLocalSel = localId || null;
+  _escCalMes = S.mes || hojeISO().slice(0,7);
+  const optsA = '<option value="">— escolher depois —</option>'+S.esc.anes.filter(a=>a.ativo!==false).map(a=>'<option value="'+a.id+'">'+esc(a.nome)+'</option>').join('');
+  abrirModal('<h2>Adicionar plantão</h2>'+
+    '<input type="hidden" id="ed-local" value="'+(_escLocalSel||'')+'">'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px"><b>1.</b> Toque no dia (pode escolher mais de um)</div>'+
+    '<div id="ed-cal"></div>'+
+    '<div id="ed-passo2" style="display:none;margin-top:14px"><div style="font-size:12px;color:var(--fraco);margin-bottom:6px"><b>2.</b> Escolha o hospital / unidade</div><div id="ed-hosp"></div></div>'+
+    '<div id="ed-passo3" style="display:none;margin-top:14px"><div style="font-size:12px;color:var(--fraco);margin-bottom:2px"><b>3.</b> Dados do plantão</div>'+
+      '<div class="lin"><div><label>Cirurgião</label><input id="ed-cir" placeholder="Dr Ramon"></div>'+
+      '<div><label>Especialidade</label><input id="ed-esp" placeholder="Cirurgia Geral"></div></div>'+
+      '<div class="lin"><div><label>Anestesista</label><select id="ed-anes" onchange="escDiaTrocaAnes()">'+optsA+'</select></div>'+
+      '<div><label>Valor do dia (R$)</label><input id="ed-valor" type="number" step="0.01" inputmode="decimal"></div>'+
+      '<div><label>CNPJ que paga</label><select id="ed-emp">'+escOptsEmp('')+'</select></div></div>'+
+      '<label>Observação</label><input id="ed-obs">'+
+      '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="bt" onclick="escSalvarDiaForm()">Salvar plantão</button></div></div>'+
+    '<div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+  escDesenharCal(); escDesenharHosp();
+}
+function escCalMover(n){ const p=_escCalMes.split('-'); const d=new Date(+p[0], +p[1]-1+n, 1); _escCalMes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); escDesenharCal(); }
+function escDesenharCal(){
+  const box = document.getElementById('ed-cal'); if(!box) return;
+  const p = _escCalMes.split('-'), ano=+p[0], mes=+p[1], ini = new Date(ano, mes-1, 1).getDay(), fim = new Date(ano, mes, 0).getDate(), hoje = hojeISO();
+  let g = '';
+  ['D','S','T','Q','Q','S','S'].forEach(x=>g+='<div style="text-align:center;font-size:11px;color:var(--fraco);font-weight:700">'+x+'</div>');
+  for(let i=0;i<ini;i++) g += '<div></div>';
+  for(let d=1; d<=fim; d++){
+    const iso = _escCalMes+'-'+String(d).padStart(2,'0'), sel = _escDatas.indexOf(iso)>=0;
+    const tem = S.esc.dias.some(x=>String(x.data).slice(0,10)===iso && x.status!=='feriado');
+    g += '<button type="button" onclick="escCalTocar(\''+iso+'\')" style="padding:9px 0;border-radius:8px;font-size:15px;cursor:pointer;position:relative;'+
+      (sel ? 'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700;' : 'background:var(--campo);color:var(--texto);border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';')+'">'+d+
+      (tem && !sel ? '<span style="position:absolute;bottom:3px;left:50%;margin-left:-2px;width:4px;height:4px;border-radius:2px;background:var(--ouro)"></span>' : '')+'</button>';
+  }
+  box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+      '<button type="button" class="bt g mini" onclick="escCalMover(-1)">‹</button><b>'+escMesNome(_escCalMes)+'</b><button type="button" class="bt g mini" onclick="escCalMover(1)">›</button></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">'+g+'</div>'+
+    '<div style="font-size:12px;margin-top:6px;color:var(--fraco)">'+(_escDatas.length ? '<b style="color:var(--texto)">'+_escDatas.length+' dia(s):</b> '+_escDatas.map(x=>dataBR(x).slice(0,5)).join(', ') : 'Nenhum dia escolhido.')+
+      ' <span style="margin-left:6px">• = já tem plantão</span></div>';
+}
+function escCalTocar(iso){
+  const i = _escDatas.indexOf(iso); if(i>=0) _escDatas.splice(i,1); else { _escDatas.push(iso); _escDatas.sort(); }
+  escDesenharCal(); escDesenharHosp();
+}
+function escDesenharHosp(){
+  const p2 = document.getElementById('ed-passo2'), p3 = document.getElementById('ed-passo3'), box = document.getElementById('ed-hosp'); if(!box) return;
+  p2.style.display = _escDatas.length ? '' : 'none';
+  p3.style.display = (_escDatas.length && _escLocalSel) ? '' : 'none';
+  box.innerHTML = escHospitais().map(hh=>{
+    const ls = hh.locais.filter(l=>l.ativo!==false || l.id===_escLocalSel); if(!ls.length) return '';
+    return '<div style="margin-bottom:8px"><div style="font-weight:700;font-size:13.5px;margin-bottom:4px">🏥 '+esc(hh.nome)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      ls.map(l=>{ const sel = l.id===_escLocalSel;
+        const ja = _escDatas.filter(dt=>S.esc.dias.some(x=>x.local_id===l.id && String(x.data).slice(0,10)===dt)).length;
+        return '<button type="button" onclick="escEscolherLocal(\''+l.id+'\')" style="padding:9px 14px;border-radius:9px;cursor:pointer;font-size:14px;'+
+          (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+esc(l.unidade)+
+          (ja?'<div style="font-size:10.5px;opacity:.8">'+ja+' dia(s) já lançado(s)</div>':'')+'</button>'; }).join('')+'</div></div>';
+  }).join('') || '<div class="vazio">Nenhum hospital cadastrado — use 🏥 Unidades.</div>';
+}
+function escEscolherLocal(id){
+  _escLocalSel = id; const h = document.getElementById('ed-local'); if(h) h.value = id;
+  escDiaTrocaLocal(); escDesenharHosp();
+  const p3 = document.getElementById('ed-passo3'); if(p3 && p3.scrollIntoView) p3.scrollIntoView({ behavior:'smooth', block:'start' });
+}
 function escAbrirDia(id, localId){
+  if(!id) return escNovoPlantao(localId);
   _escDiaEd = id ? S.esc.dias.find(x=>x.id===id) : null;
   _escDatas = [];
   const d = _escDiaEd || { local_id: localId || (escLocaisVis().find(l=>l.ativo!==false)||{}).id };
@@ -1987,7 +2053,7 @@ function escDiaTrocaAnes(){
   const v = escValorPadrao({ local_id: val('ed-local') }, a); if(v!=null) vEl.value = v;
 }
 function escDiaTrocaLocal(){
-  const e = document.getElementById('ed-emp'), l = escLocal(val('ed-local')); if(e && !e.value && l.empresa_id) e.value = l.empresa_id;
+  const e = document.getElementById('ed-emp'), l = escLocal(val('ed-local')); if(e && (!e.value || e.dataset.auto==='1') && l.empresa_id){ e.value = l.empresa_id; e.dataset.auto='1'; }
 }
 async function escSalvarDiaForm(){
   const local_id = val('ed-local'); if(!local_id) return aviso('Escolha a unidade.','erro');
