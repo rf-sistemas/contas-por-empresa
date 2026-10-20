@@ -3,14 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v42</title>
+<title>CPE — Contas por Empresa v43</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v42">
+<meta name="rf-versao" content="v43">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
+
+<!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#F3F4F1">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CPE">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -134,7 +144,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v42',
+  versao : 'v43',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2382,6 +2392,28 @@ async function escLancarPainel(){
   aviso(feitos+' pagamento(s) lançado(s) no Painel'+(pulados?' · '+pulados+' já existia(m)':'')+'.','ok');
 }
 
+
+/* ===== v43: app instalável — service worker (não guarda cache) + botão/aviso de instalar ===== */
+var _cpeInstalar = null;
+try{ if('serviceWorker' in navigator) window.addEventListener('load', ()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{})); }catch(e){}
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); _cpeInstalar = e; cpeBotaoInstalar(); });
+function cpeJaInstalado(){ try{ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true; }catch(e){ return false; } }
+function cpeEhIOS(){ const u = navigator.userAgent||''; return /iPhone|iPad|iPod/i.test(u) || (/Macintosh/.test(u) && navigator.maxTouchPoints>1); }
+function cpeBotaoInstalar(){
+  if(cpeJaInstalado()) return;
+  let b = document.getElementById('cpe-instalar');
+  if(!b){ b = document.createElement('button'); b.id='cpe-instalar'; b.className='bt';
+    b.style.cssText='position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:900;box-shadow:0 4px 14px rgba(0,0,0,.25)';
+    b.textContent='📲 Instalar o app'; b.onclick=cpeInstalar; document.body.appendChild(b); }
+}
+async function cpeInstalar(){
+  if(_cpeInstalar){ _cpeInstalar.prompt(); try{ await _cpeInstalar.userChoice; }catch(e){} _cpeInstalar=null; const b=document.getElementById('cpe-instalar'); if(b) b.remove(); return; }
+  abrirModal('<h2>📲 Instalar o CPE</h2>'+(cpeEhIOS()
+    ? '<div class="aviso"><b>No iPhone / iPad (pelo Safari):</b><br>1. Toque no botão <b>Compartilhar</b> (quadrado com a seta para cima ⬆️).<br>2. Role e toque em <b>"Adicionar à Tela de Início"</b>.<br>3. Toque em <b>Adicionar</b>.<br><br>O ícone do CPE aparece na tela do celular e abre como aplicativo, sem a barra do navegador.<br><small>Se estiver no Chrome do iPhone, abra este mesmo link no <b>Safari</b>.</small></div>'
+    : '<div class="aviso"><b>No Android (Chrome):</b><br>1. Toque nos <b>três pontinhos ⋮</b> no canto de cima.<br>2. Toque em <b>"Instalar app"</b> ou <b>"Adicionar à tela inicial"</b>.<br>3. Confirme.</div>')+
+    '<div style="margin-top:12px"><button class="bt" onclick="fecharModal()">Entendi</button></div>');
+}
+window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBotaoInstalar(); });
 </script>
 </body>
 </html>
