@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v34</title>
+<title>CPE — Contas por Empresa v35</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v34">
+<meta name="rf-versao" content="v35">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v34',
+  versao : 'v35',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1761,7 +1761,7 @@ function telaEscalaHosp(){
     '<div style="font-size:19px;font-weight:700">🏥 '+esc(S.esc.hosp)+'</div></div>';
   h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
     '<div style="max-width:190px"><label>Mês da escala</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;render()"></div>'+
-    (podeEditar()? '<button class="bt" onclick="escAbrirDia()">+ Nova cirurgia</button>'+
+    (podeEditar()? '<button class="bt" onclick="escAbrirDia()">+ Adicionar plantão</button>'+
       '<button class="bt g" onclick="escAbrirLeitura()">📷 Ler escala (foto)</button>'+
       '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button>'+
       '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades</button>' : '')+
@@ -1773,16 +1773,16 @@ function telaEscalaHosp(){
   if(!S.esc.anes.length) h += '<div class="aviso">Primeiro cadastre os anestesistas em <b>👤 Anestesistas</b> (nome, telefone, PIX e valor do dia). Depois é só escolher um por dia.</div>';
   if(dias.some(d=>conf[d.id])) h += '<div class="erro">⚠ Tem anestesista escalado em dois lugares no mesmo dia — as linhas estão em vermelho.</div>';
   if(n.semValor) h += '<div class="aviso">'+n.semValor+' dia(s) com anestesista mas sem valor. Defina o valor do dia no cadastro do anestesista ou da unidade (ou digite na linha).</div>';
-  if(!dias.length) h += '<div class="aviso">Nenhuma cirurgia lançada em '+escMesNome(S.mes)+'. Use <b>+ Nova cirurgia</b> ou <b>📷 Ler escala</b> com o print que o hospital manda.</div>';
+  if(!dias.length) h += '<div class="aviso">Nenhuma cirurgia lançada em '+escMesNome(S.mes)+'. Use <b>+ Adicionar plantão</b> ou <b>📷 Ler escala</b> com o print que o hospital manda.</div>';
   locs.forEach(l=>{
     const ds = dias.filter(d=>d.local_id===l.id); if(!ds.length && l.ativo===false) return;
     h += '<div class="card"><h3>'+esc(String(l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+(l.cidade?' <span style="font-weight:400;color:var(--fraco);font-size:12px">'+esc(l.cidade)+'</span>':'')+'</h3>'+
       '<div style="overflow-x:auto"><table><thead><tr><th>Dia</th><th>Cirurgião</th><th>Anestesista</th><th style="text-align:right">Valor</th><th>CNPJ que paga</th><th>Situação</th><th>Pago</th><th></th></tr></thead><tbody>'+
       (ds.length? ds.map(d=>escLinha(d, conf)).join('') : '<tr><td colspan="8" class="vazio">Nenhum dia lançado nesta unidade em '+escMesNome(S.mes)+'.</td></tr>')+'</tbody></table></div>'+
-      (podeEditar()? '<button class="bt g mini" style="margin-top:8px" onclick="escAbrirDia(null,\''+l.id+'\')">+ Cirurgia em '+esc(l.unidade)+'</button>' : '')+'</div>';
+      (podeEditar()? '<button class="bt g mini" style="margin-top:8px" onclick="escAbrirDia(null,\''+l.id+'\')">+ Plantão em '+esc(l.unidade)+'</button>' : '')+'</div>';
   });
   h += escResumoAnes(n.trab) + escResumoEmpresas(n.trab);
-  h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt g" onclick="escAbrirDia()">+ Nova cirurgia</button>':'')+
+  h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt g" onclick="escAbrirDia()">+ Adicionar plantão</button>':'')+
     '<button class="bt g" onclick="S.esc.hosp=null;render();scrollTo(0,0)">‹ Hospitais</button><button class="bt g" onclick="scrollTo(0,0)">⬆ Topo</button></div>';
   return h;
 }
@@ -1952,10 +1952,10 @@ function escAbrirDia(id, localId){
   const empSel = _escDiaEd ? d.empresa_id : (escLocal(d.local_id).empresa_id||'');
   const blocoData = _escDiaEd
     ? '<label>Data</label><input type="date" id="ed-data" value="'+esc(String(d.data).slice(0,10))+'">'
-    : '<label>Datas da cirurgia</label><div style="display:flex;gap:8px"><input type="date" id="ed-data" value="'+(hojeISO().slice(0,7)===S.mes?hojeISO():S.mes+'-01')+'" onkeydown="if(event.key===\'Enter\')escAddData()">'+
+    : '<label>Datas do plantão</label><div style="display:flex;gap:8px"><input type="date" id="ed-data" value="'+(hojeISO().slice(0,7)===S.mes?hojeISO():S.mes+'-01')+'" onkeydown="if(event.key===\'Enter\')escAddData()">'+
       '<button class="bt" style="white-space:nowrap" onclick="escAddData()">+ adicionar data</button></div>'+
       '<div id="ed-datas" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span style="font-size:12px;color:var(--fraco)">Escolha a data e toque em <b>+ adicionar data</b>. Pode colocar quantas quiser.</span></div>';
-  abrirModal('<h2>'+(_escDiaEd?'Editar dia':'Nova cirurgia')+'</h2>'+
+  abrirModal('<h2>'+(_escDiaEd?'Editar dia':'Adicionar plantão')+'</h2>'+
     '<label>Unidade</label><select id="ed-local" onchange="escDiaTrocaLocal()">'+escLocaisVis().filter(l=>l.ativo!==false||l.id===d.local_id).map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select>'+
     blocoData+
     '<div class="lin"><div><label>Cirurgião</label><input id="ed-cir" value="'+esc(d.cirurgiao||'')+'" placeholder="Dr Ramon"></div>'+
