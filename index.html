@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v33</title>
+<title>CPE — Contas por Empresa v34</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v33">
+<meta name="rf-versao" content="v34">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -134,7 +134,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v33',
+  versao : 'v34',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -326,7 +326,7 @@ function render(){
         aba('fila','Apontar depois'+(nf?'<span class="bad">'+nf+'</span>':''))+
         aba('nomes','Nomes')+
         aba('origens','Cartões e contas')+
-        aba('escala','🩺 Escala')+
+        aba('escala','🏥 Hospitais')+
         aba('empresas','Empresas')+
         (podeUsuarios()? aba('usuarios','Usuários') : '')+
       '</nav>'+
@@ -1677,7 +1677,7 @@ iniciar();
    foi pago e lança os pagamentos do mês no Painel como saídas.
    Tabelas: esc_locais (unidades), esc_anestesistas, esc_dias (único por data+unidade).
    Foto da escala: Edge Function ler-escala (IA lê o calendário e o app mostra para conferir antes de gravar). */
-S.esc = { locais:[], anes:[], dias:[], leitura:null, carregado:false };
+S.esc = { locais:[], anes:[], dias:[], leitura:null, carregado:false, hosp:null };
 const ESC_DS = ['dom','seg','ter','qua','qui','sex','sáb'];
 const ESC_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 function escMesNome(m){ const p=String(m||'').split('-'); return (ESC_MESES[(+p[1]||1)-1]||'')+'/'+(p[0]||''); }
@@ -1708,36 +1708,82 @@ function escConflitos(){   // mesmo anestesista em duas unidades no mesmo dia
   return out;
 }
 
+/* v34: aba "Hospitais" — entrada com um cartão por hospital; tocando abre as cirurgias/escala só dele */
+function escHospNome(l){ return (l && (l.hospital||l.unidade)) || '—'; }
+function escHospitais(){
+  const m = {};
+  S.esc.locais.forEach(l=>{ const k = escHospNome(l); (m[k] = m[k] || []).push(l); });
+  return Object.keys(m).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(k=>({ nome:k, locais:m[k] }));
+}
+function escAbrirHosp(nome){ S.esc.hosp = nome; S.msg = null; render(); scrollTo(0,0); }
+function escLocaisVis(){ return S.esc.hosp ? S.esc.locais.filter(l=>escHospNome(l)===S.esc.hosp) : S.esc.locais; }
 function telaEscala(){
   if(!S.esc.carregado) { escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a escala: '+e.message,'erro'); }); return '<div class="vazio">Carregando a escala…</div>'; }
-  const dias = escDoMes(), trab = dias.filter(escTrabalho), conf = escConflitos();
-  const semAnes = trab.filter(d=>!d.anestesista_id).length;
-  let total=0, pago=0, semValor=0;
+  return S.esc.hosp ? telaEscalaHosp() : telaHospitais();
+}
+function escNumeros(dias){
+  const trab = dias.filter(escTrabalho); let total=0, pago=0, semValor=0;
   trab.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; if(d.anestesista_id && d.valor==null) semValor++; });
+  return { trab, total, pago, semValor, semAnes: trab.filter(d=>!d.anestesista_id).length };
+}
+function telaHospitais(){
+  const dias = escDoMes(), n = escNumeros(dias), hs = escHospitais();
   let h = '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+    '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;render()"></div>'+
+    (podeEditar()? '<button class="bt" onclick="escAbrirLocais()">+ Novo hospital / unidade</button>'+
+      '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas ('+S.esc.anes.filter(a=>a.ativo!==false).length+')</button>' : '')+
+  '</div>';
+  h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Hospitais', hs.length)+kpi('Dias de cirurgia', n.trab.length)+
+    kpi('Sem anestesista', '<span style="color:'+(n.semAnes?'var(--vermelho)':'var(--verde)')+'">'+n.semAnes+'</span>')+
+    kpi('Total a pagar', brl(n.total))+kpi('Falta pagar', brl(n.total-n.pago))+'</div>';
+  if(!hs.length) return h+'<div class="card"><div class="vazio">Nenhum hospital cadastrado. Toque em <b>+ Novo hospital / unidade</b>.</div></div>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:12px">'+
+    hs.map(x=>{ const ids = x.locais.map(l=>l.id), dh = dias.filter(d=>ids.indexOf(d.local_id)>=0), nh = escNumeros(dh);
+      const ativas = x.locais.filter(l=>l.ativo!==false);
+      return '<div class="card" style="margin:0;cursor:pointer;border-left:4px solid var(--ouro)" onclick="escAbrirHosp(\''+esc(x.nome).replace(/'/g,"\\'")+'\')">'+
+        '<div style="font-size:17px;font-weight:700">🏥 '+esc(x.nome)+'</div>'+
+        '<div style="font-size:12.5px;color:var(--fraco);margin:4px 0 10px">'+ativas.map(l=>esc(l.unidade)).join(' · ')+'</div>'+
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">'+
+          '<span><b>'+nh.trab.length+'</b> cirurgia(s)</span>'+
+          '<span style="color:'+(nh.semAnes?'var(--vermelho)':'var(--verde)')+'"><b>'+nh.semAnes+'</b> sem anestesista</span>'+
+          '<span><b>'+brl(nh.total)+'</b></span></div>'+
+        '<div style="margin-top:10px;font-size:13px;color:var(--ouro);font-weight:600">Abrir ›</div></div>'; }).join('')+
+  '</div>';
+  h += escResumoAnes(n.trab) + escResumoEmpresas(n.trab);
+  return h;
+}
+function telaEscalaHosp(){
+  const locs = escLocaisVis(), ids = locs.map(l=>l.id);
+  if(!locs.length){ S.esc.hosp = null; return telaHospitais(); }
+  const dias = escDoMes().filter(d=>ids.indexOf(d.local_id)>=0), n = escNumeros(dias), conf = escConflitos();
+  let h = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'+
+    '<button class="bt g" onclick="S.esc.hosp=null;render()">‹ Hospitais</button>'+
+    '<div style="font-size:19px;font-weight:700">🏥 '+esc(S.esc.hosp)+'</div></div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
     '<div style="max-width:190px"><label>Mês da escala</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;render()"></div>'+
     (podeEditar()? '<button class="bt" onclick="escAbrirDia()">+ Nova cirurgia</button>'+
       '<button class="bt g" onclick="escAbrirLeitura()">📷 Ler escala (foto)</button>'+
-      '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas ('+S.esc.anes.filter(a=>a.ativo!==false).length+')</button>'+
-      '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades ('+S.esc.locais.filter(l=>l.ativo!==false).length+')</button>' : '')+
+      '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button>'+
+      '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades</button>' : '')+
   '</div>';
   h += '<div class="kpis" style="margin:0 0 12px">'+
-    kpi('Dias de cirurgia', trab.length)+
-    kpi('Sem anestesista', '<span style="color:'+(semAnes?'var(--vermelho)':'var(--verde)')+'">'+semAnes+'</span>')+
-    kpi('Total a pagar', brl(total))+ kpi('Já pago', brl(pago))+ kpi('Falta pagar', brl(total-pago))+'</div>';
+    kpi('Dias de cirurgia', n.trab.length)+
+    kpi('Sem anestesista', '<span style="color:'+(n.semAnes?'var(--vermelho)':'var(--verde)')+'">'+n.semAnes+'</span>')+
+    kpi('Total a pagar', brl(n.total))+ kpi('Já pago', brl(n.pago))+ kpi('Falta pagar', brl(n.total-n.pago))+'</div>';
   if(!S.esc.anes.length) h += '<div class="aviso">Primeiro cadastre os anestesistas em <b>👤 Anestesistas</b> (nome, telefone, PIX e valor do dia). Depois é só escolher um por dia.</div>';
-  if(Object.keys(conf).length) h += '<div class="erro">⚠ Tem anestesista escalado em duas unidades no mesmo dia — as linhas estão em vermelho.</div>';
-  if(semValor) h += '<div class="aviso">'+semValor+' dia(s) com anestesista mas sem valor. Defina o valor do dia no cadastro do anestesista ou da unidade (ou digite na linha).</div>';
-  if(!dias.length) h += '<div class="aviso">Nenhuma escala lançada em '+escMesNome(S.mes)+'. Use <b>📷 Ler escala</b> com o print que o hospital manda, ou <b>+ Dia</b> na unidade.</div>';
-  S.esc.locais.forEach(l=>{
+  if(dias.some(d=>conf[d.id])) h += '<div class="erro">⚠ Tem anestesista escalado em dois lugares no mesmo dia — as linhas estão em vermelho.</div>';
+  if(n.semValor) h += '<div class="aviso">'+n.semValor+' dia(s) com anestesista mas sem valor. Defina o valor do dia no cadastro do anestesista ou da unidade (ou digite na linha).</div>';
+  if(!dias.length) h += '<div class="aviso">Nenhuma cirurgia lançada em '+escMesNome(S.mes)+'. Use <b>+ Nova cirurgia</b> ou <b>📷 Ler escala</b> com o print que o hospital manda.</div>';
+  locs.forEach(l=>{
     const ds = dias.filter(d=>d.local_id===l.id); if(!ds.length && l.ativo===false) return;
-    h += '<div class="card"><h3>'+esc(String(l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+(l.hospital?' <span style="font-weight:400;color:var(--fraco);font-size:12px">'+esc(l.hospital)+'</span>':'')+'</h3>'+
+    h += '<div class="card"><h3>'+esc(String(l.unidade).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+(l.cidade?' <span style="font-weight:400;color:var(--fraco);font-size:12px">'+esc(l.cidade)+'</span>':'')+'</h3>'+
       '<div style="overflow-x:auto"><table><thead><tr><th>Dia</th><th>Cirurgião</th><th>Anestesista</th><th style="text-align:right">Valor</th><th>CNPJ que paga</th><th>Situação</th><th>Pago</th><th></th></tr></thead><tbody>'+
       (ds.length? ds.map(d=>escLinha(d, conf)).join('') : '<tr><td colspan="8" class="vazio">Nenhum dia lançado nesta unidade em '+escMesNome(S.mes)+'.</td></tr>')+'</tbody></table></div>'+
-      (podeEditar()? '<button class="bt g mini" style="margin-top:8px" onclick="escAbrirDia(null,\''+l.id+'\')">+ Dia em '+esc(l.unidade)+'</button>' : '')+'</div>';
+      (podeEditar()? '<button class="bt g mini" style="margin-top:8px" onclick="escAbrirDia(null,\''+l.id+'\')">+ Cirurgia em '+esc(l.unidade)+'</button>' : '')+'</div>';
   });
-  h += escResumoAnes(trab) + escResumoEmpresas(trab);
-  if(podeEditar()) h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap"><button class="bt g" onclick="escAbrirDia()">+ Dia</button><button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button><button class="bt g" onclick="escAbrirLocais()">🏥 Unidades</button><button class="bt g" onclick="scrollTo(0,0)">⬆ Topo</button></div>';
+  h += escResumoAnes(n.trab) + escResumoEmpresas(n.trab);
+  h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt g" onclick="escAbrirDia()">+ Nova cirurgia</button>':'')+
+    '<button class="bt g" onclick="S.esc.hosp=null;render();scrollTo(0,0)">‹ Hospitais</button><button class="bt g" onclick="scrollTo(0,0)">⬆ Topo</button></div>';
   return h;
 }
 function escLinha(d, conf){
@@ -1777,7 +1823,7 @@ function escResumoEmpresas(trab){
   return '<div class="card"><h3>POR CNPJ QUE PAGA · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Empresa</th><th style="text-align:right">Dias</th><th style="text-align:right">Total</th><th style="text-align:right">Pago</th><th style="text-align:right">Falta</th></tr></thead><tbody>'+
     ks.map(k=>{ const x=g[k]; return '<tr><td>'+(k==='_'?'<span style="color:var(--vermelho)">sem CNPJ definido</span>':'<b>'+esc(nomeEmpresa(k))+'</b>')+'</td><td style="text-align:right">'+x.n+'</td><td style="text-align:right">'+brl(x.total)+'</td><td style="text-align:right;color:var(--verde)">'+brl(x.pago)+'</td><td style="text-align:right">'+brl(x.total-x.pago)+'</td></tr>'; }).join('')+
     '</tbody></table></div>'+
-    (podeEditar()? '<div style="margin-top:10px"><button class="bt g" onclick="escLancarPainel()">💸 Lançar pagamentos do mês no Painel</button> <span style="font-size:12px;color:var(--fraco)">cria uma saída por anestesista em cada CNPJ (não duplica)</span></div>' : '')+
+    (podeEditar() && S.esc.hosp? '<div style="margin-top:10px"><button class="bt g" onclick="escLancarPainel()">💸 Lançar pagamentos do mês no Painel</button> <span style="font-size:12px;color:var(--fraco)">cria uma saída por anestesista em cada CNPJ (não duplica)</span></div>' : '')+
   '</div>';
 }
 
@@ -1900,7 +1946,7 @@ let _escDiaEd = null, _escDatas = [];
 function escAbrirDia(id, localId){
   _escDiaEd = id ? S.esc.dias.find(x=>x.id===id) : null;
   _escDatas = [];
-  const d = _escDiaEd || { local_id: localId || (S.esc.locais.find(l=>l.ativo!==false)||{}).id };
+  const d = _escDiaEd || { local_id: localId || (escLocaisVis().find(l=>l.ativo!==false)||{}).id };
   const optsA = '<option value="">— escolher depois —</option>'+S.esc.anes.filter(a=>a.ativo!==false || a.id===d.anestesista_id)
     .map(a=>'<option value="'+a.id+'"'+(a.id===d.anestesista_id?' selected':'')+'>'+esc(a.nome)+'</option>').join('');
   const empSel = _escDiaEd ? d.empresa_id : (escLocal(d.local_id).empresa_id||'');
@@ -1910,7 +1956,7 @@ function escAbrirDia(id, localId){
       '<button class="bt" style="white-space:nowrap" onclick="escAddData()">+ adicionar data</button></div>'+
       '<div id="ed-datas" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"><span style="font-size:12px;color:var(--fraco)">Escolha a data e toque em <b>+ adicionar data</b>. Pode colocar quantas quiser.</span></div>';
   abrirModal('<h2>'+(_escDiaEd?'Editar dia':'Nova cirurgia')+'</h2>'+
-    '<label>Unidade</label><select id="ed-local" onchange="escDiaTrocaLocal()">'+S.esc.locais.filter(l=>l.ativo!==false||l.id===d.local_id).map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select>'+
+    '<label>Unidade</label><select id="ed-local" onchange="escDiaTrocaLocal()">'+escLocaisVis().filter(l=>l.ativo!==false||l.id===d.local_id).map(l=>'<option value="'+l.id+'"'+(l.id===d.local_id?' selected':'')+'>'+esc(l.unidade)+'</option>').join('')+'</select>'+
     blocoData+
     '<div class="lin"><div><label>Cirurgião</label><input id="ed-cir" value="'+esc(d.cirurgiao||'')+'" placeholder="Dr Ramon"></div>'+
     '<div><label>Especialidade</label><input id="ed-esp" value="'+esc(d.especialidade||'')+'" placeholder="Cirurgia Geral"></div></div>'+
@@ -2058,16 +2104,17 @@ function escWhats(anesId){
 
 /* ---------- pagamentos no Painel ---------- */
 async function escLancarPainel(){
-  const trab = escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id && (Number(d.valor)||0)>0);
+  const vis = escLocaisVis().map(l=>l.id);
+  const trab = escDoMes().filter(d=>vis.indexOf(d.local_id)>=0 && escTrabalho(d) && d.anestesista_id && (Number(d.valor)||0)>0);
   const g = {};
   trab.forEach(d=>{ const k = d.anestesista_id+'|'+(d.empresa_id||''); const x = g[k] = g[k] || { anes:d.anestesista_id, emp:d.empresa_id||null, n:0, total:0 }; x.n++; x.total += Number(d.valor)||0; });
   const ks = Object.keys(g); if(!ks.length) return alert('Nenhum dia com anestesista e valor neste mês.');
   if(ks.some(k=>!g[k].emp) && !confirm('Tem dia sem CNPJ definido — esses pagamentos vão para "Apontar depois". Continuar?')) return;
-  if(!confirm('Lançar '+ks.length+' pagamento(s) de '+escMesNome(S.mes)+' no Painel como saídas a pagar?')) return;
+  if(!confirm('Lançar '+ks.length+' pagamento(s) de '+escMesNome(S.mes)+' ('+S.esc.hosp+') no Painel como saídas a pagar?')) return;
   let feitos=0, pulados=0;
   for(const k of ks){
     const x = g[k], a = escAnes(x.anes) || { nome:'?' };
-    const desc = 'Escala anestesia '+escMesNome(S.mes)+' — '+a.nome+' ('+x.n+' dia'+(x.n>1?'s':'')+')';
+    const desc = 'Escala anestesia '+escMesNome(S.mes)+' — '+S.esc.hosp+' — '+a.nome+' ('+x.n+' dia'+(x.n>1?'s':'')+')';
     if(S.movimentos.some(m=>m.categoria==='Escala anestesia' && m.descricao===desc && (m.empresa_id||null)===x.emp)){ pulados++; continue; }
     const reg = { tipo:'saida', empresa_id:x.emp, valor: Math.round(x.total*100)/100, data_movimento: escUltimoDia(S.mes),
       fornecedor: a.nome, categoria:'Escala anestesia', descricao: desc, pago:false, criado_por: S.user.id };
