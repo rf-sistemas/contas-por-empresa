@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v55</title>
+<title>CPE — Contas por Empresa v56</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v55">
+<meta name="rf-versao" content="v56">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v55',
+  versao : 'v56',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -284,7 +284,7 @@ async function carregarTudo(){
     S.perfil = perfil || null;
     if(!S.perfil){ aviso('Seu login existe, mas ainda não tem perfil no sistema. Peça ao administrador.','erro'); S.carregando=false; return; }
     if(S.perfil.ativo === false){ aviso('Seu acesso está desativado.','erro'); S.carregando=false; return; }
-    if(S.perfil.papel==='anestesista'){ S.empresas=[]; S.origens=[]; S.movimentos=[]; S.regras=[]; S.tela='inicio'; await escCarregar(); S.carregando=false; return; }
+    if(S.perfil.papel==='anestesista'){ S.empresas=[]; S.origens=[]; S.movimentos=[]; S.regras=[]; S.tela='escala'; await escCarregar(); S.carregando=false; return; }
 
     const [emp, ori, mov, reg] = await Promise.all([
       sb.from('empresas').select('*').order('razao_social'),
@@ -330,7 +330,7 @@ function render(){
   if(!S.user){ app.innerHTML = telaLogin(); return; }
 
   let corpo = '';
-  if(ehAnes() && ['inicio','meus','escalahub','escala','escalas'].indexOf(S.tela)<0) S.tela = 'inicio';
+  if(ehAnes() && ['meus','escala'].indexOf(S.tela)<0) S.tela = 'escala';   // v56: anestesista só tem o NAFS e a escala individual dele
   if(S.carregando && !S.empresas.length && !ehAnes()) corpo = '<div class="vazio">Carregando…</div>';
   else if(S.carregando && ehAnes()) corpo = '<div class="vazio">Carregando…</div>';
   else if(S.tela==='meus')     corpo = telaMeus();
@@ -2240,7 +2240,7 @@ function telaCalendario(){
     '<div style="flex:1"></div>'+
     (podeEditar()? '<button class="bt" onclick="escAbrirData(hojeISO())">+ Lançar hoje</button>'+
       '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button>' : '')+
-    '<button class="bt g" onclick="S.esc.modo=\'hosp\';render()">🏥 Hospitais</button>'+
+    (ehAnes() ? '<button class="bt" onclick="irPara(\'meus\')">👤 Minha escala</button>' : '<button class="bt g" onclick="S.esc.modo=\'hosp\';render()">🏥 Hospitais</button>')+
   '</div>';
   if(!ehAnes()) h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Dias com anestesista', feitos.length)+kpi(ehAnes()?'Meus a validar':'Aguardando validação', '<span style="color:'+(aValidar?'var(--vermelho)':'var(--verde)')+'">'+aValidar+'</span>')+
     (ehAnes() ? kpi('Meu total validado', brl(total))+kpi('Já recebi', brl(pago))+kpi('A receber', brl(total-pago)) : kpi('Total a pagar', brl(total))+kpi('Já pago', brl(pago))+kpi('Falta pagar', brl(total-pago)))+'</div>';
@@ -2260,7 +2260,7 @@ function telaCalendario(){
   }
   h += '<div class="card"><div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">'+(ehAnes()?'Toque no dia para ver quem está em cada local.':'Toque no dia para escolher o hospital e o anestesista.')+'</div></div>';
-  h += escResumoAnes(trab) + escResumoEmpresas(trab);
+  if(!ehAnes()) h += escResumoAnes(trab) + escResumoEmpresas(trab);
   return h;
 }
 /* v51 (Renato): o dia mostra SÓ os anestesistas e os locais onde cada um trabalha nesta data.
@@ -2567,7 +2567,10 @@ const CPE_TELAS = {
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
-  if(ehAnes()) CPE_TELAS.escala.t = 'NAFS';
+  if(ehAnes()){
+    if(S.tela==='escala') return '<div style="height:8px"></div>';
+    return '<div class="trilha"><button class="bt g" onclick="irPara(\'escala\')">‹ Voltar</button><span class="cam"><a href="#" onclick="irPara(\'escala\');return false">NAFS</a> › <b>Minha escala</b></span></div>';
+  }
   const cam = []; let t = S.tela, g = 0;
   while(t && t!=='inicio' && CPE_TELAS[t] && g++<5){ cam.unshift(t); t = CPE_TELAS[t].pai; }
   const pai = (CPE_TELAS[S.tela]||{}).pai || 'inicio';
