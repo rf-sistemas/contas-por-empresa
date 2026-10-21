@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v56</title>
+<title>CPE — Contas por Empresa v57</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v56">
+<meta name="rf-versao" content="v57">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v56',
+  versao : 'v57',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2481,10 +2481,56 @@ async function escCopiarLink(id){
   catch(e){ prompt('Link de validação de '+a.nome+':', l); }
 }
 function anesTok(){ return S.anesTok || S.meuTok; }
+/* v57 (Renato): "Minha escala" do anestesista no MESMO formato do calendário de Escalas › Por anestesista.
+   Tocando no dia com plantão, abre o dia para ele confirmar ✔ Fiz / Não fiz (só plantão de hoje para trás). */
 function telaMeus(){
-  if(!S.meuTok) return '<div class="vazio">Seu login ainda não está ligado a um anestesista.</div>';
-  if(!S.av){ S.av = { mes: hojeISO().slice(0,7), dados:null }; anesCarregar(); }
-  return telaAnesValidar(true);
+  if(!S.meuAnes) return '<div class="vazio">Seu login ainda não está ligado a um anestesista.</div>';
+  const a = escAnes(S.meuAnes) || { nome:'' }, hoje = hojeISO();
+  const meus = escDoMes().filter(d=>d.anestesista_id===S.meuAnes && escTrabalho(d));
+  const p = S.mes.split('-'), ano=+p[0], mes=+p[1], ini = new Date(ano, mes-1, 1).getDay(), fim = new Date(ano, mes, 0).getDate();
+  let g = '';
+  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(x=>g+='<div style="text-align:center;font-size:12px;color:var(--fraco);font-weight:700;padding:4px 0">'+x+'</div>');
+  for(let i=0;i<ini;i++) g += '<div></div>';
+  for(let d=1; d<=fim; d++){
+    const iso = S.mes+'-'+String(d).padStart(2,'0'), ds = meus.filter(x=>String(x.data).slice(0,10)===iso);
+    g += '<div'+(ds.length?' onclick="meuDia(\''+iso+'\')"':'')+' style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
+      (ds.length?'cursor:pointer;background:var(--ok-bg);border-top:4px solid var(--verde)':'background:var(--carta)')+'">'+
+      '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
+      ds.map(x=>'<div style="font-size:12px;line-height:1.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis"><b>'+escIconeVal(x)+esc(String(escLocal(x.local_id).unidade||'?'))+'</b>'+esc(escTurno(x))+'</div>').join('')+
+    '</div>';
+  }
+  const val = meus.filter(escValidado); let total=0, pago=0; val.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
+  return '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<button class="bt g" onclick="escCalMesMover(-1)">‹</button>'+
+      '<div style="font-size:19px;font-weight:700;min-width:170px;text-align:center">'+escMesNome(S.mes)+'</div>'+
+      '<button class="bt g" onclick="escCalMesMover(1)">›</button></div>'+
+    '<div class="card"><h3>ESCALA · '+esc(String(a.nome).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s) · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Toque no dia para confirmar que fez o plantão · ✔ confirmado · ⏳ falta confirmar · ✖ não fez. Só o confirmado entra no pagamento.</div></div>';
+}
+function meuDia(iso){
+  const ds = S.esc.dias.filter(x=>x.anestesista_id===S.meuAnes && String(x.data).slice(0,10)===iso && escTrabalho(x));
+  const fut = iso > hojeISO();
+  abrirModal('<h2 style="margin:0 0 8px">'+dataBR(iso)+' <span style="font-weight:400;color:var(--fraco)">'+escDow(iso)+'</span></h2>'+
+    ds.map(x=>{ const l = escLocal(x.local_id); let acao;
+      if(fut) acao = '<span style="color:var(--fraco)">agendado</span>';
+      else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <a href="#" style="font-size:12px" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\');return false">mudar</a>';
+      else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Não fiz</span> <a href="#" style="font-size:12px" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\');return false">mudar</a>';
+      else acao = '<button class="bt" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Fiz</button> <button class="bt g" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">Não fiz</button>';
+      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--linha)">'+
+        '<div style="flex:1;min-width:150px"><b>'+esc(l.unidade||'?')+'</b> <span style="color:var(--fraco)">'+esc(escTurnoLongo(x.turno))+'</span>'+
+        (x.valor!=null?'<div style="font-size:12.5px;color:var(--fraco)">'+brl(x.valor)+(x.pago?' · <span style="color:var(--verde)">pago</span>':'')+'</div>':'')+'</div>'+
+        '<div style="display:flex;gap:6px;align-items:center">'+acao+'</div></div>'; }).join('')+
+    '<div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+async function meuValidar(id, resp, iso){
+  let motivo = null;
+  if(resp==='nao_fiz'){ motivo = prompt('Por que não fez este plantão? (opcional)'); if(motivo===null) return; }
+  const r = await sb.rpc('esc_anes_validar', { tok: S.meuTok, dia: id, resposta: resp, motivo });
+  if(r.error) return alert(r.error.message);
+  try{ await escCarregar(); }catch(e){}
+  meuDia(iso);
 }
 async function anesCarregar(){
   const m = S.av.mes, ini = m+'-01', fim = escUltimoDia(m);
