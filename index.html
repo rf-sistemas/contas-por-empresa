@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v58</title>
+<title>CPE — Contas por Empresa v59</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v58">
+<meta name="rf-versao" content="v59">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v58',
+  versao : 'v59',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1764,9 +1764,11 @@ function escTurnoNorm(t){ t = String(t||'').toUpperCase(); return ESC_TURNOS.map
 function escTurno(x){ return x && x.turno ? ' ('+escTurnoNorm(x.turno)+')' : ''; }
 function escTurnoLongo(t){ t = escTurnoNorm(t); if(!t) return 'Dia todo'; return ESC_TURNOS.filter(x=>t.indexOf(x[0])>=0).map(x=>x[1]+' '+x[2]).join(' + '); }
 /* v53: validação — o PRÓPRIO anestesista confirma pelo link dele (?a=token) se fez o plantão. Só plantão validado ('fiz') entra no pagamento. */
-function escValidado(x){ return !!x && x.validacao==='fiz'; }
+function escValidado(x){ return !!x && x.validacao==='fiz' && x.aprovado!==false; }   // v59: lançado pelo anestesista só vale depois que a equipe aprova
 function escLinkAnes(a){ return location.origin+location.pathname+'?a='+a.token; }
-function escIconeVal(x){ if(!x || !x.anestesista_id) return ''; if(x.validacao==='fiz') return '<span title="Validado pelo anestesista" style="color:var(--verde)">✔</span> ';
+function escIconeVal(x){ if(!x || !x.anestesista_id) return ''; if(x.aprovado===false) return '<span title="Lançado pelo anestesista — aguardando aprovação da equipe">🆕</span> ';
+  if(x.validacao==='sem_proc') return '<span title="Sem procedimento — não entra no pagamento">⚪</span> ';
+  if(x.validacao==='fiz') return '<span title="Validado pelo anestesista" style="color:var(--verde)">✔</span> ';
   if(x.validacao==='nao_fiz') return '<span title="O anestesista cancelou" style="color:var(--vermelho)">✖</span> ';
   return '<span title="Aguardando o anestesista confirmar">⏳</span> '; }
 function escAEscalar(x){ return x && !x.anestesista_id && /escalar/i.test(x.obs||''); }
@@ -2253,7 +2255,7 @@ function telaCalendario(){
     const cor = !tr.length ? 'var(--linha)' : ((sem||cf) ? 'var(--vermelho)' : 'var(--verde)');
     g += '<div onclick="escAbrirData(\''+iso+'\')" style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-top:4px solid '+cor+';border-radius:9px;padding:5px 6px;cursor:pointer;background:var(--carta);overflow:hidden">'+
       '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
-      com.slice(0,3).map(x=>'<div style="font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome))+' · '+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+esc(escTurno(x))+'</div>').join('')+
+      com.slice(0,3).map(x=>'<div style="font-size:11px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(x.aprovado===false?'🆕 ':'')+esc(escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome))+' · '+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+esc(escTurno(x))+'</div>').join('')+
       (com.length>3 ? '<div style="font-size:11px;color:var(--fraco)">+'+(com.length-3)+'</div>' : '')+
       (sem ? '<div style="font-size:11px;color:var(--vermelho);font-weight:700">'+sem+' a escalar</div>' : '')+
     '</div>';
@@ -2275,7 +2277,7 @@ function escAbrirData(iso, localId){
   const uni = x => String(escLocal(x.local_id).unidade||'?').replace(/^HER /,'');
   const ordem = (a,b)=>escTurnoNorm(a.turno).localeCompare(escTurnoNorm(b.turno)) || uni(a).localeCompare(uni(b),'pt-BR');
   const tag = (x, vermelho) => '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;font-size:14px;font-weight:700;'+
-      (vermelho?'background:var(--erro-bg,#FDECEC);color:var(--vermelho);border:1px solid var(--vermelho)':'background:var(--campo);border:1px solid var(--linha)')+(x.validacao==='nao_fiz'?';text-decoration:line-through':'')+'"'+(x.validacao_obs?' title="'+esc(x.validacao_obs)+'"':'')+'>'+
+      (vermelho?'background:var(--erro-bg,#FDECEC);color:var(--vermelho);border:1px solid var(--vermelho)':'background:var(--campo);border:1px solid var(--linha)')+(x.validacao==='nao_fiz'?';text-decoration:line-through':'')+(x.aprovado===false?';border:2px dashed #E0A800':'')+'"'+((x.validacao_obs||x.obs)?' title="'+esc([x.obs,x.validacao_obs].filter(Boolean).join(' · '))+'"':'')+'>'+
       escIconeVal(x)+esc(uni(x))+(x.turno?' <span style="font-weight:600;opacity:.75">('+escTurnoNorm(x.turno)+')</span>':'')+
       (apaga?'<a href="#" title="Tirar" onclick="escDataRemover(\''+x.id+'\');return false" style="text-decoration:none;color:var(--fraco);font-weight:400;font-size:16px;line-height:1">×</a>':'')+'</span>';
   const porAnes = {}; ds.filter(x=>x.anestesista_id && escTrabalho(x)).forEach(x=>{ (porAnes[x.anestesista_id]=porAnes[x.anestesista_id]||[]).push(x); });
@@ -2286,7 +2288,12 @@ function escAbrirData(iso, localId){
   const falta = ds.filter(x=>!x.anestesista_id && x.status!=='feriado').sort(ordem);
   if(falta.length) escala += linha('A escalar', falta.map(x=>tag(x,true)).join(''), true);
   if(ds.some(x=>x.status==='feriado')) escala += linha('Feriado', '', true);
-  if(ids.length) escala += '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ confirmado pelo anestesista · ⏳ aguardando confirmação · ✖ anestesista cancelou — só o confirmado entra no pagamento</div>';
+  if(ids.length) escala += '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ confirmado pelo anestesista · ⏳ aguardando confirmação · ✖ anestesista cancelou · ⚪ sem procedimento · 🆕 lançado pelo anestesista — só o confirmado (e aprovado) entra no pagamento</div>';
+  const pendAprov = ds.filter(x=>x.anestesista_id && x.aprovado===false);
+  if(pendAprov.length && ed) escala += '<div class="card" style="margin:12px 0 0;border:2px solid #E0A800;background:var(--campo)"><b>🆕 Lançado pelo anestesista — aprovar?</b>'+
+    pendAprov.map(x=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--linha)"><div style="flex:1;min-width:160px"><b>'+esc(escPrimeiroNome((escAnes(x.anestesista_id)||{nome:'?'}).nome))+'</b> · '+esc(uni(x))+esc(escTurno(x))+
+      (x.obs?'<div style="font-size:12px;color:var(--fraco)">'+esc(x.obs)+'</div>':'')+'</div>'+
+      '<button class="bt mini" onclick="escAprovar(\''+x.id+'\')">✔ Aprovar</button>'+(apaga?' <button class="bt g mini" onclick="escDataRemover(\''+x.id+'\')">recusar</button>':'')+'</div>').join('')+'</div>';
 
   let montar = '';
   if(ed && !_escForm){
@@ -2358,6 +2365,7 @@ async function escDataRemover(id){
 }
 function escDataMover(n){ const d = new Date(_escDataAberta+'T12:00:00'); d.setDate(d.getDate()+n); const iso = d.toISOString().slice(0,10); if(iso.slice(0,7)!==S.mes) S.mes = iso.slice(0,7); escAbrirData(iso); }
 async function escDataSet(id, campo, valor){ const c={}; c[campo]=valor; if(await escSalvarDia(id, c)) escAbrirData(_escDataAberta); }
+async function escAprovar(id){ if(await escSalvarDia(id, { aprovado: true })) escAbrirData(_escDataAberta); }
 async function escDataPago(id, on){ const dd = S.esc.dias.find(x=>x.id===id); if(on && !escValidado(dd)){ aviso('Só pode marcar pago depois que o anestesista validar o plantão.','erro'); escAbrirData(_escDataAberta); return; } if(await escSalvarDia(id, { pago: !!on, pago_em: on ? hojeISO() : null })) escAbrirData(_escDataAberta); }
 async function escDataAnes(id, anesId){
   const d = S.esc.dias.find(x=>x.id===id); if(!d) return;
@@ -2493,7 +2501,7 @@ function telaMeus(){
   for(let i=0;i<ini;i++) g += '<div></div>';
   for(let d=1; d<=fim; d++){
     const iso = S.mes+'-'+String(d).padStart(2,'0'), ds = meus.filter(x=>String(x.data).slice(0,10)===iso);
-    g += '<div'+(ds.length?' onclick="meuDia(\''+iso+'\')"':'')+' style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
+    g += '<div onclick="meuDia(\''+iso+'\')" style="cursor:pointer;min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
       (ds.length?'cursor:pointer;background:var(--ok-bg);border-top:4px solid var(--verde)':'background:var(--carta)')+'">'+
       '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
       ds.map(x=>'<div style="font-size:12px;line-height:1.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis"><b>'+escIconeVal(x)+esc(String(escLocal(x.local_id).unidade||'?'))+'</b>'+esc(escTurno(x))+'</div>').join('')+
@@ -2503,29 +2511,83 @@ function telaMeus(){
   return '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
       '<button class="bt g" onclick="escCalMesMover(-1)">‹</button>'+
       '<div style="font-size:19px;font-weight:700;min-width:170px;text-align:center">'+escMesNome(S.mes)+'</div>'+
-      '<button class="bt g" onclick="escCalMesMover(1)">›</button></div>'+
+      '<button class="bt g" onclick="escCalMesMover(1)">›</button><div style="flex:1"></div>'+
+      '<button class="bt" onclick="meuForm(null,\''+(S.mes===hoje.slice(0,7)?hoje:S.mes+'-01')+'\')">+ Acrescentar procedimento</button></div>'+
     '<div class="card"><h3>ESCALA · '+esc(String(a.nome).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
     '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
     '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s) · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
-    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Toque no dia para confirmar ou cancelar o plantão · ✔ confirmado · ⏳ falta confirmar · ✖ cancelado. Só o confirmado entra no pagamento.</div></div>';
+    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Toque no dia para confirmar, cancelar, editar ou acrescentar · ✔ confirmado · ⏳ falta confirmar · ✖ cancelado · ⚪ sem procedimento · 🆕 aguardando aprovação. Só o confirmado (e aprovado) entra no pagamento.</div></div>';
 }
 function meuDia(iso){
   const ds = S.esc.dias.filter(x=>x.anestesista_id===S.meuAnes && String(x.data).slice(0,10)===iso && escTrabalho(x));
+  const bt = (txt, onclick, cls, cor) => '<button class="bt '+(cls||'g')+' mini"'+(cor?' style="color:'+cor+'"':'')+' onclick="'+onclick+'">'+txt+'</button>';
   abrirModal('<h2 style="margin:0 0 8px">'+dataBR(iso)+' <span style="font-weight:400;color:var(--fraco)">'+escDow(iso)+'</span></h2>'+
-    ds.map(x=>{ const l = escLocal(x.local_id); let acao;
-      if(x.pago) acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado · pago</span>';
-      else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <button class="bt g mini" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">✖ Cancelar</button>';
-      else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Cancelado</span> <button class="bt g mini" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Confirmar</button>';
-      else acao = '<button class="bt" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Confirmar</button> <button class="bt g" style="color:var(--vermelho)" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">✖ Cancelar</button>';
-      return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--linha)">'+
-        '<div style="flex:1;min-width:150px"><b>'+esc(l.unidade||'?')+'</b> <span style="color:var(--fraco)">'+esc(escTurnoLongo(x.turno))+'</span>'+
-        (x.valor!=null?'<div style="font-size:12.5px;color:var(--fraco)">'+brl(x.valor)+(x.pago?' · <span style="color:var(--verde)">pago</span>':'')+'</div>':'')+'</div>'+
-        '<div style="display:flex;gap:6px;align-items:center">'+acao+'</div></div>'; }).join('')+
-    '<div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+    (ds.map(x=>{ const l = escLocal(x.local_id), v = (r)=>"meuValidar('"+x.id+"','"+r+"','"+iso+"')"; let st, acoes = '';
+      if(x.validacao==='fiz') st = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span>';
+      else if(x.validacao==='nao_fiz') st = '<span style="color:var(--vermelho);font-weight:700">✖ Cancelado</span>';
+      else if(x.validacao==='sem_proc') st = '<span style="color:var(--fraco);font-weight:700">⚪ Sem procedimento</span>';
+      else st = '<span style="color:var(--fraco)">⏳ falta confirmar</span>';
+      if(x.pago) st += ' <span style="color:var(--verde)">· pago</span>';
+      else {
+        if(x.validacao!=='fiz') acoes += bt('✔ Confirmar', v('fiz'), 'mini');
+        if(x.validacao!=='nao_fiz') acoes += ' '+bt('✖ Cancelar', v('nao_fiz'), 'g', 'var(--vermelho)');
+        if(x.validacao!=='sem_proc') acoes += ' '+bt('⚪ Sem procedimento', v('sem_proc'));
+        acoes += ' '+bt('✎ Editar', "meuForm('"+x.id+"','"+iso+"')");
+        if(x.origem==='anestesista') acoes += ' '+bt('🗑 Apagar', "meuApagar('"+x.id+"','"+iso+"')");
+      }
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--linha)">'+
+        '<div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b style="font-size:15px">'+esc(l.unidade||'?')+'</b><span style="color:var(--fraco)">'+esc(escTurnoLongo(x.turno))+'</span>'+
+          (x.valor!=null?'<span style="color:var(--fraco);font-size:12.5px">· '+brl(x.valor)+'</span>':'')+'<span style="margin-left:auto">'+st+'</span></div>'+
+        (x.obs?'<div style="font-size:12.5px;margin-top:2px">📝 '+esc(x.obs)+'</div>':'')+
+        (x.aprovado===false?'<div style="font-size:12px;color:#B07A00;margin-top:2px">🆕 lançado por você — aguardando aprovação da equipe</div>':(x.editado_anes_em?'<div style="font-size:12px;color:var(--fraco);margin-top:2px">✎ editado por você</div>':''))+
+        (acoes?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+acoes+'</div>':'')+'</div>'; }).join('') || '<div class="vazio">Nenhum plantão seu neste dia.</div>')+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="bt" onclick="meuForm(null,\''+iso+'\')">+ Acrescentar neste dia</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+var _meuF = null;
+function meuForm(id, iso){
+  const x = id ? S.esc.dias.find(y=>y.id===id) : null;
+  if(!_meuF || _meuF.id!==(id||null) || (!id && _meuF.novo!==iso)) _meuF = { id: id||null, novo: id?null:iso, data: iso, local: x?x.local_id:null, turno: x?escTurnoNorm(x.turno):'', obs: x?(x.obs||''):'' };
+  const f = _meuF, re = "meuForm("+(id?"'"+id+"'":"null")+",'"+iso+"')";
+  const chip = (sel, txt, onclick) => '<button type="button" onclick="'+onclick+'" style="padding:8px 12px;border-radius:9px;cursor:pointer;font-size:14px;'+
+    (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+(sel?'✓ ':'')+txt+'</button>';
+  const guarda = "_meuF.obs=document.getElementById('mf-obs').value;"+(id?'':"_meuF.data=document.getElementById('mf-data').value;");
+  const locs = S.esc.locais.filter(l=>l.ativo!==false).sort((a,b)=>String(a.unidade).localeCompare(String(b.unidade),'pt-BR'))
+    .map(l=>chip(f.local===l.id, esc(l.unidade), guarda+"_meuF.local='"+l.id+"';"+re)).join('');
+  const t = escTurnoNorm(f.turno);
+  const turnos = chip(!t, 'Dia todo', guarda+"_meuF.turno='';"+re) + ESC_TURNOS.map(z=>{ const on = t.indexOf(z[0])>=0, novo = on ? t.replace(z[0],'') : t+z[0];
+    return chip(on, z[1]+' <span style="font-size:11px;opacity:.8">'+z[2]+'</span>', guarda+"_meuF.turno=escTurnoNorm('"+novo+"');"+re); }).join('');
+  const tit = z => '<div style="font-size:12px;color:var(--fraco);font-weight:700;margin:12px 0 6px">'+z+'</div>';
+  abrirModal('<h2 style="margin:0">'+(id?'✎ Editar plantão':'+ Acrescentar procedimento')+'</h2>'+
+    (id?'<div style="color:var(--fraco)">'+dataBR(iso)+' · '+escDow(iso)+'</div>':tit('DATA')+'<input type="date" id="mf-data" value="'+esc(f.data)+'" style="max-width:200px">')+
+    tit('LOCAL')+'<div style="display:flex;gap:6px;flex-wrap:wrap">'+locs+'</div>'+
+    tit('TURNO <span style="font-weight:400">(pode marcar mais de um)</span>')+'<div style="display:flex;gap:6px;flex-wrap:wrap">'+turnos+'</div>'+
+    tit('OBSERVAÇÃO <span style="font-weight:400">(procedimento, cirurgião, horário…)</span>')+'<input id="mf-obs" value="'+esc(f.obs)+'" placeholder="Ex.: colecistectomia · Dr. Fulano · 16h">'+
+    (id?'':'<div style="font-size:12px;color:#B07A00;margin-top:8px">🆕 O que você acrescentar vai para a equipe aprovar antes de entrar no pagamento.</div>')+
+    '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt"'+(f.local?'':' disabled style="opacity:.5"')+' onclick="meuSalvar()">Salvar</button><button class="bt g" onclick="_meuF=null;meuDia(\''+iso+'\')">Voltar</button></div>');
+}
+async function meuSalvar(){
+  const f = _meuF; if(!f || !f.local) return;
+  f.obs = (document.getElementById('mf-obs')||{}).value || '';
+  if(!f.id){ const el = document.getElementById('mf-data'); if(el) f.data = el.value; if(!f.data) return alert('Escolha a data.'); }
+  const r = f.id ? await sb.rpc('esc_anes_editar', { p_id: f.id, p_local: f.local, p_turno: f.turno||null, p_obs: f.obs||null })
+                 : await sb.rpc('esc_anes_add', { p_data: f.data, p_local: f.local, p_turno: f.turno||null, p_obs: f.obs||null });
+  if(r.error) return alert(r.error.message);
+  const iso = f.data; _meuF = null;
+  try{ await escCarregar(); }catch(e){}
+  if(iso.slice(0,7)!==S.mes) S.mes = iso.slice(0,7);
+  meuDia(iso);
+}
+async function meuApagar(id, iso){
+  if(!confirm('Apagar este lançamento seu?')) return;
+  const r = await sb.rpc('esc_anes_apagar', { p_id: id });
+  if(r.error) return alert(r.error.message);
+  try{ await escCarregar(); }catch(e){}
+  meuDia(iso);
 }
 async function meuValidar(id, resp, iso){
   let motivo = null;
   if(resp==='nao_fiz'){ motivo = prompt('Cancelar este plantão? Escreva o motivo (opcional):'); if(motivo===null) return; }
+  if(resp==='sem_proc' && !confirm('Marcar SEM PROCEDIMENTO? Esse plantão não entra no pagamento.')) return;
   const r = await sb.rpc('esc_anes_validar', { tok: S.meuTok, dia: id, resposta: resp, motivo });
   if(r.error) return alert(r.error.message);
   try{ await escCarregar(); }catch(e){}
