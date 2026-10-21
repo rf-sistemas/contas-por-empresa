@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v63</title>
+<title>CPE — Contas por Empresa v64</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v63">
+<meta name="rf-versao" content="v64">
 <meta name="rf-data" content="2026-10-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v63',
+  versao : 'v64',
   data   : '21/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -344,6 +344,7 @@ function render(){
   else if(S.tela==='usuarios') corpo = telaUsuarios();
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
+  else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
   else if(S.tela==='producao') corpo = podeUsuarios() ? telaProducao() : telaEscalaHub();
 
   const nf = fila().length;
@@ -1752,7 +1753,9 @@ async function escCarregar(){
     sb.from('esc_dias').select('*').eq('grupo', escGrupo()).order('data').limit(5000)
   ]);
   if(l.error) throw l.error;
-  S.esc.locais = l.data||[]; S.esc.anes = a.data||[]; S.esc.dias = d.data||[]; S.esc.carregado = true;
+  S.esc.locais = l.data||[]; S.esc.anes = a.data||[]; S.esc.dias = d.data||[];
+  await hospCarregar();   // v64: cadastro de hospitais (forma de pagamento)
+  S.esc.carregado = true;
 }
 function escLocal(id){ return S.esc.locais.find(x=>x.id===id) || {}; }
 function escAnes(id){ return S.esc.anes.find(x=>x.id===id) || null; }
@@ -1761,6 +1764,7 @@ function escTrabalho(d){ return d.status!=='feriado' && d.status!=='cancelado'; 
 function escValorPadrao(d, anesId){
   const a = escAnes(anesId), l = escLocal(d.local_id);
   if(a && a.valor_dia!=null) return Number(a.valor_dia);
+  const hv = hospValor(hospDoLocal(d.local_id), d); if(hv!=null) return hv;   // v64: regra do hospital
   return l.valor_dia!=null ? Number(l.valor_dia) : null;
 }
 function escConflitos(){   // v48 (Renato): o anestesista PODE atender 2 ou 3 hospitais ao mesmo tempo — não existe mais "conflito"
@@ -2036,6 +2040,7 @@ function escNovoPlantao(localId, dataISO){
       '<div class="lin"><div><label>Anestesista</label><select id="ed-anes" onchange="escDiaTrocaAnes()">'+optsA+'</select></div>'+
       '<div><label>Valor do dia (R$)</label><input id="ed-valor" type="number" step="0.01" inputmode="decimal"></div>'+
       '<div><label>CNPJ que paga</label><select id="ed-emp">'+escOptsEmp('')+'</select></div></div>'+
+      '<div class="lin" id="ed-servbox"></div>'+
       '<label>Observação</label><input id="ed-obs">'+
       '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="bt" onclick="escSalvarDiaForm()">Salvar plantão</button></div></div>'+
     '<div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
@@ -2105,6 +2110,7 @@ function escAbrirDia(id, localId){
     '<div class="lin"><div><label>Anestesista</label><select id="ed-anes" onchange="escDiaTrocaAnes()">'+optsA+'</select></div>'+
     '<div><label>Valor do dia (R$)</label><input id="ed-valor" type="number" step="0.01" inputmode="decimal" value="'+(d.valor!=null?d.valor:'')+'"></div>'+
     '<div><label>CNPJ que paga</label><select id="ed-emp">'+escOptsEmp(empSel)+'</select></div></div>'+
+    '<div class="lin" id="ed-servbox">'+hospServCampoHTML(d.local_id, d.servico)+'</div>'+
     '<label>Observação</label><input id="ed-obs" value="'+esc(d.obs||'')+'">'+
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="bt" onclick="escSalvarDiaForm()">Salvar</button>'+
     (_escDiaEd && podeApagar()? '<button class="bt g" onclick="escExcluirDia()">Excluir dia</button>' : '')+
@@ -2130,13 +2136,15 @@ function escDiaTrocaAnes(){
 }
 function escDiaTrocaLocal(){
   const e = document.getElementById('ed-emp'), l = escLocal(val('ed-local')); if(e && (!e.value || e.dataset.auto==='1') && l.empresa_id){ e.value = l.empresa_id; e.dataset.auto='1'; }
+  hospServAtualizar();   // v64: hospital por procedimento pede o serviço
 }
 async function escSalvarDiaForm(){
   const local_id = val('ed-local'); if(!local_id) return aviso('Escolha a unidade.','erro');
   const anes = val('ed-anes')||null, vtxt = val('ed-valor');
   const base = { local_id, cirurgiao: val('ed-cir').trim()||null, especialidade: val('ed-esp').trim()||null, obs: val('ed-obs').trim()||null,
     anestesista_id: anes, valor: vtxt===''? null : Number(vtxt), empresa_id: val('ed-emp')||null };
-  if(anes && base.valor==null){ const v = escValorPadrao({ local_id }, anes); if(v!=null) base.valor = v; }
+  if(document.getElementById('ed-serv')) base.servico = val('ed-serv')||null;   // v64
+  if(anes && base.valor==null){ const v = escValorPadrao({ local_id, servico: base.servico, turno: _escDiaEd && _escDiaEd.turno }, anes); if(v!=null) base.valor = v; }
   if(_escDiaEd){
     base.data = val('ed-data'); if(!base.data) return aviso('Informe a data.','erro');
     const r = await sb.from('esc_dias').update(base).eq('id',_escDiaEd.id).select().maybeSingle();
@@ -2679,7 +2687,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}
+  producao:{t:'Financeiro', pai:'escalahub'}, hospitais:{t:'Hospitais', pai:'escalahub'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -2730,6 +2738,7 @@ function telaEscalaHub(){
     cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista')+
     cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
     (!ehAnes() && podeUsuarios() ? cpeCaixa('producao','💰','Financeiro','Produção dos anestesistas: o que cada um fez no mês, validado, pago e a pagar') : '')+
+    (!ehAnes() && podeEditar() ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
   '</div>';
 }
 
@@ -2798,11 +2807,184 @@ function telaProducao(){
     '</tbody></table></div><div style="font-size:12px;color:var(--fraco);margin-top:6px">Toque no nome para ver cada atendimento do anestesista.</div></div>';
   // por hospital
   const gh = {}; lista.forEach(d=>{ const k = escHospNome(escLocal(d.local_id)); (gh[k] = gh[k] || []).push(d); });
-  h += '<div class="card"><h3>POR HOSPITAL · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Hospital</th><th style="text-align:right">Atendimentos</th><th style="text-align:right">Validados</th><th style="text-align:right">Produzido</th><th style="text-align:right">A pagar</th></tr></thead><tbody>'+
-    Object.keys(gh).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(k=>{ const x = prodSomar(gh[k]);
-      return '<tr><td><b>'+esc(k)+'</b></td><td style="text-align:right">'+x.n+'</td><td style="text-align:right">'+x.val+'</td><td style="text-align:right">'+brl(x.total)+'</td><td style="text-align:right">'+brl(x.total-x.pago)+'</td></tr>'; }).join('')+
+  h += '<div class="card"><h3>POR HOSPITAL · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Hospital</th><th>Forma de pagamento</th><th style="text-align:right">Atendimentos</th><th style="text-align:right">Validados</th><th style="text-align:right">Produzido</th><th style="text-align:right">A pagar</th><th>Hospital paga até</th></tr></thead><tbody>'+
+    Object.keys(gh).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(k=>{ const x = prodSomar(gh[k]), hc = hospCad(k), venc = hospPrazoData(hc, S.mes);
+      return '<tr><td><b>'+esc(k)+'</b></td><td>'+(hc ? HOSP_FORMAS[hc.forma_pagamento||'dia']+(hc.forma_pagamento==='mensal' && hc.valor_mensal!=null ? '<div style="font-size:11px;color:var(--fraco)">contrato '+brl(+hc.valor_mensal)+'/mês</div>' : '') : '<span style="color:var(--vermelho)">sem cadastro</span>')+'</td>'+
+        '<td style="text-align:right">'+x.n+'</td><td style="text-align:right">'+x.val+'</td><td style="text-align:right">'+brl(x.total)+'</td><td style="text-align:right">'+brl(x.total-x.pago)+'</td>'+
+        '<td style="white-space:nowrap">'+(venc ? dataBR(venc) : '<span style="color:var(--fraco)">'+esc(hospPrazoTxt(hc))+'</span>')+'</td></tr>'; }).join('')+
     '</tbody></table></div></div>';
   return h + escResumoEmpresas(lista);
+}
+
+/* ===== v64 (21/10/2026): caixa "🏥 Hospitais" — CADASTRO DE HOSPITAIS =====
+   Pedido do Renato: cada hospital tem uma forma diferente de pagamento e de serviços.
+   Tabela esc_hospitais (liga com esc_locais pelo NOME do hospital): forma de pagamento — por plantão/dia,
+   por turno (Manhã/Tarde/Noite), por procedimento (lista de serviços com preço) ou valor fixo mensal —,
+   prazo de pagamento, CNPJ/razão social, contato, serviços e observações.
+   O valor de cada atendimento passa a sair do hospital: vale primeiro o valor do anestesista (se tiver),
+   depois a regra do hospital, e por último o valor do dia da unidade (como era antes). */
+const HOSP_FORMAS = { dia:'Por plantão / dia', turno:'Por turno', procedimento:'Por procedimento', mensal:'Valor fixo mensal' };
+async function hospCarregar(){
+  const r = await sb.from('esc_hospitais').select('*').order('nome');
+  if(r.error){ S.esc.hospCad = []; S.esc.hospErro = r.error.message; return; }
+  S.esc.hospCad = r.data || []; S.esc.hospErro = '';
+}
+function hospCad(nome){ const n = String(nome||'').trim().toLowerCase(); return (S.esc.hospCad||[]).find(h=>String(h.nome).trim().toLowerCase()===n) || null; }
+function hospDoLocal(localId){ return hospCad(escHospNome(escLocal(localId))); }
+function hospServicos(h){ return Array.isArray(h && h.servicos) ? h.servicos.filter(s=>s && s.nome) : []; }
+/* valor do atendimento pela regra do hospital (null = o hospital não define) */
+function hospValor(h, d){
+  if(!h) return null;
+  const n = x => x==null || x==='' ? null : Number(x);
+  if(h.forma_pagamento==='turno'){
+    const t = escTurnoNorm(d && d.turno); if(!t) return n(h.valor_dia);
+    let s = 0, ok = false; [['M','valor_m'],['T','valor_t'],['N','valor_n']].forEach(p=>{ if(t.indexOf(p[0])>=0 && n(h[p[1]])!=null){ s += n(h[p[1]]); ok = true; } });
+    return ok ? s : n(h.valor_dia);
+  }
+  if(h.forma_pagamento==='procedimento'){
+    const sv = hospServicos(h).find(s=>d && d.servico && s.nome===d.servico);
+    return sv && n(sv.valor)!=null ? n(sv.valor) : null;
+  }
+  if(h.forma_pagamento==='mensal') return null;   // o contrato é do mês inteiro, não de cada atendimento
+  return n(h.valor_dia);
+}
+function hospPrazoTxt(h){
+  if(!h) return '—';
+  if(h.prazo_tipo==='dia_fixo' && h.prazo_dia_mes) return 'dia '+h.prazo_dia_mes+' do mês seguinte';
+  if(h.prazo_dias) return h.prazo_dias+' dias depois do fim do mês';
+  return 'não informado';
+}
+function hospPrazoData(h, mes){
+  if(!h) return null; const p = String(mes).split('-'), y = +p[0], m = +p[1];
+  if(h.prazo_tipo==='dia_fixo' && h.prazo_dia_mes){ const d = new Date(y, m, Math.min(28, +h.prazo_dia_mes)); return d.toISOString().slice(0,10); }
+  if(h.prazo_dias){ const d = new Date(y, m, 0); d.setDate(d.getDate() + (+h.prazo_dias)); return d.toISOString().slice(0,10); }
+  return null;
+}
+function hospRegraTxt(h){
+  if(!h) return '<span style="color:var(--vermelho)">sem cadastro</span>';
+  const f = h.forma_pagamento;
+  if(f==='turno') return 'Manhã '+(h.valor_m!=null?brl(+h.valor_m):'—')+' · Tarde '+(h.valor_t!=null?brl(+h.valor_t):'—')+' · Noite '+(h.valor_n!=null?brl(+h.valor_n):'—');
+  if(f==='procedimento'){ const s = hospServicos(h); return s.length ? s.length+' serviço(s) com preço' : '<span style="color:var(--vermelho)">nenhum serviço com preço</span>'; }
+  if(f==='mensal') return h.valor_mensal!=null ? brl(+h.valor_mensal)+' por mês' : '<span style="color:var(--vermelho)">valor do mês não informado</span>';
+  return h.valor_dia!=null ? brl(+h.valor_dia)+' por plantão' : '<span style="color:var(--vermelho)">valor do plantão não informado</span>';
+}
+function telaHospCad(){
+  if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar: '+e.message,'erro'); }); return '<div class="vazio">Carregando os hospitais…</div>'; }
+  if(S.esc.hospErro) return '<div class="card"><b style="color:var(--vermelho)">O cadastro de hospitais ainda não existe no banco.</b><div style="font-size:13px;margin-top:6px;color:var(--fraco)">Falta rodar a atualização do banco da v64 ('+esc(S.esc.hospErro)+').</div></div>';
+  const nomesUni = escHospitais().map(x=>x.nome), cad = S.esc.hospCad || [];
+  const faltam = nomesUni.filter(n=>!hospCad(n));
+  let h = '<div class="secao"><b>HOSPITAIS</b><span>Forma de pagamento, serviços, prazo e contato de cada hospital</span></div>';
+  if(podeEditar()) h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="bt" onclick="hospAbrir()">+ Cadastrar hospital</button>'+
+    (faltam.length? '<button class="bt g" onclick="hospImportarUnidades()">⤵ Trazer das unidades ('+faltam.length+')</button>' : '')+
+    '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades de cada hospital</button></div>';
+  if(!cad.length) return h + '<div class="vazio">Nenhum hospital cadastrado ainda.'+(faltam.length?' Toque em <b>⤵ Trazer das unidades</b> para começar pelos que já estão na escala.':'')+'</div>';
+  h += '<div class="bxs">'+cad.map(x=>{
+    const us = S.esc.locais.filter(l=>escHospNome(l).trim().toLowerCase()===String(x.nome).trim().toLowerCase());
+    return '<button type="button" class="bx" style="align-items:flex-start;'+(x.ativo===false?'opacity:.55':'')+'" onclick="hospAbrir(\''+x.id+'\')"><div class="ic">🏥</div><div style="text-align:left">'+
+      '<b>'+esc(x.nome)+'</b><small><span style="color:var(--texto);font-weight:700">'+HOSP_FORMAS[x.forma_pagamento||'dia']+'</span></small><small>'+hospRegraTxt(x)+'</small>'+
+      '<small>Prazo: '+esc(hospPrazoTxt(x))+(us.length?' · '+us.length+' unidade(s)':'')+'</small>'+
+      (x.contato_nome||x.contato_tel ? '<small>📞 '+esc([x.contato_nome, x.contato_tel].filter(Boolean).join(' · '))+'</small>' : '')+
+      (x.cnpj ? '<small>CNPJ '+esc(x.cnpj)+'</small>' : '')+'</div><span class="seta">›</span></button>';
+  }).join('')+'</div>';
+  return h;
+}
+async function hospImportarUnidades(){
+  const faltam = escHospitais().map(x=>x.nome).filter(n=>!hospCad(n)); if(!faltam.length) return;
+  const r = await sb.from('esc_hospitais').insert(faltam.map(n=>({ nome:n }))).select();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  S.esc.hospCad = (S.esc.hospCad||[]).concat(r.data||[]).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  aviso(faltam.length+' hospital(is) trazido(s) das unidades. Agora complete a forma de pagamento de cada um.','ok');
+}
+let _hospEd = null, _hospServ = [];
+function hospAbrir(id){
+  _hospEd = id ? (S.esc.hospCad||[]).find(x=>x.id===id) : null;
+  const x = _hospEd || { forma_pagamento:'dia', prazo_tipo:'dias', ativo:true };
+  _hospServ = hospServicos(x).map(s=>({ nome:s.nome, valor:s.valor }));
+  const ro = podeEditar() ? '' : ' disabled';
+  const inp = (id, rot, v, tipo, ph) => '<div><label>'+rot+'</label><input id="hc-'+id+'"'+ro+(tipo?' type="'+tipo+'" step="0.01" inputmode="decimal"':'')+' value="'+esc(v==null?'':v)+'"'+(ph?' placeholder="'+ph+'"':'')+'></div>';
+  abrirModal('<h2>🏥 '+(_hospEd?esc(x.nome):'Novo hospital')+'</h2>'+
+    '<div class="lin">'+inp('nome','Nome do hospital',x.nome,'','Hospital Evanice Rocha')+inp('cnpj','CNPJ do hospital',x.cnpj,'','00.000.000/0000-00')+'</div>'+
+    '<div class="lin">'+inp('razao','Razão social',x.razao_social)+'</div>'+
+    '<div class="lin">'+inp('cnome','Contato (nome)',x.contato_nome)+inp('ctel','Telefone',x.contato_tel,'','(75) 9 0000-0000')+inp('cmail','E-mail',x.contato_email)+'</div>'+
+    '<h3 style="margin-top:14px">FORMA DE PAGAMENTO</h3>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+Object.keys(HOSP_FORMAS).map(k=>
+      '<label class="tag" style="display:inline-flex;gap:6px;align-items:center;padding:7px 12px;cursor:pointer;text-transform:none;font-size:13.5px"><input type="radio" name="hc-forma" value="'+k+'"'+ro+(x.forma_pagamento===k?' checked':'')+' style="width:auto" onchange="hospFormaTroca()"> '+HOSP_FORMAS[k]+'</label>').join('')+'</div>'+
+    '<div id="hc-f-dia" class="lin">'+inp('vdia','Valor do plantão / dia (R$)',x.valor_dia,'number')+'</div>'+
+    '<div id="hc-f-turno"><div class="lin">'+inp('vm','Manhã 7h–13h (R$)',x.valor_m,'number')+inp('vt','Tarde 13h–19h (R$)',x.valor_t,'number')+inp('vn','Noite 19h–7h (R$)',x.valor_n,'number')+'</div>'+
+      '<div style="font-size:12px;color:var(--fraco)">Plantão de dois ou três turnos soma os valores. Sem turno marcado, vale o valor do plantão/dia.</div><div class="lin">'+inp('vdia2','Dia todo / sem turno (R$)',x.valor_dia,'number')+'</div></div>'+
+    '<div id="hc-f-mensal" class="lin">'+inp('vmes','Valor fixo do mês (R$)',x.valor_mensal,'number')+'</div>'+
+    '<h3 style="margin-top:14px">SERVIÇOS PRESTADOS</h3><div style="font-size:12px;color:var(--fraco);margin-bottom:6px" id="hc-serv-ajuda"></div><div id="hc-serv"></div>'+
+    (podeEditar()?'<button class="bt g mini" onclick="hospServAdd()">+ serviço</button>':'')+
+    '<h3 style="margin-top:14px">PRAZO DE PAGAMENTO</h3>'+
+    '<div class="lin"><div><label>Como conta</label><select id="hc-ptipo"'+ro+'><option value="dias"'+(x.prazo_tipo!=='dia_fixo'?' selected':'')+'>X dias depois do fim do mês</option><option value="dia_fixo"'+(x.prazo_tipo==='dia_fixo'?' selected':'')+'>Dia fixo do mês seguinte</option></select></div>'+
+      inp('pdias','Dias (se for "X dias")',x.prazo_dias,'number')+inp('pdia','Dia do mês (se for "dia fixo")',x.prazo_dia_mes,'number')+'</div>'+
+    '<label>Observações</label><textarea id="hc-obs"'+ro+' rows="3" style="width:100%">'+esc(x.obs||'')+'</textarea>'+
+    '<label style="display:flex;gap:8px;align-items:center;text-transform:none;margin-top:8px"><input type="checkbox" id="hc-ativo"'+ro+' style="width:auto"'+(x.ativo!==false?' checked':'')+'> ativo</label>'+
+    '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt" onclick="hospSalvar()">Salvar</button>':'')+
+      (_hospEd && podeApagar()?'<button class="bt g" onclick="hospExcluir()">Excluir</button>':'')+'<button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+  hospFormaTroca();
+}
+function hospForma(){ const r = document.querySelector('input[name="hc-forma"]:checked'); return r ? r.value : 'dia'; }
+function hospServGuardar(){ if(!document.getElementById('hcs-n-0')) return; _hospServ = _hospServ.map((s,i)=>({ nome: val('hcs-n-'+i), valor: val('hcs-v-'+i) })); }
+function hospServDesenhar(){
+  const box = document.getElementById('hc-serv'); if(!box) return; const proc = hospForma()==='procedimento', ro = podeEditar() ? '' : ' disabled';
+  const aj = document.getElementById('hc-serv-ajuda'); if(aj) aj.innerHTML = proc ? 'Cada serviço tem o seu preço — no atendimento a equipe escolhe o serviço e o valor entra sozinho.' : 'O que a equipe faz neste hospital (o preço só é usado quando a forma é <b>por procedimento</b>).';
+  box.innerHTML = _hospServ.length ? _hospServ.map((s,i)=>'<div class="lin" style="align-items:flex-end"><div><label>Serviço</label><input id="hcs-n-'+i+'"'+ro+' value="'+esc(s.nome||'')+'" placeholder="Anestesia geral"></div>'+
+      '<div style="max-width:170px"><label>Preço (R$)'+(proc?'':' — opcional')+'</label><input id="hcs-v-'+i+'"'+ro+' type="number" step="0.01" inputmode="decimal" value="'+esc(s.valor==null?'':s.valor)+'"></div>'+
+      (podeEditar()?'<div style="max-width:60px"><button class="bt g mini" onclick="hospServDel('+i+')">×</button></div>':'')+'</div>').join('')
+    : '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:6px">Nenhum serviço ainda.</div>';
+}
+function hospServAdd(){ hospServGuardar(); _hospServ.push({ nome:'', valor:'' }); hospServDesenhar(); }
+function hospServDel(i){ hospServGuardar(); _hospServ.splice(i,1); hospServDesenhar(); }
+function hospFormaTroca(){
+  const f = hospForma(), mostra = (id, on) => { const e = document.getElementById(id); if(e) e.style.display = on ? '' : 'none'; };
+  mostra('hc-f-dia', f==='dia'); mostra('hc-f-turno', f==='turno'); mostra('hc-f-mensal', f==='mensal');
+  hospServGuardar(); hospServDesenhar();
+}
+async function hospSalvar(){
+  hospServGuardar();
+  const num = id => { const v = val(id); return v==='' ? null : Number(v); }, f = hospForma();
+  const nome = val('hc-nome').trim(); if(!nome) return aviso('Informe o nome do hospital.','erro');
+  const serv = _hospServ.filter(s=>String(s.nome||'').trim()).map(s=>({ nome:String(s.nome).trim(), valor: s.valor===''||s.valor==null ? null : Number(s.valor) }));
+  if(f==='procedimento' && !serv.some(s=>s.valor!=null)) return aviso('Por procedimento: cadastre pelo menos um serviço com preço.','erro');
+  const reg = { nome, cnpj: val('hc-cnpj').trim()||null, razao_social: val('hc-razao').trim()||null, contato_nome: val('hc-cnome').trim()||null,
+    contato_tel: val('hc-ctel').trim()||null, contato_email: val('hc-cmail').trim()||null, forma_pagamento: f,
+    valor_dia: f==='turno' ? num('hc-vdia2') : num('hc-vdia'), valor_m: num('hc-vm'), valor_t: num('hc-vt'), valor_n: num('hc-vn'), valor_mensal: num('hc-vmes'),
+    servicos: serv, prazo_tipo: val('hc-ptipo')||'dias', prazo_dias: num('hc-pdias'), prazo_dia_mes: num('hc-pdia'), obs: val('hc-obs').trim()||null,
+    ativo: chk('hc-ativo'), atualizado_em: new Date().toISOString() };
+  const antigo = _hospEd ? _hospEd.nome : null;
+  const r = _hospEd ? await sb.from('esc_hospitais').update(reg).eq('id', _hospEd.id).select().maybeSingle()
+                    : await sb.from('esc_hospitais').insert(reg).select().maybeSingle();
+  if(r.error) return aviso(/duplicate|unique/i.test(r.error.message) ? 'Já existe um hospital com esse nome.' : 'Não gravou: '+r.error.message,'erro');
+  if(_hospEd) Object.assign(_hospEd, r.data); else S.esc.hospCad.push(r.data);
+  // renomeou: as unidades acompanham o nome novo, senão o hospital perde as unidades
+  if(antigo && antigo!==nome){
+    const us = S.esc.locais.filter(l=>escHospNome(l)===antigo);
+    for(const l of us){ const u = await sb.from('esc_locais').update({ hospital:nome }).eq('id', l.id).select().maybeSingle(); if(!u.error) Object.assign(l, u.data); }
+  }
+  S.esc.hospCad.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  S.modal = null; aviso('Hospital salvo.','ok');
+}
+async function hospExcluir(){
+  if(!_hospEd || !confirm('Excluir o cadastro de '+_hospEd.nome+'? As unidades e a escala continuam; só some a forma de pagamento.')) return;
+  const r = await sb.from('esc_hospitais').delete().eq('id', _hospEd.id);
+  if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.esc.hospCad = S.esc.hospCad.filter(x=>x.id!==_hospEd.id); S.modal = null; aviso('Cadastro excluído.','ok');
+}
+/* serviço no atendimento: só aparece quando o hospital da unidade cobra por procedimento */
+function hospServCampoHTML(localId, atual){
+  const h = hospDoLocal(localId); if(!h || h.forma_pagamento!=='procedimento') return '';
+  return '<div><label>Serviço ('+esc(h.nome)+')</label><select id="ed-serv" onchange="hospServTroca()"><option value="">— escolher —</option>'+
+    hospServicos(h).map(s=>'<option value="'+esc(s.nome)+'"'+(s.nome===atual?' selected':'')+'>'+esc(s.nome)+(s.valor!=null?' · '+brl(+s.valor):'')+'</option>').join('')+'</select></div>';
+}
+function hospServAtualizar(){
+  const box = document.getElementById('ed-servbox'); if(!box) return;
+  const loc = val('ed-local'), atual = val('ed-serv');
+  box.innerHTML = hospServCampoHTML(loc, atual);
+}
+function hospServTroca(){
+  const h = hospDoLocal(val('ed-local')), sv = hospServicos(h).find(s=>s.nome===val('ed-serv')), v = document.getElementById('ed-valor');
+  if(v && sv && sv.valor!=null) v.value = sv.valor;
 }
 
 </script>
