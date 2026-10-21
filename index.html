@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v64</title>
+<title>CPE — Contas por Empresa v65</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v64">
+<meta name="rf-versao" content="v65">
 <meta name="rf-data" content="2026-10-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v64',
+  versao : 'v65',
   data   : '21/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1804,23 +1804,41 @@ function escNumeros(dias){
   trab.forEach(d=>{ const v=Number(d.valor)||0; if(escValidado(d)){ total+=v; if(d.pago) pago+=v; } if(d.anestesista_id && d.valor==null) semValor++; });
   return { trab, total, pago, semValor, semAnes: trab.filter(d=>!d.anestesista_id).length };
 }
+/* v65: hospital DESABILITADO (todas as unidades com "ativa" desmarcado, ou o cadastro do hospital inativo) sai das telas.
+   Volta a aparecer se tiver atendimento no mês aberto, ou com "mostrar desabilitados". Nada é apagado. */
+function escHospAtivo(x){ const c = typeof hospCad==='function' ? hospCad(x.nome) : null; return x.locais.some(l=>l.ativo!==false) && !(c && c.ativo===false); }
+function escHospitaisVis(){
+  const dias = escDoMes();
+  return escHospitais().filter(x=>S.esc.verInativos || escHospAtivo(x) || dias.some(d=>x.locais.some(l=>l.id===d.local_id)));
+}
+async function escHospAtivar(nome, on){
+  const x = escHospitais().find(h=>h.nome===nome); if(!x) return;
+  if(!on && !confirm('Desabilitar '+nome+'? Ele sai das telas e da escolha de hospital. A escala e os valores já lançados continuam.')) return;
+  for(const l of x.locais){ const r = await sb.from('esc_locais').update({ ativo: !!on }).eq('id', l.id).select().maybeSingle(); if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); Object.assign(l, r.data); }
+  const c = typeof hospCad==='function' ? hospCad(nome) : null;
+  if(c){ const r = await sb.from('esc_hospitais').update({ ativo: !!on }).eq('id', c.id).select().maybeSingle(); if(!r.error) Object.assign(c, r.data); }
+  aviso(nome+(on?' reativado.':' desabilitado.'),'ok');
+}
 function telaHospitais(){
-  const dias = escDoMes(), n = escNumeros(dias), hs = escHospitais();
+  const dias = escDoMes(), n = escNumeros(dias), hs = escHospitaisVis(), nInat = escHospitais().filter(x=>!escHospAtivo(x)).length;
   let h = '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
     '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;render()"></div>'+
     '<button class="bt g" onclick="S.esc.modo=null;render()">‹ Calendário</button>'+
     (podeEditar()? '<button class="bt" onclick="escAbrirLocais()">+ Novo hospital / unidade</button>'+
       '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas ('+S.esc.anes.filter(a=>a.ativo!==false).length+')</button>' : '')+
+    (nInat && !ehAnes() ? '<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;font-size:13px;margin-left:auto;cursor:pointer"><input type="checkbox" style="width:auto"'+(S.esc.verInativos?' checked':'')+' onchange="S.esc.verInativos=this.checked;render()"> mostrar desabilitados ('+nInat+')</label>' : '')+
   '</div>';
-  if(!ehAnes()) h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Hospitais', hs.length)+kpi('Dias de cirurgia', n.trab.length)+
+  if(!ehAnes()) h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Hospitais', hs.filter(escHospAtivo).length)+kpi('Dias de cirurgia', n.trab.length)+
     kpi('Sem anestesista', '<span style="color:'+(n.semAnes?'var(--vermelho)':'var(--verde)')+'">'+n.semAnes+'</span>')+
     kpi('Total a pagar', brl(n.total))+kpi('Falta pagar', brl(n.total-n.pago))+'</div>';
   if(!hs.length) return h+'<div class="card"><div class="vazio">Nenhum hospital cadastrado. Toque em <b>+ Novo hospital / unidade</b>.</div></div>';
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:12px">'+
     hs.map(x=>{ const ids = x.locais.map(l=>l.id), dh = dias.filter(d=>ids.indexOf(d.local_id)>=0), nh = escNumeros(dh);
       const ativas = x.locais.filter(l=>l.ativo!==false);
-      return '<div class="card" style="margin:0;cursor:pointer;border-left:4px solid var(--ouro)" onclick="escAbrirHosp(\''+esc(x.nome).replace(/'/g,"\\'")+'\')">'+
-        '<div style="font-size:17px;font-weight:700">🏥 '+esc(x.nome)+'</div>'+
+      const on = escHospAtivo(x), nmJs = esc(x.nome).replace(/'/g,"\\'");
+      return '<div class="card" style="margin:0;cursor:pointer;border-left:4px solid '+(on?'var(--ouro)':'var(--linha)')+';'+(on?'':'opacity:.6')+'" onclick="escAbrirHosp(\''+nmJs+'\')">'+
+        '<div style="font-size:17px;font-weight:700;display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><span>🏥 '+esc(x.nome)+(on?'':' <span style="font-size:11px;color:var(--vermelho);font-weight:700">DESABILITADO</span>')+'</span>'+
+          (podeEditar()? '<button class="bt g mini" onclick="event.stopPropagation();escHospAtivar(\''+nmJs+'\','+(on?'false':'true')+')">'+(on?'Desabilitar':'Reativar')+'</button>' : '')+'</div>'+
         '<div style="font-size:12.5px;color:var(--fraco);margin:4px 0 10px">'+ativas.map(l=>esc(l.unidade)).join(' · ')+'</div>'+
         '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px">'+
           '<span><b>'+nh.trab.length+'</b> cirurgia(s)</span>'+
@@ -1926,11 +1944,12 @@ function escSetAnes(id, anesId){
 function escSetPago(id, on){ escSalvarDia(id, { pago: !!on, pago_em: on ? hojeISO() : null }); }
 
 /* ---------- anestesistas ---------- */
-let _escAnesEd = null;
+let _escAnesEd = null, _escAnesOk = '';   // v65: confirmação de gravação dentro da janela
 function escAbrirAnestesistas(id){
   _escAnesEd = id ? escAnes(id) : null;
   const a = _escAnesEd || {};
-  abrirModal('<h2>👤 Anestesistas</h2>'+
+  abrirModal('<h2>👤 Anestesistas · '+esc(escGrupo())+'</h2>'+
+    (_escAnesOk ? '<div class="aviso" style="background:rgba(46,204,113,.12);border-color:var(--verde);color:var(--verde);font-weight:700">✔ '+esc(_escAnesOk)+'</div>' : '')+
     '<div style="max-height:260px;overflow:auto;margin:8px 0">'+(S.esc.anes.length? '<table><tbody>'+S.esc.anes.map(x=>
       '<tr style="'+(x.ativo===false?'opacity:.5':'')+'"><td><b>'+esc(x.nome)+'</b><div style="font-size:11px;color:var(--fraco)">'+esc([x.crm?'CRM '+x.crm:'', x.telefone||'', x.pix?'PIX '+x.pix:''].filter(Boolean).join(' · '))+'</div></td>'+
       '<td style="text-align:right;white-space:nowrap">'+(x.valor_dia!=null?brl(x.valor_dia)+'/dia':'')+'</td>'+
@@ -1952,13 +1971,18 @@ async function escSalvarAnes(){
   const reg = { nome, crm: val('ea-crm').trim()||null, telefone: val('ea-tel').trim()||null, pix: val('ea-pix').trim()||null,
     valor_dia: val('ea-valor')===''? null : Number(val('ea-valor')), obs: val('ea-obs').trim()||null };
   if(_escAnesEd) reg.ativo = chk('ea-ativo');
+  // v65: o Renato cadastrou o mesmo anestesista duas vezes porque não via a confirmação — avisa nome repetido
+  const nn = s=>String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^dra?\.?\s+/,'').replace(/\s+/g,' ').trim();
+  const igual = S.esc.anes.find(x=>(!_escAnesEd || x.id!==_escAnesEd.id) && (nn(x.nome)===nn(nome) || nn(x.nome).indexOf(nn(nome)+' ')===0 || nn(nome).indexOf(nn(x.nome)+' ')===0));
+  if(igual && !confirm('Já existe "'+igual.nome+'" em '+escGrupo()+'. Cadastrar "'+nome+'" mesmo assim?')) return;
   const r = _escAnesEd ? await sb.from('esc_anestesistas').update(reg).eq('id',_escAnesEd.id).select().maybeSingle()
                        : await sb.from('esc_anestesistas').insert(Object.assign({ grupo: escGrupo() }, reg)).select().maybeSingle();
   if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
   S.anesTodos = null;
   const i = S.esc.anes.findIndex(x=>x.id===r.data.id); if(i>=0) S.esc.anes[i]=r.data; else S.esc.anes.push(r.data);
   S.esc.anes.sort((x,y)=>x.nome.localeCompare(y.nome,'pt-BR'));
-  escAbrirAnestesistas();
+  _escAnesOk = (_escAnesEd ? 'Alterações de ' : '')+r.data.nome+(_escAnesEd ? ' salvas.' : ' cadastrado(a) em '+escGrupo()+'. Já aparece na lista acima.');
+  escAbrirAnestesistas(); _escAnesOk = '';
 }
 
 /* ---------- unidades (v31: editar nome e adicionar várias de uma vez) ---------- */
@@ -2074,7 +2098,7 @@ function escDesenharHosp(){
   const p2 = document.getElementById('ed-passo2'), p3 = document.getElementById('ed-passo3'), box = document.getElementById('ed-hosp'); if(!box) return;
   p2.style.display = _escDatas.length ? '' : 'none';
   p3.style.display = (_escDatas.length && _escLocalSel) ? '' : 'none';
-  box.innerHTML = escHospitais().map(hh=>{
+  box.innerHTML = escHospitais().filter(hh=>escHospAtivo(hh) || hh.locais.some(l=>l.id===_escLocalSel)).map(hh=>{
     const ls = hh.locais.filter(l=>l.ativo!==false || l.id===_escLocalSel); if(!ls.length) return '';
     return '<div style="margin-bottom:8px"><div style="font-weight:700;font-size:13.5px;margin-bottom:4px">🏥 '+esc(hh.nome)+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
       ls.map(l=>{ const sel = l.id===_escLocalSel;
@@ -2878,7 +2902,9 @@ function telaHospCad(){
     (faltam.length? '<button class="bt g" onclick="hospImportarUnidades()">⤵ Trazer das unidades ('+faltam.length+')</button>' : '')+
     '<button class="bt g" onclick="escAbrirLocais()">🏥 Unidades de cada hospital</button></div>';
   if(!cad.length) return h + '<div class="vazio">Nenhum hospital cadastrado ainda.'+(faltam.length?' Toque em <b>⤵ Trazer das unidades</b> para começar pelos que já estão na escala.':'')+'</div>';
-  h += '<div class="bxs">'+cad.map(x=>{
+  const nInatC = cad.filter(x=>x.ativo===false).length;
+  if(nInatC) h += '<label style="display:inline-flex;gap:6px;align-items:center;text-transform:none;font-size:13px;margin-bottom:10px;cursor:pointer"><input type="checkbox" style="width:auto"'+(S.esc.verInativos?' checked':'')+' onchange="S.esc.verInativos=this.checked;render()"> mostrar desabilitados ('+nInatC+')</label>';
+  h += '<div class="bxs">'+cad.filter(x=>S.esc.verInativos || x.ativo!==false).map(x=>{
     const us = S.esc.locais.filter(l=>escHospNome(l).trim().toLowerCase()===String(x.nome).trim().toLowerCase());
     return '<button type="button" class="bx" style="align-items:flex-start;'+(x.ativo===false?'opacity:.55':'')+'" onclick="hospAbrir(\''+x.id+'\')"><div class="ic">🏥</div><div style="text-align:left">'+
       '<b>'+esc(x.nome)+'</b><small><span style="color:var(--texto);font-weight:700">'+HOSP_FORMAS[x.forma_pagamento||'dia']+'</span></small><small>'+hospRegraTxt(x)+'</small>'+
@@ -2957,6 +2983,8 @@ async function hospSalvar(){
                     : await sb.from('esc_hospitais').insert(reg).select().maybeSingle();
   if(r.error) return aviso(/duplicate|unique/i.test(r.error.message) ? 'Já existe um hospital com esse nome.' : 'Não gravou: '+r.error.message,'erro');
   if(_hospEd) Object.assign(_hospEd, r.data); else S.esc.hospCad.push(r.data);
+  // v65: desabilitar/reativar no cadastro vale também para as unidades do hospital
+  for(const l of S.esc.locais.filter(l=>escHospNome(l)===(antigo||nome) && (l.ativo!==false)!==reg.ativo)){ const u = await sb.from('esc_locais').update({ ativo: reg.ativo }).eq('id', l.id).select().maybeSingle(); if(!u.error) Object.assign(l, u.data); }
   // renomeou: as unidades acompanham o nome novo, senão o hospital perde as unidades
   if(antigo && antigo!==nome){
     const us = S.esc.locais.filter(l=>escHospNome(l)===antigo);
