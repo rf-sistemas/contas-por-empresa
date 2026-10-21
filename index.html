@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v52</title>
+<title>CPE — Contas por Empresa v53</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v52">
+<meta name="rf-versao" content="v53">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v52',
+  versao : 'v53',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -241,6 +241,8 @@ async function iniciar(){
   if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+  const tokA = new URLSearchParams(location.search).get('a');
+  if(tokA){ S.anesTok = tokA; S.av = { mes: hojeISO().slice(0,7), dados:null }; render(); anesCarregar(); return; }
   const { data } = await sb.auth.getSession();
   if(data && data.session){ S.user = data.session.user; await carregarTudo(); }
   render();
@@ -322,6 +324,7 @@ function nomeOrigem(id){ const o=S.origens.find(x=>x.id===id); return o ? o.nome
 /* ===================== render ===================== */
 function render(){
   const app = document.getElementById('app');
+  if(S.anesTok){ app.innerHTML = telaAnesValidar(); return; }
   if(!S.user){ app.innerHTML = telaLogin(); return; }
 
   let corpo = '';
@@ -1726,6 +1729,12 @@ const ESC_TURNOS = [['M','Manhã','7h–13h'],['T','Tarde','13h–19h'],['N','No
 function escTurnoNorm(t){ t = String(t||'').toUpperCase(); return ESC_TURNOS.map(x=>x[0]).filter(c=>t.indexOf(c)>=0).join(''); }
 function escTurno(x){ return x && x.turno ? ' ('+escTurnoNorm(x.turno)+')' : ''; }
 function escTurnoLongo(t){ t = escTurnoNorm(t); if(!t) return 'Dia todo'; return ESC_TURNOS.filter(x=>t.indexOf(x[0])>=0).map(x=>x[1]+' '+x[2]).join(' + '); }
+/* v53: validação — o PRÓPRIO anestesista confirma pelo link dele (?a=token) se fez o plantão. Só plantão validado ('fiz') entra no pagamento. */
+function escValidado(x){ return !!x && x.validacao==='fiz'; }
+function escLinkAnes(a){ return location.origin+location.pathname+'?a='+a.token; }
+function escIconeVal(x){ if(!x || !x.anestesista_id) return ''; if(x.validacao==='fiz') return '<span title="Validado pelo anestesista" style="color:var(--verde)">✔</span> ';
+  if(x.validacao==='nao_fiz') return '<span title="O anestesista disse que NÃO fez" style="color:var(--vermelho)">✖</span> ';
+  return String(x.data).slice(0,10)<=hojeISO() ? '<span title="Aguardando o anestesista validar">⏳</span> ' : ''; }
 function escAEscalar(x){ return x && !x.anestesista_id && /escalar/i.test(x.obs||''); }
 
 /* v34: aba "Hospitais" — entrada com um cartão por hospital; tocando abre as cirurgias/escala só dele */
@@ -1744,7 +1753,7 @@ function telaEscala(){
 }
 function escNumeros(dias){
   const trab = dias.filter(escTrabalho); let total=0, pago=0, semValor=0;
-  trab.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; if(d.anestesista_id && d.valor==null) semValor++; });
+  trab.forEach(d=>{ const v=Number(d.valor)||0; if(escValidado(d)){ total+=v; if(d.pago) pago+=v; } if(d.anestesista_id && d.valor==null) semValor++; });
   return { trab, total, pago, semValor, semAnes: trab.filter(d=>!d.anestesista_id).length };
 }
 function telaHospitais(){
@@ -1826,19 +1835,19 @@ function escLinha(d, conf){
 }
 function escResumoAnes(trab){
   const g = {};
-  trab.filter(d=>d.anestesista_id).forEach(d=>{ const x = g[d.anestesista_id] = g[d.anestesista_id] || { dias:[], total:0, pago:0 };
-    x.dias.push(d); const v=Number(d.valor)||0; x.total+=v; if(d.pago) x.pago+=v; });
+  trab.filter(d=>d.anestesista_id).forEach(d=>{ const x = g[d.anestesista_id] = g[d.anestesista_id] || { dias:[], val:0, total:0, pago:0 };
+    x.dias.push(d); if(!escValidado(d)) return; x.val++; const v=Number(d.valor)||0; x.total+=v; if(d.pago) x.pago+=v; });
   const ids = Object.keys(g); if(!ids.length) return '';
-  return '<div class="card"><h3>POR ANESTESISTA · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Anestesista</th><th style="text-align:right">Dias</th><th style="text-align:right">Total</th><th style="text-align:right">Pago</th><th style="text-align:right">Falta</th><th></th></tr></thead><tbody>'+
+  return '<div class="card"><h3>POR ANESTESISTA · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Anestesista</th><th style="text-align:right">Dias</th><th style="text-align:right">Validados</th><th style="text-align:right">Total validado</th><th style="text-align:right">Pago</th><th style="text-align:right">Falta</th><th></th></tr></thead><tbody>'+
     ids.sort((a,b)=>(escAnes(a)||{}).nome>(escAnes(b)||{}).nome?1:-1).map(id=>{ const a=escAnes(id)||{nome:'?'}, x=g[id];
-      return '<tr><td><b>'+esc(a.nome)+'</b>'+(a.pix?'<div style="font-size:11px;color:var(--fraco)">PIX '+esc(a.pix)+'</div>':'')+'</td><td style="text-align:right">'+x.dias.length+'</td>'+
+      return '<tr><td><b>'+esc(a.nome)+'</b>'+(a.pix?'<div style="font-size:11px;color:var(--fraco)">PIX '+esc(a.pix)+'</div>':'')+'</td><td style="text-align:right">'+x.dias.length+'</td><td style="text-align:right;color:'+(x.val<x.dias.length?'var(--vermelho)':'var(--verde)')+'">'+x.val+'</td>'+
         '<td style="text-align:right">'+brl(x.total)+'</td><td style="text-align:right;color:var(--verde)">'+brl(x.pago)+'</td><td style="text-align:right;color:'+(x.total-x.pago>0.009?'var(--vermelho)':'var(--fraco)')+'">'+brl(x.total-x.pago)+'</td>'+
-        '<td style="white-space:nowrap"><button class="bt g mini" onclick="escWhats(\''+id+'\')">📲 Mandar escala</button></td></tr>';
+        '<td style="white-space:nowrap"><button class="bt g mini" onclick="escWhats(\''+id+'\')">📲 Mandar escala + link</button> <button class="bt g mini" onclick="escCopiarLink(\''+id+'\')">🔗 Link</button></td></tr>';
     }).join('')+'</tbody></table></div></div>';
 }
 function escResumoEmpresas(trab){
   const g = {};
-  trab.filter(d=>d.anestesista_id).forEach(d=>{ const k=d.empresa_id||'_'; const x = g[k] = g[k] || { n:0, total:0, pago:0 };
+  trab.filter(d=>d.anestesista_id && escValidado(d)).forEach(d=>{ const k=d.empresa_id||'_'; const x = g[k] = g[k] || { n:0, total:0, pago:0 };
     x.n++; const v=Number(d.valor)||0; x.total+=v; if(d.pago) x.pago+=v; });
   const ks = Object.keys(g); if(!ks.length) return '';
   return '<div class="card"><h3>POR CNPJ QUE PAGA · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Empresa</th><th style="text-align:right">Dias</th><th style="text-align:right">Total</th><th style="text-align:right">Pago</th><th style="text-align:right">Falta</th></tr></thead><tbody>'+
@@ -1876,7 +1885,7 @@ function escAbrirAnestesistas(id){
     '<div style="max-height:260px;overflow:auto;margin:8px 0">'+(S.esc.anes.length? '<table><tbody>'+S.esc.anes.map(x=>
       '<tr style="'+(x.ativo===false?'opacity:.5':'')+'"><td><b>'+esc(x.nome)+'</b><div style="font-size:11px;color:var(--fraco)">'+esc([x.crm?'CRM '+x.crm:'', x.telefone||'', x.pix?'PIX '+x.pix:''].filter(Boolean).join(' · '))+'</div></td>'+
       '<td style="text-align:right;white-space:nowrap">'+(x.valor_dia!=null?brl(x.valor_dia)+'/dia':'')+'</td>'+
-      '<td style="white-space:nowrap"><button class="bt g mini" onclick="escAbrirAnestesistas(\''+x.id+'\')">editar</button></td></tr>').join('')+'</tbody></table>' : '<div class="vazio">Nenhum anestesista ainda.</div>')+'</div>'+
+      '<td style="white-space:nowrap"><button class="bt g mini" onclick="escCopiarLink(\''+x.id+'\')">🔗 link</button> <button class="bt g mini" onclick="escAbrirAnestesistas(\''+x.id+'\')">editar</button></td></tr>').join('')+'</tbody></table>' : '<div class="vazio">Nenhum anestesista ainda.</div>')+'</div>'+
     '<div class="card" style="margin:0"><h3>'+(_escAnesEd?'EDITAR':'NOVO ANESTESISTA')+'</h3>'+
       '<label>Nome</label><input id="ea-nome" value="'+esc(a.nome||'')+'" placeholder="Dr(a). Nome Sobrenome">'+
       '<div class="lin"><div><label>CRM</label><input id="ea-crm" value="'+esc(a.crm||'')+'"></div>'+
@@ -2186,7 +2195,8 @@ function escPrimeiroNome(n){ const p = String(n||'').split(' ').filter(Boolean);
 function escCalMesMover(n){ const p=S.mes.split('-'); const d=new Date(+p[0], +p[1]-1+n, 1); S.mes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); render(); }
 function telaCalendario(){
   const dias = escDoMes(), trab = dias.filter(escTrabalho), feitos = trab.filter(d=>d.anestesista_id), conf = escConflitos();
-  let total=0, pago=0; feitos.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
+  let total=0, pago=0; feitos.filter(escValidado).forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
+  const aValidar = feitos.filter(d=>!escValidado(d) && String(d.data).slice(0,10)<=hojeISO()).length;
   const p = S.mes.split('-'), ano=+p[0], mes=+p[1], ini = new Date(ano, mes-1, 1).getDay(), fim = new Date(ano, mes, 0).getDate(), hoje = hojeISO();
   let h = '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
     '<button class="bt g" onclick="escCalMesMover(-1)">‹</button>'+
@@ -2197,7 +2207,7 @@ function telaCalendario(){
       '<button class="bt g" onclick="escAbrirAnestesistas()">👤 Anestesistas</button>' : '')+
     '<button class="bt g" onclick="S.esc.modo=\'hosp\';render()">🏥 Hospitais</button>'+
   '</div>';
-  h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Dias com anestesista', feitos.length)+
+  h += '<div class="kpis" style="margin:0 0 12px">'+kpi('Dias com anestesista', feitos.length)+kpi('Aguardando validação', '<span style="color:'+(aValidar?'var(--vermelho)':'var(--verde)')+'">'+aValidar+'</span>')+
     kpi('Total a pagar', brl(total))+kpi('Já pago', brl(pago))+kpi('Falta pagar', brl(total-pago))+'</div>';
   let g = '';
   ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(x=>g+='<div style="text-align:center;font-size:12px;color:var(--fraco);font-weight:700;padding:4px 0">'+x+'</div>');
@@ -2230,8 +2240,8 @@ function escAbrirData(iso, localId){
   const uni = x => String(escLocal(x.local_id).unidade||'?').replace(/^HER /,'');
   const ordem = (a,b)=>escTurnoNorm(a.turno).localeCompare(escTurnoNorm(b.turno)) || uni(a).localeCompare(uni(b),'pt-BR');
   const tag = (x, vermelho) => '<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;font-size:14px;font-weight:700;'+
-      (vermelho?'background:var(--erro-bg,#FDECEC);color:var(--vermelho);border:1px solid var(--vermelho)':'background:var(--campo);border:1px solid var(--linha)')+'">'+
-      esc(uni(x))+(x.turno?' <span style="font-weight:600;opacity:.75">('+escTurnoNorm(x.turno)+')</span>':'')+
+      (vermelho?'background:var(--erro-bg,#FDECEC);color:var(--vermelho);border:1px solid var(--vermelho)':'background:var(--campo);border:1px solid var(--linha)')+(x.validacao==='nao_fiz'?';text-decoration:line-through':'')+'"'+(x.validacao_obs?' title="'+esc(x.validacao_obs)+'"':'')+'>'+
+      escIconeVal(x)+esc(uni(x))+(x.turno?' <span style="font-weight:600;opacity:.75">('+escTurnoNorm(x.turno)+')</span>':'')+
       (apaga?'<a href="#" title="Tirar" onclick="escDataRemover(\''+x.id+'\');return false" style="text-decoration:none;color:var(--fraco);font-weight:400;font-size:16px;line-height:1">×</a>':'')+'</span>';
   const porAnes = {}; ds.filter(x=>x.anestesista_id && escTrabalho(x)).forEach(x=>{ (porAnes[x.anestesista_id]=porAnes[x.anestesista_id]||[]).push(x); });
   const ids = Object.keys(porAnes).sort((a,b)=>String((escAnes(a)||{}).nome).localeCompare(String((escAnes(b)||{}).nome),'pt-BR'));
@@ -2241,6 +2251,7 @@ function escAbrirData(iso, localId){
   const falta = ds.filter(x=>!x.anestesista_id && x.status!=='feriado').sort(ordem);
   if(falta.length) escala += linha('A escalar', falta.map(x=>tag(x,true)).join(''), true);
   if(ds.some(x=>x.status==='feriado')) escala += linha('Feriado', '', true);
+  if(ids.length) escala += '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ validado pelo anestesista · ⏳ aguardando validação · ✖ disse que não fez — só o validado entra no pagamento</div>';
 
   let montar = '';
   if(ed && !_escForm){
@@ -2274,7 +2285,7 @@ function escAbrirData(iso, localId){
       '<div style="width:120px"><select title="Turno"'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'turno\',this.value||null)">'+['','M','T','N','MT','TN','MN','MTN'].map(t=>'<option value="'+t+'"'+(escTurnoNorm(x.turno)===t?' selected':'')+'>'+(t?escTurnoLongo(t).replace(/ \d.*?h(?= \+|$)/g,''):'Dia todo')+'</option>').join('')+'</select></div>'+
       '<div style="width:105px"><input type="number" step="0.01" inputmode="decimal" placeholder="R$"'+(ed?'':' disabled')+' value="'+(x.valor!=null?x.valor:'')+'" style="text-align:right" onchange="escDataSet(\''+x.id+'\',\'valor\',this.value===\'\'?null:Number(this.value))"></div>'+
       '<div style="width:140px"><select'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'empresa_id\',this.value||null)">'+escOptsEmp(x.empresa_id)+'</select></div>'+
-      '<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label></div>';
+      (escValidado(x)?'<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>':'<span style="font-size:12px;color:var(--fraco)">'+(x.validacao==='nao_fiz'?'✖ não fez':'⏳ falta validar')+'</span>')+'</div>';
   }).join('');
 
   abrirModal('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><button class="bt g mini" onclick="escDataMover(-1)">‹</button>'+
@@ -2312,7 +2323,7 @@ async function escDataRemover(id){
 }
 function escDataMover(n){ const d = new Date(_escDataAberta+'T12:00:00'); d.setDate(d.getDate()+n); const iso = d.toISOString().slice(0,10); if(iso.slice(0,7)!==S.mes) S.mes = iso.slice(0,7); escAbrirData(iso); }
 async function escDataSet(id, campo, valor){ const c={}; c[campo]=valor; if(await escSalvarDia(id, c)) escAbrirData(_escDataAberta); }
-async function escDataPago(id, on){ if(await escSalvarDia(id, { pago: !!on, pago_em: on ? hojeISO() : null })) escAbrirData(_escDataAberta); }
+async function escDataPago(id, on){ const dd = S.esc.dias.find(x=>x.id===id); if(on && !escValidado(dd)){ aviso('Só pode marcar pago depois que o anestesista validar o plantão.','erro'); escAbrirData(_escDataAberta); return; } if(await escSalvarDia(id, { pago: !!on, pago_em: on ? hojeISO() : null })) escAbrirData(_escDataAberta); }
 async function escDataAnes(id, anesId){
   const d = S.esc.dias.find(x=>x.id===id); if(!d) return;
   const c = { anestesista_id: anesId || null };
@@ -2348,7 +2359,7 @@ function telaEscalas(){
     h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:12px">'+
       (hs.map(x=>{ const ids = x.locais.map(l=>l.id), nh = dias.filter(d=>ids.indexOf(d.local_id)>=0).length, nf = todos.filter(d=>!d.anestesista_id && ids.indexOf(d.local_id)>=0).length;
         return '<div class="card" style="margin:0;border-left:4px solid var(--ouro)">'+
-          chip(_escvSel==='H:'+x.nome, '🏥 '+esc(x.nome), nh+' dia(s) com anestesista'+(nf?' · <b style="color:var(--vermelho)">'+nf+' a escalar</b>':''), "escvEscolher('H:"+esc(x.nome).replace(/'/g,"\\'")+"')", true)+
+          chip(_escvSel==='H:'+x.nome, '🏥 '+esc(x.nome), nh+' dia(s) com anestesista'+(nf?' · <b style="color:'+(_escvSel==='H:'+x.nome?'#fff':'var(--vermelho)')+'">'+nf+' a escalar</b>':''), "escvEscolher('H:"+esc(x.nome).replace(/'/g,"\\'")+"')", true)+
           (x.locais.length>1 ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+x.locais.map(l=>chip(_escvSel===l.id, esc(l.unidade), dias.filter(d=>d.local_id===l.id).length+' dia(s)', "escvEscolher('"+l.id+"')")).join('')+'</div>' : '')+
         '</div>'; }).join('') || '<div class="card"><div class="vazio">Nenhum hospital cadastrado.</div></div>')+'</div>';
     if(!_escvSel) return h;
@@ -2397,7 +2408,7 @@ function escWhats(anesId){
   let t = 'Olá, '+a.nome.split(' ').slice(0,2).join(' ')+'! Sua escala de '+escMesNome(S.mes)+':\n\n';
   ds.forEach(d=>{ const l = escLocal(d.local_id); t += '• '+dataBR(d.data).slice(0,5)+' ('+escDow(d.data)+') — '+l.unidade+(d.cirurgiao?' · '+d.cirurgiao+(d.especialidade?' ('+d.especialidade+')':''):'')+'\n'; });
   const tot = ds.reduce((s,d)=>s+(Number(d.valor)||0),0);
-  t += '\nTotal: '+ds.length+' dia(s)'+(tot?' · '+brl(tot):'')+'.\nQualquer ajuste, me avise.';
+  t += '\nTotal: '+ds.length+' dia(s)'+(tot?' · '+brl(tot):'')+'.\n\nDepois de cada plantão, confirme que fez neste link (só o plantão confirmado entra no pagamento):\n'+escLinkAnes(a)+'\n\nQualquer ajuste, me avise.';
   const tel = soDig(a.telefone||''); const n = tel ? (tel.length<=11 ? '55'+tel : tel) : '';
   window.open('https://wa.me/'+n+'?text='+encodeURIComponent(t), '_blank');
 }
@@ -2405,7 +2416,7 @@ function escWhats(anesId){
 /* ---------- pagamentos no Painel ---------- */
 async function escLancarPainel(){
   const vis = escLocaisVis().map(l=>l.id);
-  const trab = escDoMes().filter(d=>vis.indexOf(d.local_id)>=0 && escTrabalho(d) && d.anestesista_id && (Number(d.valor)||0)>0);
+  const trab = escDoMes().filter(d=>vis.indexOf(d.local_id)>=0 && escTrabalho(d) && d.anestesista_id && escValidado(d) && (Number(d.valor)||0)>0);
   const g = {};
   trab.forEach(d=>{ const k = d.anestesista_id+'|'+(d.empresa_id||''); const x = g[k] = g[k] || { anes:d.anestesista_id, emp:d.empresa_id||null, n:0, total:0 }; x.n++; x.total += Number(d.valor)||0; });
   const ks = Object.keys(g); if(!ks.length) return alert('Nenhum dia com anestesista e valor neste mês.');
@@ -2425,6 +2436,59 @@ async function escLancarPainel(){
   aviso(feitos+' pagamento(s) lançado(s) no Painel'+(pulados?' · '+pulados+' já existia(m)':'')+'.','ok');
 }
 
+
+
+/* ===== v53: página do ANESTESISTA (link ?a=token, sem login) — ele vê os plantões dele e confirma "Fiz" / "Não fiz" ===== */
+async function escCopiarLink(id){
+  const a = escAnes(id); if(!a || !a.token) return aviso('Recarregue a página para gerar o link.','erro');
+  const l = escLinkAnes(a);
+  try{ await navigator.clipboard.writeText(l); aviso('Link de validação de '+escPrimeiroNome(a.nome)+' copiado.','ok'); }
+  catch(e){ prompt('Link de validação de '+a.nome+':', l); }
+}
+async function anesCarregar(){
+  const m = S.av.mes, ini = m+'-01', fim = escUltimoDia(m);
+  const r = await sb.rpc('esc_anes_plantoes', { tok: S.anesTok, ini, fim });
+  S.av.dados = r.error ? { erro: r.error.message } : r.data; render();
+}
+function anesMes(n){ const p=S.av.mes.split('-'); const d=new Date(+p[0], +p[1]-1+n, 1); S.av.mes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); S.av.dados=null; render(); anesCarregar(); }
+async function anesValidar(id, resp){
+  let motivo = null;
+  if(resp==='nao_fiz'){ motivo = prompt('Por que não fez este plantão? (opcional)'); if(motivo===null) return; }
+  const r = await sb.rpc('esc_anes_validar', { tok: S.anesTok, dia: id, resposta: resp, motivo });
+  if(r.error) return alert(r.error.message);
+  anesCarregar();
+}
+async function anesValidarTodos(){
+  const ps = ((S.av.dados||{}).plantoes||[]).filter(x=>!x.validacao && String(x.data)<=hojeISO());
+  if(!ps.length || !confirm('Confirmar que fez os '+ps.length+' plantão(ões) pendentes?')) return;
+  for(const x of ps){ const r = await sb.rpc('esc_anes_validar', { tok: S.anesTok, dia: x.id, resposta: 'fiz' }); if(r.error){ alert(r.error.message); break; } }
+  anesCarregar();
+}
+function telaAnesValidar(){
+  const d = S.av.dados, hoje = hojeISO();
+  let h = '<div style="max-width:640px;margin:0 auto;padding:16px">'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'+marcaSVG(40)+'<div><div style="font-weight:800;letter-spacing:.5px">NAFS · CONFIRMAR PLANTÕES</div><div style="font-size:12px;color:var(--fraco)">'+SISTEMA.casa+'</div></div></div>';
+  if(!d) return h+'<div class="vazio">Carregando…</div></div>';
+  if(d.erro || !d.anestesista) return h+'<div class="card"><b>Link inválido.</b><div style="color:var(--fraco);margin-top:6px">Peça um novo link para a equipe da escala.</div></div></div>';
+  const ps = d.plantoes || [], pend = ps.filter(x=>!x.validacao && String(x.data)<=hoje);
+  h += '<div class="card"><div style="font-size:18px;font-weight:800">Olá, '+esc(escPrimeiroNome(d.anestesista.nome))+'!</div>'+
+    '<div style="color:var(--fraco);font-size:13.5px;margin-top:4px">Depois de cada plantão, toque em <b>✔ Fiz</b>. Só o plantão confirmado entra no pagamento.</div></div>';
+  h += '<div class="card" style="display:flex;gap:8px;align-items:center;justify-content:space-between"><button class="bt g" onclick="anesMes(-1)">‹</button><b style="font-size:17px">'+escMesNome(S.av.mes)+'</b><button class="bt g" onclick="anesMes(1)">›</button></div>';
+  if(pend.length>1) h += '<button class="bt" style="width:100%;margin-bottom:12px" onclick="anesValidarTodos()">✔ Fiz todos os '+pend.length+' pendentes</button>';
+  h += '<div class="card">'+(ps.map(x=>{
+    const dt = String(x.data).slice(0,10), fut = dt>hoje, local = String(x.unidade||'?')+(x.turno?' ('+escTurnoLongo(x.turno).replace(/ \d.*?h(?= \+|$)/g,'')+')':'');
+    let acao;
+    if(fut) acao = '<span style="font-size:12.5px;color:var(--fraco)">agendado</span>';
+    else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\');return false">mudar</a>';
+    else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Não fiz</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'fiz\');return false">mudar</a>';
+    else acao = '<button class="bt" onclick="anesValidar(\''+x.id+'\',\'fiz\')">✔ Fiz</button> <button class="bt g" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\')">Não fiz</button>';
+    return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px 0;border-bottom:1px solid var(--linha)">'+
+      '<div style="width:62px;text-align:center"><div style="font-size:20px;font-weight:800;line-height:1">'+dt.slice(8)+'</div><div style="font-size:11px;color:var(--fraco);text-transform:uppercase">'+escDow(dt)+'</div></div>'+
+      '<div style="flex:1;min-width:140px"><b>'+esc(local)+'</b>'+(x.hospital && x.hospital!==x.unidade?'<div style="font-size:12px;color:var(--fraco)">'+esc(x.hospital)+'</div>':'')+'</div>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+acao+'</div></div>';
+  }).join('') || '<div class="vazio">Nenhum plantão neste mês.</div>')+'</div>';
+  return h+'<div style="text-align:center;color:var(--fraco);font-size:11px;margin-top:10px">'+SISTEMA.codigo+' '+SISTEMA.versao+'</div></div>';
+}
 
 /* ===== v43: app instalável — service worker (não guarda cache) + botão/aviso de instalar ===== */
 var _cpeInstalar = null;
