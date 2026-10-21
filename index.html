@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v62</title>
+<title>CPE — Contas por Empresa v63</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v62">
-<meta name="rf-data" content="2026-09-10">
+<meta name="rf-versao" content="v63">
+<meta name="rf-data" content="2026-10-21">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -161,8 +161,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v62',
-  data   : '20/10/2026',
+  versao : 'v63',
+  data   : '21/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -344,6 +344,7 @@ function render(){
   else if(S.tela==='usuarios') corpo = telaUsuarios();
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
+  else if(S.tela==='producao') corpo = podeUsuarios() ? telaProducao() : telaEscalaHub();
 
   const nf = fila().length;
   app.innerHTML =
@@ -2677,7 +2678,8 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
-  escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
+  escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
+  producao:{t:'Financeiro', pai:'escalahub'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -2727,8 +2729,82 @@ function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista')+
     cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
+    (!ehAnes() && podeUsuarios() ? cpeCaixa('producao','💰','Financeiro','Produção dos anestesistas: o que cada um fez no mês, validado, pago e a pagar') : '')+
   '</div>';
 }
+
+/* ===== v63 (21/10/2026): caixa "💰 Financeiro" dentro de NAFS / ANESTESIA — PRODUÇÃO DOS ANESTESISTAS =====
+   Pedido do Renato: o Vinicius precisa ver o que cada anestesista produziu no mês. Só leitura, a partir dos
+   atendimentos já lançados (esc_dias do grupo aberto): quantos atendimentos, quantos o anestesista validou,
+   quanto isso vale (só o validado conta, regra da v53/v59), quanto já foi pago e quanto falta pagar.
+   Só mestre e dono enxergam esta caixa (os anestesistas e a equipe operacional não). */
+S.prod = { anes:'', hosp:'', aberto:'' };
+function prodSit(d){
+  if(d.aprovado===false) return ['🆕 aguardando aprovação','var(--fraco)'];
+  if(d.validacao==='fiz') return ['✔ validado','var(--verde)'];
+  if(d.validacao==='sem_proc') return ['⚪ sem procedimento','var(--fraco)'];
+  if(d.validacao==='nao_fiz') return ['✖ não fez','var(--vermelho)'];
+  return ['⏳ aguardando validação','var(--fraco)'];
+}
+function prodLista(){
+  return escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id)
+    .filter(d=>!S.prod.anes || d.anestesista_id===S.prod.anes)
+    .filter(d=>!S.prod.hosp || escHospNome(escLocal(d.local_id))===S.prod.hosp);
+}
+function prodSomar(lista){
+  const x = { n:lista.length, val:0, pend:0, total:0, pago:0, aguard:0 };
+  lista.forEach(d=>{ const v = Number(d.valor)||0;
+    if(escValidado(d)){ x.val++; x.total+=v; if(d.pago) x.pago+=v; }
+    else if(!d.validacao || d.aprovado===false){ x.pend++; x.aguard+=v; } });
+  return x;
+}
+function prodAbrir(id){ S.prod.aberto = S.prod.aberto===id ? '' : id; render(); }
+function telaProducao(){
+  if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando a produção…</div>'; }
+  const lista = prodLista(), T = prodSomar(lista);
+  const hosps = escHospitais().map(h=>h.nome);
+  const anes = S.esc.anes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  let h = '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>';
+  h += '<div class="card"><div class="lin" style="align-items:flex-end;flex-wrap:wrap;gap:10px">'+
+    '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;S.prod.aberto=\'\';render()"></div>'+
+    '<div style="min-width:180px"><label>Anestesista</label><select onchange="S.prod.anes=this.value;S.prod.aberto=\'\';render()"><option value="">Todos</option>'+
+      anes.map(a=>'<option value="'+a.id+'"'+(S.prod.anes===a.id?' selected':'')+'>'+esc(a.nome)+'</option>').join('')+'</select></div>'+
+    '<div style="min-width:180px"><label>Hospital</label><select onchange="S.prod.hosp=this.value;render()"><option value="">Todos</option>'+
+      hosps.map(n=>'<option'+(S.prod.hosp===n?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select></div>'+
+  '</div>'+
+  '<div class="kpis">'+kpi('Atendimentos', T.n)+kpi('Validados', T.val+' de '+T.n)+kpi('Produzido (validado)', brl(T.total))+
+    kpi('Já pago', brl(T.pago))+kpi('A pagar', brl(T.total-T.pago))+kpi('Aguardando validação', T.pend+(T.aguard?' · '+brl(T.aguard):''))+'</div>'+
+  '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Só entra em "Produzido" o atendimento que o anestesista validou (e a equipe aprovou, quando foi ele quem lançou). O que ainda espera validação aparece à parte.</div></div>';
+  if(!lista.length) return h+'<div class="vazio">Nenhum atendimento com anestesista em '+escMesNome(S.mes)+(S.prod.anes||S.prod.hosp?' com esse filtro':'')+'.</div>';
+  // por anestesista
+  const g = {}; lista.forEach(d=>{ (g[d.anestesista_id] = g[d.anestesista_id] || []).push(d); });
+  const ids = Object.keys(g).sort((a,b)=>prodSomar(g[b]).total - prodSomar(g[a]).total || String((escAnes(a)||{}).nome).localeCompare(String((escAnes(b)||{}).nome),'pt-BR'));
+  h += '<div class="card"><h3>PRODUÇÃO POR ANESTESISTA · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Anestesista</th><th style="text-align:right">Atendimentos</th><th style="text-align:right">Validados</th><th style="text-align:right">Produzido</th><th style="text-align:right">Pago</th><th style="text-align:right">A pagar</th><th></th></tr></thead><tbody>'+
+    ids.map(id=>{ const a = escAnes(id)||{nome:'?'}, x = prodSomar(g[id]), ab = S.prod.aberto===id;
+      let r = '<tr style="cursor:pointer" onclick="prodAbrir(\''+id+'\')"><td><b>'+esc(a.nome)+'</b>'+(a.pix?'<div style="font-size:11px;color:var(--fraco)">PIX '+esc(a.pix)+'</div>':'')+'</td>'+
+        '<td style="text-align:right">'+x.n+'</td><td style="text-align:right;color:'+(x.val<x.n?'var(--vermelho)':'var(--verde)')+'">'+x.val+'</td>'+
+        '<td style="text-align:right"><b>'+brl(x.total)+'</b></td><td style="text-align:right;color:var(--verde)">'+brl(x.pago)+'</td>'+
+        '<td style="text-align:right;color:'+(x.total-x.pago>0.009?'var(--vermelho)':'var(--fraco)')+'">'+brl(x.total-x.pago)+'</td>'+
+        '<td style="white-space:nowrap"><button class="bt g mini">'+(ab?'▲ fechar':'▼ ver atendimentos')+'</button></td></tr>';
+      if(ab) r += '<tr><td colspan="7" style="background:var(--fundo2,rgba(0,0,0,.03))"><div style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Hospital / unidade</th><th>Cirurgião</th><th>Turno</th><th style="text-align:right">Valor</th><th>Situação</th><th>Pago</th></tr></thead><tbody>'+
+        g[id].slice().sort((p,q)=>String(p.data).localeCompare(String(q.data))).map(d=>{ const l = escLocal(d.local_id), st = prodSit(d);
+          return '<tr><td style="white-space:nowrap">'+dataBR(d.data).slice(0,5)+' ('+escDow(d.data)+')</td><td>'+esc(escHospNome(l))+(l.unidade && l.unidade!==escHospNome(l)?'<div style="font-size:11px;color:var(--fraco)">'+esc(l.unidade)+'</div>':'')+'</td>'+
+            '<td>'+esc(d.cirurgiao||'—')+(d.especialidade?'<div style="font-size:11px;color:var(--fraco)">'+esc(d.especialidade)+'</div>':'')+'</td>'+
+            '<td>'+esc(escTurnoLongo(d.turno))+'</td><td style="text-align:right">'+(d.valor==null?'<span style="color:var(--vermelho)">sem valor</span>':brl(Number(d.valor)))+'</td>'+
+            '<td style="color:'+st[1]+';white-space:nowrap">'+st[0]+'</td><td>'+(d.pago?'<span style="color:var(--verde)">✔ '+(d.pago_em?dataBR(d.pago_em).slice(0,5):'')+'</span>':'—')+'</td></tr>'; }).join('')+
+        '</tbody></table></div></td></tr>';
+      return r; }).join('')+
+    '<tr><td><b>TOTAL</b></td><td style="text-align:right"><b>'+T.n+'</b></td><td style="text-align:right"><b>'+T.val+'</b></td><td style="text-align:right"><b>'+brl(T.total)+'</b></td><td style="text-align:right"><b>'+brl(T.pago)+'</b></td><td style="text-align:right"><b>'+brl(T.total-T.pago)+'</b></td><td></td></tr>'+
+    '</tbody></table></div><div style="font-size:12px;color:var(--fraco);margin-top:6px">Toque no nome para ver cada atendimento do anestesista.</div></div>';
+  // por hospital
+  const gh = {}; lista.forEach(d=>{ const k = escHospNome(escLocal(d.local_id)); (gh[k] = gh[k] || []).push(d); });
+  h += '<div class="card"><h3>POR HOSPITAL · '+escMesNome(S.mes).toUpperCase()+'</h3><div style="overflow-x:auto"><table><thead><tr><th>Hospital</th><th style="text-align:right">Atendimentos</th><th style="text-align:right">Validados</th><th style="text-align:right">Produzido</th><th style="text-align:right">A pagar</th></tr></thead><tbody>'+
+    Object.keys(gh).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(k=>{ const x = prodSomar(gh[k]);
+      return '<tr><td><b>'+esc(k)+'</b></td><td style="text-align:right">'+x.n+'</td><td style="text-align:right">'+x.val+'</td><td style="text-align:right">'+brl(x.total)+'</td><td style="text-align:right">'+brl(x.total-x.pago)+'</td></tr>'; }).join('')+
+    '</tbody></table></div></div>';
+  return h + escResumoEmpresas(lista);
+}
+
 </script>
 </body>
 </html>
