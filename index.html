@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v59</title>
+<title>CPE — Contas por Empresa v60</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v59">
+<meta name="rf-versao" content="v60">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v59',
+  versao : 'v60',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2669,7 +2669,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
-  escalahub:{t:'Escala', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'NAFS · Add plantão', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
+  escalahub:{t:'Escala', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -2713,7 +2713,7 @@ function telaInicio(){
 }
 function telaEscalaHub(){
   return '<div class="secao"><b>ESCALA</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
-    cpeCaixa('escala','💉','NAFS', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Adicionar plantão: toque no dia, escolha o hospital e o anestesista')+
+    cpeCaixa('escala','💉', ehAnes() ? 'NAFS' : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista')+
     cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
   '</div>';
 }
