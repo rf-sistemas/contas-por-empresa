@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v51</title>
+<title>CPE — Contas por Empresa v52</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v51">
+<meta name="rf-versao" content="v52">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v51',
+  versao : 'v52',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2330,7 +2330,7 @@ function escvModo(m){ _escvModo = m; _escvSel = null; render(); }
 function escvEscolher(id){ _escvSel = id; render(); }
 function telaEscalas(){
   if(!S.esc.carregado) { escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
-  const dias = escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id);
+  const todos = escDoMes().filter(escTrabalho), dias = todos.filter(d=>d.anestesista_id);   // v52: 'todos' inclui os A ESCALAR (sem anestesista)
   const chip = (sel, txt, sub, onclick, grande) => '<button type="button" onclick="'+onclick+'" style="padding:'+(grande?'12px 16px':'9px 13px')+';border-radius:10px;cursor:pointer;font-size:'+(grande?'15px':'14px')+';text-align:left;'+
     (sel?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+
     (sub?'<div style="font-size:11px;font-weight:400;opacity:.85">'+sub+'</div>':'')+'</button>';
@@ -2346,19 +2346,19 @@ function telaEscalas(){
     const valido = id => id && (id.indexOf('H:')===0 ? hs.some(x=>'H:'+x.nome===id) : hs.some(x=>x.locais.some(l=>l.id===id)));
     if(!valido(_escvSel)) _escvSel = hs.length ? 'H:'+hs[0].nome : null;
     h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:12px">'+
-      (hs.map(x=>{ const ids = x.locais.map(l=>l.id), nh = dias.filter(d=>ids.indexOf(d.local_id)>=0).length;
+      (hs.map(x=>{ const ids = x.locais.map(l=>l.id), nh = dias.filter(d=>ids.indexOf(d.local_id)>=0).length, nf = todos.filter(d=>!d.anestesista_id && ids.indexOf(d.local_id)>=0).length;
         return '<div class="card" style="margin:0;border-left:4px solid var(--ouro)">'+
-          chip(_escvSel==='H:'+x.nome, '🏥 '+esc(x.nome), nh+' dia(s) com anestesista · todas as unidades', "escvEscolher('H:"+esc(x.nome).replace(/'/g,"\\'")+"')", true)+
+          chip(_escvSel==='H:'+x.nome, '🏥 '+esc(x.nome), nh+' dia(s) com anestesista'+(nf?' · <b style="color:var(--vermelho)">'+nf+' a escalar</b>':''), "escvEscolher('H:"+esc(x.nome).replace(/'/g,"\\'")+"')", true)+
           (x.locais.length>1 ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+x.locais.map(l=>chip(_escvSel===l.id, esc(l.unidade), dias.filter(d=>d.local_id===l.id).length+' dia(s)', "escvEscolher('"+l.id+"')")).join('')+'</div>' : '')+
         '</div>'; }).join('') || '<div class="card"><div class="vazio">Nenhum hospital cadastrado.</div></div>')+'</div>';
     if(!_escvSel) return h;
     if(_escvSel.indexOf('H:')===0){
       const hh = hs.find(x=>'H:'+x.nome===_escvSel), ids = hh.locais.map(l=>l.id), varias = ids.length>1;
-      meus = dias.filter(d=>ids.indexOf(d.local_id)>=0); titulo = hh.nome;
-      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+esc(escTurno(x))+(varias?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>':'');
+      meus = todos.filter(d=>ids.indexOf(d.local_id)>=0); titulo = hh.nome;
+      celula = x => (x.anestesista_id?'<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>':'<b style="color:var(--vermelho)">A escalar</b>')+esc(escTurno(x))+(varias?'<div style="font-size:10.5px;color:var(--fraco)">'+esc(String(escLocal(x.local_id).unidade||'').replace(/^HER /,''))+'</div>':'');
     } else {
-      meus = dias.filter(d=>d.local_id===_escvSel); const l = escLocal(_escvSel); titulo = l.unidade+(l.hospital?' — '+l.hospital:'');
-      celula = x => '<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>'+esc(escTurno(x));
+      meus = todos.filter(d=>d.local_id===_escvSel); const l = escLocal(_escvSel); titulo = l.unidade+(l.hospital?' — '+l.hospital:'');
+      celula = x => (x.anestesista_id?'<b>'+esc((escAnes(x.anestesista_id)||{nome:'?'}).nome)+'</b>':'<b style="color:var(--vermelho)">A escalar</b>')+esc(escTurno(x));
     }
   } else {
     const anes = S.esc.anes.filter(a=>a.ativo!==false || dias.some(d=>d.anestesista_id===a.id));
@@ -2374,17 +2374,18 @@ function telaEscalas(){
   ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].forEach(x=>g+='<div style="text-align:center;font-size:12px;color:var(--fraco);font-weight:700;padding:4px 0">'+x+'</div>');
   for(let i=0;i<ini;i++) g += '<div></div>';
   for(let d=1; d<=fim; d++){
-    const iso = S.mes+'-'+String(d).padStart(2,'0'), ds = meus.filter(x=>String(x.data).slice(0,10)===iso);
+    const iso = S.mes+'-'+String(d).padStart(2,'0'), ds = meus.filter(x=>String(x.data).slice(0,10)===iso).sort((a,b)=>(a.anestesista_id?0:1)-(b.anestesista_id?0:1)), falta = ds.some(x=>!x.anestesista_id);
     g += '<div style="min-height:74px;border:1px solid '+(iso===hoje?'var(--ouro)':'var(--linha)')+';border-radius:9px;padding:5px 6px;overflow:hidden;'+
-      (ds.length?'background:var(--ok-bg);border-top:4px solid var(--verde)':'background:var(--carta)')+'">'+
+      (!ds.length?'background:var(--carta)':(falta?'background:var(--carta);border-top:4px solid var(--vermelho)':'background:var(--ok-bg);border-top:4px solid var(--verde)'))+'">'+
       '<div style="font-weight:700;font-size:15px'+(iso===hoje?';color:var(--ouro)':'')+'">'+d+'</div>'+
       ds.map(x=>'<div style="font-size:12px;line-height:1.25;margin-top:2px;overflow:hidden;text-overflow:ellipsis">'+celula(x)+'</div>').join('')+
     '</div>';
   }
+  const nFalta = meus.filter(x=>!x.anestesista_id).length; meus = meus.filter(x=>x.anestesista_id);
   let total=0, pago=0; meus.forEach(d=>{ const v=Number(d.valor)||0; total+=v; if(d.pago) pago+=v; });
   h += '<div class="card"><h3>ESCALA · '+esc(String(titulo).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
     '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
-    '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s) · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s)'+(nFalta?' · <b style="color:var(--vermelho)">'+nFalta+' a escalar</b>':'')+' · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
     (_escvModo==='anes' && meus.length ? '<div style="margin-top:10px"><button class="bt g" onclick="escWhats(\''+_escvSel+'\')">📲 Mandar escala por WhatsApp</button></div>' : '')+'</div>';
   return h;
 }
