@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v60</title>
+<title>CPE — Contas por Empresa v61</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v60">
+<meta name="rf-versao" content="v61">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v60',
+  versao : 'v61',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2669,7 +2669,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
-  escalahub:{t:'Escala', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
+  escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -2702,8 +2702,8 @@ function telaInicio(){
     cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura')+
     cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu')+
   '</div>';
-  h += '<div class="secao"><b>ESCALA</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
-    cpeCaixa('escalahub','🩺','Escala','NAFS (adicionar plantão) e escalas por hospital e por anestesista')+
+  h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
+    cpeCaixa('escalahub','🩺','NAFS','Adicionar paciente e escalas por hospital e por anestesista')+
   '</div>';
   h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+
     cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs')+
@@ -2712,7 +2712,7 @@ function telaInicio(){
   return h;
 }
 function telaEscalaHub(){
-  return '<div class="secao"><b>ESCALA</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
+  return '<div class="secao"><b>NAFS</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     cpeCaixa('escala','💉', ehAnes() ? 'NAFS' : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista')+
     cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
   '</div>';
