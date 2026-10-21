@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v57</title>
+<title>CPE — Contas por Empresa v58</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v57">
+<meta name="rf-versao" content="v58">
 <meta name="rf-data" content="2026-09-10">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v57',
+  versao : 'v58',
   data   : '20/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1767,8 +1767,8 @@ function escTurnoLongo(t){ t = escTurnoNorm(t); if(!t) return 'Dia todo'; return
 function escValidado(x){ return !!x && x.validacao==='fiz'; }
 function escLinkAnes(a){ return location.origin+location.pathname+'?a='+a.token; }
 function escIconeVal(x){ if(!x || !x.anestesista_id) return ''; if(x.validacao==='fiz') return '<span title="Validado pelo anestesista" style="color:var(--verde)">✔</span> ';
-  if(x.validacao==='nao_fiz') return '<span title="O anestesista disse que NÃO fez" style="color:var(--vermelho)">✖</span> ';
-  return String(x.data).slice(0,10)<=hojeISO() ? '<span title="Aguardando o anestesista validar">⏳</span> ' : ''; }
+  if(x.validacao==='nao_fiz') return '<span title="O anestesista cancelou" style="color:var(--vermelho)">✖</span> ';
+  return '<span title="Aguardando o anestesista confirmar">⏳</span> '; }
 function escAEscalar(x){ return x && !x.anestesista_id && /escalar/i.test(x.obs||''); }
 
 /* v34: aba "Hospitais" — entrada com um cartão por hospital; tocando abre as cirurgias/escala só dele */
@@ -2286,7 +2286,7 @@ function escAbrirData(iso, localId){
   const falta = ds.filter(x=>!x.anestesista_id && x.status!=='feriado').sort(ordem);
   if(falta.length) escala += linha('A escalar', falta.map(x=>tag(x,true)).join(''), true);
   if(ds.some(x=>x.status==='feriado')) escala += linha('Feriado', '', true);
-  if(ids.length) escala += '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ validado pelo anestesista · ⏳ aguardando validação · ✖ disse que não fez — só o validado entra no pagamento</div>';
+  if(ids.length) escala += '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ confirmado pelo anestesista · ⏳ aguardando confirmação · ✖ anestesista cancelou — só o confirmado entra no pagamento</div>';
 
   let montar = '';
   if(ed && !_escForm){
@@ -2320,7 +2320,7 @@ function escAbrirData(iso, localId){
       '<div style="width:120px"><select title="Turno"'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'turno\',this.value||null)">'+['','M','T','N','MT','TN','MN','MTN'].map(t=>'<option value="'+t+'"'+(escTurnoNorm(x.turno)===t?' selected':'')+'>'+(t?escTurnoLongo(t).replace(/ \d.*?h(?= \+|$)/g,''):'Dia todo')+'</option>').join('')+'</select></div>'+
       '<div style="width:105px"><input type="number" step="0.01" inputmode="decimal" placeholder="R$"'+(ed?'':' disabled')+' value="'+(x.valor!=null?x.valor:'')+'" style="text-align:right" onchange="escDataSet(\''+x.id+'\',\'valor\',this.value===\'\'?null:Number(this.value))"></div>'+
       '<div style="width:140px"><select'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'empresa_id\',this.value||null)">'+escOptsEmp(x.empresa_id)+'</select></div>'+
-      (escValidado(x)?'<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>':'<span style="font-size:12px;color:var(--fraco)">'+(x.validacao==='nao_fiz'?'✖ não fez':'⏳ falta validar')+'</span>')+'</div>';
+      (escValidado(x)?'<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>':'<span style="font-size:12px;color:var(--fraco)">'+(x.validacao==='nao_fiz'?'✖ cancelou':'⏳ falta confirmar')+'</span>')+'</div>';
   }).join('');
 
   abrirModal('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><button class="bt g mini" onclick="escDataMover(-1)">‹</button>'+
@@ -2482,7 +2482,7 @@ async function escCopiarLink(id){
 }
 function anesTok(){ return S.anesTok || S.meuTok; }
 /* v57 (Renato): "Minha escala" do anestesista no MESMO formato do calendário de Escalas › Por anestesista.
-   Tocando no dia com plantão, abre o dia para ele confirmar ✔ Fiz / Não fiz (só plantão de hoje para trás). */
+   Tocando no dia com plantão, abre o dia para ele ✔ Confirmar / ✖ Cancelar (v58: qualquer data, só não mexe depois de pago). */
 function telaMeus(){
   if(!S.meuAnes) return '<div class="vazio">Seu login ainda não está ligado a um anestesista.</div>';
   const a = escAnes(S.meuAnes) || { nome:'' }, hoje = hojeISO();
@@ -2507,17 +2507,16 @@ function telaMeus(){
     '<div class="card"><h3>ESCALA · '+esc(String(a.nome).toUpperCase())+' · '+escMesNome(S.mes).toUpperCase()+'</h3>'+
     '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px">'+g+'</div>'+
     '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">'+meus.length+' dia(s) · total '+brl(total)+' · pago '+brl(pago)+' · falta '+brl(total-pago)+'</div>'+
-    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Toque no dia para confirmar que fez o plantão · ✔ confirmado · ⏳ falta confirmar · ✖ não fez. Só o confirmado entra no pagamento.</div></div>';
+    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Toque no dia para confirmar ou cancelar o plantão · ✔ confirmado · ⏳ falta confirmar · ✖ cancelado. Só o confirmado entra no pagamento.</div></div>';
 }
 function meuDia(iso){
   const ds = S.esc.dias.filter(x=>x.anestesista_id===S.meuAnes && String(x.data).slice(0,10)===iso && escTrabalho(x));
-  const fut = iso > hojeISO();
   abrirModal('<h2 style="margin:0 0 8px">'+dataBR(iso)+' <span style="font-weight:400;color:var(--fraco)">'+escDow(iso)+'</span></h2>'+
     ds.map(x=>{ const l = escLocal(x.local_id); let acao;
-      if(fut) acao = '<span style="color:var(--fraco)">agendado</span>';
-      else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <a href="#" style="font-size:12px" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\');return false">mudar</a>';
-      else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Não fiz</span> <a href="#" style="font-size:12px" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\');return false">mudar</a>';
-      else acao = '<button class="bt" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Fiz</button> <button class="bt g" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">Não fiz</button>';
+      if(x.pago) acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado · pago</span>';
+      else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <button class="bt g mini" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">✖ Cancelar</button>';
+      else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Cancelado</span> <button class="bt g mini" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Confirmar</button>';
+      else acao = '<button class="bt" onclick="meuValidar(\''+x.id+'\',\'fiz\',\''+iso+'\')">✔ Confirmar</button> <button class="bt g" style="color:var(--vermelho)" onclick="meuValidar(\''+x.id+'\',\'nao_fiz\',\''+iso+'\')">✖ Cancelar</button>';
       return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--linha)">'+
         '<div style="flex:1;min-width:150px"><b>'+esc(l.unidade||'?')+'</b> <span style="color:var(--fraco)">'+esc(escTurnoLongo(x.turno))+'</span>'+
         (x.valor!=null?'<div style="font-size:12.5px;color:var(--fraco)">'+brl(x.valor)+(x.pago?' · <span style="color:var(--verde)">pago</span>':'')+'</div>':'')+'</div>'+
@@ -2526,7 +2525,7 @@ function meuDia(iso){
 }
 async function meuValidar(id, resp, iso){
   let motivo = null;
-  if(resp==='nao_fiz'){ motivo = prompt('Por que não fez este plantão? (opcional)'); if(motivo===null) return; }
+  if(resp==='nao_fiz'){ motivo = prompt('Cancelar este plantão? Escreva o motivo (opcional):'); if(motivo===null) return; }
   const r = await sb.rpc('esc_anes_validar', { tok: S.meuTok, dia: id, resposta: resp, motivo });
   if(r.error) return alert(r.error.message);
   try{ await escCarregar(); }catch(e){}
@@ -2540,7 +2539,7 @@ async function anesCarregar(){
 function anesMes(n){ const p=S.av.mes.split('-'); const d=new Date(+p[0], +p[1]-1+n, 1); S.av.mes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); S.av.dados=null; render(); anesCarregar(); }
 async function anesValidar(id, resp){
   let motivo = null;
-  if(resp==='nao_fiz'){ motivo = prompt('Por que não fez este plantão? (opcional)'); if(motivo===null) return; }
+  if(resp==='nao_fiz'){ motivo = prompt('Cancelar este plantão? Escreva o motivo (opcional):'); if(motivo===null) return; }
   const r = await sb.rpc('esc_anes_validar', { tok: anesTok(), dia: id, resposta: resp, motivo });
   if(r.error) return alert(r.error.message);
   if(S.meuTok) S.esc.carregado = false;
@@ -2560,16 +2559,15 @@ function telaAnesValidar(logado){
   if(d.erro || !d.anestesista) return h+'<div class="card"><b>Link inválido.</b><div style="color:var(--fraco);margin-top:6px">Peça um novo link para a equipe da escala.</div></div></div>';
   const ps = d.plantoes || [], pend = ps.filter(x=>!x.validacao && String(x.data)<=hoje);
   h += '<div class="card"><div style="font-size:18px;font-weight:800">Olá, '+esc(escPrimeiroNome(d.anestesista.nome))+'!</div>'+
-    '<div style="color:var(--fraco);font-size:13.5px;margin-top:4px">Depois de cada plantão, toque em <b>✔ Fiz</b>. Só o plantão confirmado entra no pagamento.</div></div>';
+    '<div style="color:var(--fraco);font-size:13.5px;margin-top:4px">Confirme ou cancele cada plantão tocando em <b>✔ Confirmar</b> ou <b>✖ Cancelar</b>. Só o plantão confirmado entra no pagamento.</div></div>';
   h += '<div class="card" style="display:flex;gap:8px;align-items:center;justify-content:space-between"><button class="bt g" onclick="anesMes(-1)">‹</button><b style="font-size:17px">'+escMesNome(S.av.mes)+'</b><button class="bt g" onclick="anesMes(1)">›</button></div>';
-  if(pend.length>1) h += '<button class="bt" style="width:100%;margin-bottom:12px" onclick="anesValidarTodos()">✔ Fiz todos os '+pend.length+' pendentes</button>';
+  if(pend.length>1) h += '<button class="bt" style="width:100%;margin-bottom:12px" onclick="anesValidarTodos()">✔ Confirmar todos os '+pend.length+' pendentes</button>';
   h += '<div class="card">'+(ps.map(x=>{
     const dt = String(x.data).slice(0,10), fut = dt>hoje, local = String(x.unidade||'?')+(x.turno?' ('+escTurnoLongo(x.turno).replace(/ \d.*?h(?= \+|$)/g,'')+')':'');
     let acao;
-    if(fut) acao = '<span style="font-size:12.5px;color:var(--fraco)">agendado</span>';
-    else if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\');return false">mudar</a>';
-    else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Não fiz</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'fiz\');return false">mudar</a>';
-    else acao = '<button class="bt" onclick="anesValidar(\''+x.id+'\',\'fiz\')">✔ Fiz</button> <button class="bt g" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\')">Não fiz</button>';
+    if(x.validacao==='fiz') acao = '<span style="color:var(--verde);font-weight:700">✔ Confirmado</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\');return false">mudar</a>';
+    else if(x.validacao==='nao_fiz') acao = '<span style="color:var(--vermelho);font-weight:700">✖ Cancelado</span> <a href="#" style="font-size:12px" onclick="anesValidar(\''+x.id+'\',\'fiz\');return false">mudar</a>';
+    else acao = '<button class="bt" onclick="anesValidar(\''+x.id+'\',\'fiz\')">✔ Confirmar</button> <button class="bt g" onclick="anesValidar(\''+x.id+'\',\'nao_fiz\')">✖ Cancelar</button>';
     return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px 0;border-bottom:1px solid var(--linha)">'+
       '<div style="width:62px;text-align:center"><div style="font-size:20px;font-weight:800;line-height:1">'+dt.slice(8)+'</div><div style="font-size:11px;color:var(--fraco);text-transform:uppercase">'+escDow(dt)+'</div></div>'+
       '<div style="flex:1;min-width:140px"><b>'+esc(local)+'</b>'+(x.hospital && x.hospital!==x.unidade?'<div style="font-size:12px;color:var(--fraco)">'+esc(x.hospital)+'</div>':'')+
