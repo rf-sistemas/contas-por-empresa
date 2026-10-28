@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v66">
+<meta name="rf-versao" content="v67">
 <meta name="rf-data" content="2026-10-28">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v66',
+  versao : 'v67',
   data   : '28/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2424,13 +2424,17 @@ var _escvModo = 'serv', _escvSel = null;
 function escvModo(m){ _escvModo = m; _escvSel = null; render(); }
 function escvEscolher(id){ _escvSel = id; render(); }
 /* v66 (Renato): visão "📅 Por dia" — a escala do dia com TODOS os anestesistas juntos, separada por turno. Só consulta. */
-var _escvDia = null;
+var _escvDia = null, _escvDiaHosp = '';   // v67: filtro por hospital na visão Por dia
+function escvDiaFiltro(h){ _escvDiaHosp = h; render(); }
 function escvDiaMover(n){ const d = new Date((_escvDia||hojeISO())+'T12:00:00'); d.setDate(d.getDate()+n); escvDiaIr(d.toISOString().slice(0,10)); }
 function escvDiaIr(iso){ if(!iso) return; _escvDia = iso; if(iso.slice(0,7)!==S.mes) S.mes = iso.slice(0,7); render(); }
 function escvDiaHTML(){
   if(!_escvDia || _escvDia.slice(0,7)!==S.mes) _escvDia = (hojeISO().slice(0,7)===S.mes) ? hojeISO() : S.mes+'-01';
   const iso = _escvDia;
-  const ds = S.esc.dias.filter(x=>String(x.data).slice(0,10)===iso && escTrabalho(x) && !(x.status==='cancelado'));
+  const dsTodos = S.esc.dias.filter(x=>String(x.data).slice(0,10)===iso && escTrabalho(x) && !(x.status==='cancelado'));
+  const hospsDia = [...new Set(dsTodos.map(x=>escHospNome(escLocal(x.local_id))))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  if(_escvDiaHosp && hospsDia.indexOf(_escvDiaHosp)<0) _escvDiaHosp = '';
+  const ds = _escvDiaHosp ? dsTodos.filter(x=>escHospNome(escLocal(x.local_id))===_escvDiaHosp) : dsTodos;
   const uni = x => String(escLocal(x.local_id).unidade||'?').replace(/^HER /,'');
   const cols = [['','Dia todo / sem turno','']].concat(ESC_TURNOS);
   const naCol = (x,c) => { const t = escTurnoNorm(x.turno); return c ? t.indexOf(c)>=0 : !t; };
@@ -2447,7 +2451,7 @@ function escvDiaHTML(){
     usadas.map(c=>'<td '+td+'>'+lista.filter(x=>naCol(x,c[0])).map(x=>tag(x,verm)).join('')+'</td>').join('')+'</tr>';
   let corpo = ids.map(id=>linha(esc((escAnes(id)||{nome:'?'}).nome), porAnes[id])).join('');
   if(falta.length) corpo += linha('A escalar', falta, true);
-  const livres = S.esc.anes.filter(a=>a.ativo!==false && !porAnes[a.id]).map(a=>escPrimeiroNome(a.nome));
+  const livres = _escvDiaHosp ? [] : S.esc.anes.filter(a=>a.ativo!==false && !porAnes[a.id]).map(a=>escPrimeiroNome(a.nome));
   const ehHoje = iso===hojeISO();
   let h = '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
     '<button class="bt g" onclick="escvDiaMover(-1)">‹ dia</button>'+
@@ -2456,10 +2460,17 @@ function escvDiaHTML(){
     '<input type="date" value="'+iso+'" onchange="escvDiaIr(this.value)" style="width:auto">'+
     (ehHoje?'':'<button class="bt g mini" onclick="escvDiaIr(hojeISO())">hoje</button>')+
   '</div>';
-  h += '<div class="card"><h3>ESCALA DO DIA · '+dataBR(iso)+' · '+ids.length+' anestesista(s)'+(falta.length?' · <span style="color:var(--vermelho)">'+falta.length+' a escalar</span>':'')+'</h3>'+
+  if(hospsDia.length){
+    const qtd = n => dsTodos.filter(x=>!n || escHospNome(escLocal(x.local_id))===n).length;
+    const ch = (n, txt) => { const on = _escvDiaHosp===n; return '<button type="button" onclick="escvDiaFiltro(\''+esc(n).replace(/'/g,"\\'")+'\')" style="padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;'+
+      (on?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+' <span style="opacity:.75;font-weight:400">'+qtd(n)+'</span></button>'; };
+    h += '<div class="card"><div style="font-size:12px;color:var(--fraco);font-weight:700;margin-bottom:8px">🏥 FILTRAR POR HOSPITAL</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      ch('', 'Todos')+hospsDia.map(n=>ch(n, esc(n))).join('')+'</div></div>';
+  }
+  h += '<div class="card"><h3>ESCALA DO DIA · '+dataBR(iso)+(_escvDiaHosp?' · '+esc(_escvDiaHosp.toUpperCase()):'')+' · '+ids.length+' anestesista(s)'+(falta.length?' · <span style="color:var(--vermelho)">'+falta.length+' a escalar</span>':'')+'</h3>'+
     (corpo ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th '+th+'>ANESTESISTA</th>'+
       usadas.map(c=>'<th '+th+'>'+(c[0]?c[1].toUpperCase()+' <span style="font-weight:400">'+c[2]+'</span>':'DIA TODO / SEM TURNO')+'</th>').join('')+'</tr></thead><tbody>'+corpo+'</tbody></table></div>'
-      : '<div class="vazio">Ninguém escalado nesta data.</div>')+
+      : '<div class="vazio">'+(_escvDiaHosp?'Ninguém escalado neste hospital nesta data.':'Ninguém escalado nesta data.')+'</div>')+
     (livres.length && corpo ? '<div style="font-size:12.5px;color:var(--fraco);margin-top:10px">Sem plantão neste dia: '+esc(livres.join(', '))+'</div>' : '')+
     (ids.length ? '<div style="font-size:11.5px;color:var(--fraco);margin-top:6px">✔ confirmado · ⏳ aguardando confirmação · ✖ cancelou · 🆕 lançado pelo anestesista</div>' : '')+
   '</div>';
