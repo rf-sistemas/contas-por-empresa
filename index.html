@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v67">
+<meta name="rf-versao" content="v68">
 <meta name="rf-data" content="2026-10-28">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -161,7 +161,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Contas por Empresa',
-  versao : 'v67',
+  versao : 'v68',
   data   : '28/10/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -312,7 +312,20 @@ function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
-function movsDaEmpresa(id){ return S.movimentos.filter(m=>m.empresa_id===id && doMes(m)); }
+/* v68 (Renato): o Painel abre com o TOTAL GLOBAL de cada CNPJ (todos os meses). O filtro de calendário (mês, dia ou período) é opcional. */
+var PF = { modo:'tudo', mes:'', dia:'', de:'', ate:'' };
+function pfOk(m){ const d = String(m.data_movimento||'').slice(0,10);
+  if(PF.modo==='mes') return d.slice(0,7)===(PF.mes||mesHoje());
+  if(PF.modo==='dia') return d===(PF.dia||hojeISO());
+  if(PF.modo==='periodo') return (!PF.de || d>=PF.de) && (!PF.ate || d<=PF.ate);
+  return true; }
+function pfModo(m){ PF.modo = m; if(m==='mes' && !PF.mes) PF.mes = mesHoje(); if(m==='dia' && !PF.dia) PF.dia = hojeISO(); render(); }
+function pfSet(k,v){ PF[k] = v; render(); }
+function pfMesMover(n){ const p=(PF.mes||mesHoje()).split('-'); const d=new Date(+p[0], +p[1]-1+n, 1); PF.mes = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); render(); }
+function pfDiaMover(n){ const d=new Date((PF.dia||hojeISO())+'T12:00:00'); d.setDate(d.getDate()+n); PF.dia = d.toISOString().slice(0,10); render(); }
+function pfTexto(){ if(PF.modo==='mes') return escMesNome(PF.mes||mesHoje()); if(PF.modo==='dia') return dataBR(PF.dia||hojeISO());
+  if(PF.modo==='periodo') return (PF.de?dataBR(PF.de):'início')+' a '+(PF.ate?dataBR(PF.ate):'hoje'); return 'todos os meses'; }
+function movsDaEmpresa(id){ return S.movimentos.filter(m=>m.empresa_id===id && pfOk(m)); }
 function fila(){ return S.movimentos.filter(m=>!m.empresa_id); }
 function totais(lista){
   let ent=0, sai=0, pago=0;
@@ -388,14 +401,14 @@ function telaLogin(){
 
 /* ---------- PAINEL: resumo fechado + caixas por CNPJ ---------- */
 function telaPainel(){
-  const doMesTodos = S.movimentos.filter(doMes);
+  const doMesTodos = S.movimentos.filter(pfOk);
   const t = totais(doMesTodos);
   const soltas = fila().length;
 
   let h = '<div class="card">'+
     '<div class="resumo" onclick="S.resumoAberto=!S.resumoAberto;render()">'+
       '<span class="seta">'+(S.resumoAberto?'▼':'▶')+'</span>'+
-      '<h3 style="margin:0">RESUMO GERAL</h3>'+
+      '<h3 style="margin:0">RESUMO GERAL <span style="font-weight:400;color:var(--fraco);font-size:12px">· '+pfTexto()+'</span></h3>'+
       '<span style="margin-left:auto;color:var(--fraco);font-size:12px">'+
         (S.resumoAberto?'clique para fechar':'saldo '+brl(t.saldo))+'</span>'+
     '</div>'+
@@ -409,8 +422,7 @@ function telaPainel(){
   '</div>';
 
   h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
-      '<div style="max-width:190px"><label>Mês de referência</label>'+
-      '<input type="month" value="'+S.mes+'" onchange="S.mes=this.value;render()"></div>'+
+      pfBarra()+
       (podeEditar()? '<button class="bt" onclick="abrirLancamento(\'saida\')">− Lançar saída</button>'+
                      '<button class="bt g" onclick="abrirLancamento(\'entrada\')">+ Lançar entrada</button>'+
                      '<button class="bt g" onclick="abrirExtrato()">📎 Anexar extrato / fatura</button>' : '')+
@@ -420,6 +432,18 @@ function telaPainel(){
 
   h += '<div class="grade">' + S.empresas.map(caixa).join('') + '</div>';
   return h;
+}
+function pfBarra(){
+  const ch = (m, txt) => '<button type="button" onclick="pfModo(\''+m+'\')" style="padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;'+
+    (PF.modo===m?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+'</button>';
+  let campo = '';
+  if(PF.modo==='mes') campo = '<button class="bt g mini" onclick="pfMesMover(-1)">‹</button><input type="month" value="'+(PF.mes||mesHoje())+'" onchange="pfSet(\'mes\',this.value)" style="width:auto"><button class="bt g mini" onclick="pfMesMover(1)">›</button>';
+  if(PF.modo==='dia') campo = '<button class="bt g mini" onclick="pfDiaMover(-1)">‹</button><input type="date" value="'+(PF.dia||hojeISO())+'" onchange="pfSet(\'dia\',this.value)" style="width:auto"><button class="bt g mini" onclick="pfDiaMover(1)">›</button>';
+  if(PF.modo==='periodo') campo = '<span style="font-size:13px;color:var(--fraco)">de</span><input type="date" value="'+PF.de+'" onchange="pfSet(\'de\',this.value)" style="width:auto"><span style="font-size:13px;color:var(--fraco)">até</span><input type="date" value="'+PF.ate+'" onchange="pfSet(\'ate\',this.value)" style="width:auto">';
+  return '<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
+    '<span style="font-size:12px;color:var(--fraco);font-weight:700;margin-right:4px">📅 VER</span>'+
+    ch('tudo','Tudo (global)')+ch('mes','Mês')+ch('dia','Dia')+ch('periodo','Período')+
+    (campo?'<span style="display:inline-flex;gap:6px;align-items:center;margin-left:6px;flex-wrap:wrap">'+campo+'</span>':'')+'</div>';
 }
 function kpi(t,v){ return '<div class="kpi"><small>'+t+'</small><b>'+v+'</b></div>'; }
 
@@ -448,7 +472,7 @@ function caixa(e){
 function abrirCaixa(id){ S.aberta = id; render(); }
 
 function tabelaMovimentos(movs){
-  if(!movs.length) return '<div class="vazio">Nenhum movimento neste mês.</div>';
+  if(!movs.length) return '<div class="vazio">Nenhum movimento em '+pfTexto()+'.</div>';
   const linhas = movs.slice().sort((a,b)=> (b.data_movimento||'').localeCompare(a.data_movimento||''))
    .map(m=>{
     const ent = m.tipo==='entrada';
