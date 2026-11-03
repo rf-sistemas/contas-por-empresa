@@ -1,0 +1,25 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'br.com.rfsistemas.sistemamr'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'br.com.rfsistemas.sistemamr'
+        minSdk 24
+        targetSdk 34
+        versionCode (System.getenv('APK_VERSION_CODE') ?: '1') as int
+        versionName System.getenv('APK_VERSION_NAME') ?: '1.0'
+    }
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KS_FILE') ?: 'nao-existe.jks')
+            storePassword System.getenv('KS_PASS')
+            keyAlias 'sistemamr'
+            keyPassword System.getenv('KS_PASS')
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { }
