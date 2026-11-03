@@ -9,11 +9,14 @@ permissions:
 concurrency: { group: apk, cancel-in-progress: false }
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: Componentes do Android
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" > /dev/null
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
       - name: Chave de assinatura
@@ -36,7 +39,9 @@ jobs:
         env:
           APK_VERSION_CODE: ${{ github.run_number }}
           APK_VERSION_NAME: '1.${{ github.run_number }}'
-        run: gradle --no-daemon assembleRelease
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace assembleRelease 2>&1 | tee $RUNNER_TEMP/build.log
       - name: Publicar o APK no site
         run: |
           mkdir -p apk
@@ -47,3 +52,11 @@ jobs:
           git commit -m "APK Sistema MR 1.${{ github.run_number }} [skip ci]" || exit 0
           git pull --rebase origin main
           git push origin HEAD:main
+      - name: Registrar erro da compilação
+        if: failure()
+        run: |
+          mkdir -p apk
+          { echo "Falhou em $(date -u)"; tail -n 150 $RUNNER_TEMP/build.log 2>/dev/null || echo "sem log de gradle (falhou antes)"; } > apk/build-log.txt
+          git config user.name "RF Sistemas"; git config user.email "comercial@rflogistica.com.br"
+          git add apk/build-log.txt; git commit -m "Log da compilação do APK [skip ci]" || exit 0
+          git pull --rebase origin main; git push origin HEAD:main
