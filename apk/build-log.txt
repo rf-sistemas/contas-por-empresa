@@ -1,0 +1,2 @@
+Falhou em Tue Nov  3 17:24:26 UTC 2026
+sem log de gradle (falhou antes)
