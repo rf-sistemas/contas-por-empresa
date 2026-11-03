@@ -1,17 +1,32 @@
 {
-  "name": "Contas por empresa",
-  "short_name": "Contas",
-  "description": "Entradas e saídas por CNPJ. Um sistema RF Sistemas.",
+  "name": "Sistema MR",
+  "short_name": "Sistema MR",
+  "description": "Sistema MR — financeiro por CNPJ e escalas. Um sistema RF Sistemas.",
   "start_url": "./index.html",
   "scope": "./",
   "id": "./index.html",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#F3F4F1",
-  "theme_color": "#F3F4F1",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

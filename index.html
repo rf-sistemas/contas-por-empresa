@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CPE — Contas por Empresa v65</title>
+<title>Sistema MR</title>
 
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
-<meta name="rf-sistema-nome" content="Contas por Empresa">
-<meta name="rf-versao" content="v68">
-<meta name="rf-data" content="2026-10-28">
+<meta name="rf-sistema-nome" content="Sistema MR">
+<meta name="rf-versao" content="v70">
+<meta name="rf-data" content="2026-11-03">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -20,7 +20,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="CPE">
+<meta name="apple-mobile-web-app-title" content="Sistema MR">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -131,6 +131,22 @@
            align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto}
   .modal{background:var(--carta);border:1px solid var(--linha);border-radius:14px;padding:18px;
          width:100%;max-width:640px}
+  .psec{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin:10px 0;background:var(--fundo2)}
+  .pti{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap}
+  .pti a{color:var(--azul,#0A6CF0);font-size:12px}
+  .pgr{font-size:10.5px;letter-spacing:1px;color:var(--fraco);font-weight:700;margin:8px 0 4px}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+  .ucard{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--carta)}
+  .uc1{display:flex;justify-content:space-between;gap:10px}
+  .ucm{font-size:12px;color:var(--fraco);word-break:break-all}
+  .uac{font-size:12px;color:var(--fraco);margin:6px 0 8px}
+  .ubt{display:flex;flex-wrap:wrap;gap:6px}
+  .pchk{display:flex;gap:8px;align-items:center;text-align:left;border:1px solid var(--linha);background:var(--carta);color:var(--texto);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;cursor:pointer}
+  .pchk small{display:block;font-size:11px;color:var(--fraco)}
+  .pchk .cx{flex:0 0 18px;height:18px;border:2px solid var(--linha);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff}
+  .pchk.on{border-color:#16a3a0;background:rgba(22,163,160,.08)}
+  .pchk.on .cx{background:linear-gradient(135deg,#2fbf5a,#16a3a0,#0A6CF0);border-color:transparent}
+  .ptag{background:rgba(22,163,160,.12);color:#0f8a87;border-radius:10px;padding:1px 8px;font-weight:700;font-size:11.5px}
   .modal h2{margin:0 0 4px;font-size:17px;color:var(--ouro-claro)}
 
   .aviso{background:var(--av-bg);border:1px solid var(--av-bd);color:var(--av-tx);padding:9px 11px;border-radius:9px;font-size:12.5px;margin-bottom:10px}
@@ -160,9 +176,9 @@
    ========================================================================== */
 const SISTEMA = {
   codigo : 'CPE',
-  nome   : 'Contas por Empresa',
-  versao : 'v68',
-  data   : '28/10/2026',
+  nome   : 'Sistema MR',
+  versao : 'v70',
+  data   : '03/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -202,7 +218,7 @@ function validaCNPJ(t){
   return d1===Number(c[12]) && d2===Number(c[13]);
 }
 function norm(t){ return String(t||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-const CPE_LOGO = 'data:image/webp;base64,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';   // logo oficial MR (v44)
+const CPE_LOGO = 'data:image/webp;base64,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';   // logo oficial MR (v44)
 function marcaSVG(px){ return '<img src="'+CPE_LOGO+'" width="'+px+'" height="'+px+'" alt="MR" style="display:block;object-fit:contain">'; }
 function aviso(txt,tipo){ S.msg=txt; S.msgTipo=tipo||'ok'; render(); if(txt) setTimeout(()=>{ if(S.msg===txt){S.msg=null;render();} },6000); }
 function val(id){ const e=document.getElementById(id); return e? e.value : ''; }
@@ -223,7 +239,7 @@ async function iniciar(){
   if(CFG.anon.indexOf('COLE_AQUI')===0){
     document.getElementById('app').innerHTML =
       '<div class="login"><div style="margin-bottom:14px">'+marcaSVG(64)+'</div>'+
-      '<h2 style="margin:0 0 2px;letter-spacing:.5px">CONTAS POR EMPRESA</h2>'+
+      '<h2 style="margin:0 0 2px;letter-spacing:.5px">SISTEMA MR</h2>'+
       '<div style="color:var(--fraco);font-size:12px;letter-spacing:2px;margin-bottom:18px">'+SISTEMA.casa.toUpperCase()+'</div>'+
       '<div class="card">'+
         '<h3 style="margin-top:0">Primeira vez neste aparelho</h3>'+
@@ -309,6 +325,20 @@ function ehAnes(){ return papel()==='anestesista'; }   // v54: login do anestesi
 function podeEditar(){ return ['mestre','dono','operador'].indexOf(papel())>=0; }
 function podeUsuarios(){ return ['mestre','dono'].indexOf(papel())>=0; }
 function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
+/* v69 (Renato, 03/11/2026): PERMISSÕES POR LOGIN — dentro de Usuários. Cada login pode ter as abas que enxerga e os hospitais
+   que enxerga (um, vários ou todos). perfis.abas = null → todas as abas do papel; perfis.hospitais = null/vazio → todos.
+   O banco também trava (RLS em esc_locais/esc_dias por hospital). Mestre vê tudo sempre. */
+const CPE_ABAS = [
+  ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes']]],
+  ['ESCALAS',    [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']]],
+  ['DENTRO DA NAFS / ANESTESIA', [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],['producao','💰','Financeiro'],['hospitais','🏥','Cadastro de hospitais']]],
+  ['CADASTROS',  [['empresas','🏛️','Empresas']]]
+];
+function permNorm(t){ return String(t||'').trim().toLowerCase(); }
+function veAba(k){ if(papel()==='mestre') return true; const a = S.perfil && S.perfil.abas; return !Array.isArray(a) || a.indexOf(k)>=0; }
+function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
+  return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
+function abaDaTela(t){ if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -343,7 +373,8 @@ function render(){
   if(!S.user){ app.innerHTML = telaLogin(); return; }
 
   let corpo = '';
-  if(ehAnes() && ['meus','escala'].indexOf(S.tela)<0) S.tela = 'escala';   // v56: anestesista só tem o NAFS e a escala individual dele
+  if(ehAnes() && ['meus','escala'].indexOf(S.tela)<0) S.tela = 'escala';
+  if(!ehAnes() && S.tela!=='inicio' && S.tela!=='usuarios' && !veAba(abaDaTela(S.tela))) S.tela = 'inicio';   // v69   // v56: anestesista só tem o NAFS e a escala individual dele
   if(S.carregando && !S.empresas.length && !ehAnes()) corpo = '<div class="vazio">Carregando…</div>';
   else if(S.carregando && ehAnes()) corpo = '<div class="vazio">Carregando…</div>';
   else if(S.tela==='meus')     corpo = telaMeus();
@@ -363,7 +394,7 @@ function render(){
   const nf = fila().length;
   app.innerHTML =
     '<header class="top"><div class="topin">'+
-      '<div class="marca" style="cursor:pointer" onclick="irPara(\'inicio\')">'+marcaSVG(38)+'<div><b>CONTAS POR EMPRESA</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
+      '<div class="marca" style="cursor:pointer" onclick="irPara(\'inicio\')">'+marcaSVG(38)+'<div><b>SISTEMA MR</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
       '<button class="bt g mini" style="margin-left:auto" onclick="trocarTema()" title="Claro / escuro">'+(temaAtual()==='escuro'?'☀ claro':'🌙 escuro')+'</button>'+
       '<div class="quem" style="margin-left:12px"><b>'+esc(S.perfil? (S.perfil.nome||S.perfil.email) : '')+'</b>'+
         esc(papel()||'')+' · <a href="#" onclick="sair();return false">sair</a></div>'+
@@ -381,12 +412,12 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ S.tela=t; S.msg=null; render(); }
+function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } S.tela=t; S.msg=null; render(); }
 
 function telaLogin(){
   return '<div class="login">'+
-    '<div style="margin-bottom:14px">'+marcaSVG(64)+'</div>'+
-    '<h2 style="margin:0 0 2px;letter-spacing:.5px">CONTAS POR EMPRESA</h2>'+
+    '<div style="margin-bottom:14px;display:flex;justify-content:center">'+marcaSVG(64)+'</div>'+
+    '<h2 style="margin:0 0 2px;letter-spacing:.5px">SISTEMA MR</h2>'+
     '<div style="color:var(--fraco);font-size:12px;letter-spacing:2px;margin-bottom:18px">'+SISTEMA.casa.toUpperCase()+'</div>'+
     (S.msg? '<div class="'+S.msgTipo+'">'+esc(S.msg)+'</div>' : '')+
     '<div class="card">'+
@@ -633,20 +664,26 @@ function telaEmpresas(){
 /* ---------- USUÁRIOS ---------- */
 function telaUsuarios(){
   if(!S.anesTodos) escAnesTodos().then(render).catch(()=>{});
+  if(!S.permEmp) permCarregarListas().then(render).catch(()=>{ S.permEmp = {}; });
   const visiveis = S.perfis.filter(p=> papel()==='mestre' ? true : p.papel!=='mestre');
   let h = '<div class="card"><h3>USUÁRIOS</h3>'+
     '<div class="aviso">Papéis: <b>dono</b> vê tudo e cria usuários · <b>operador</b> lança e edita · '+
-    '<b>leitura</b> só consulta · <b>anestesista</b> só olha a escala, vê só os valores dele e confirma os próprios plantões. A trava por empresa limita o que cada um enxerga.</div>'+
+    '<b>leitura</b> só consulta · <b>anestesista</b> só olha a escala, vê só os valores dele e confirma os próprios plantões.<br>'+
+    'Toque em <b>🔒 permissões</b> para escolher, login por login, <b>quais abas</b>, <b>quais hospitais</b> e <b>quais CNPJs</b> ele enxerga.</div>'+
     '<button class="bt" onclick="abrirUsuario()">+ Novo usuário</button>'+
-    '<table style="margin-top:12px"><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Situação</th><th></th></tr></thead><tbody>'+
-    visiveis.map(p=>'<tr><td><b>'+esc(p.nome||'—')+'</b></td><td>'+esc(p.email||'')+'</td>'+
-      '<td>'+esc(p.papel)+(p.papel==='anestesista'?'<div style="font-size:11px;color:var(--fraco)">'+esc((function(){ const z=(S.anesTodos||[]).find(a=>a.id===p.anestesista_id); return z ? z.nome+' · '+z.grupo : 'sem vínculo'; })())+'</div>':'')+'</td><td>'+(p.ativo?'ativo':'<span style="color:#c8452f">inativo</span>')+'</td>'+
-      '<td style="white-space:nowrap">'+
+    '<div style="margin-top:12px">'+
+    visiveis.map(p=>'<div class="ucard">'+
+      '<div class="uc1"><div><b>'+esc(p.nome||'—')+'</b><div class="ucm">'+esc(p.email||'')+'</div></div>'+
+        '<div style="text-align:right"><span class="ptag">'+esc(p.papel)+'</span>'+(p.ativo?'':'<div style="color:#c8452f;font-size:12px">inativo</div>')+
+        (p.papel==='anestesista'?'<div class="ucm">'+esc((function(){ const z=(S.anesTodos||[]).find(a=>a.id===p.anestesista_id); return z ? z.nome+' · '+z.grupo : 'sem vínculo'; })())+'</div>':'')+'</div></div>'+
+      '<div class="uac">🔒 '+permResumo(p).replace(/<br>/g,' · ')+'</div>'+
+      '<div class="ubt">'+
+        (p.papel!=='mestre' && p.papel!=='anestesista' && p.id!==S.user.id && (papel()==='mestre' || p.papel!=='dono') ? '<button class="bt mini" onclick="abrirPerm(\''+p.id+'\')">🔒 permissões</button> ' : '')+
         (p.id!==S.user.id && (papel()==='mestre' || p.papel!=='dono') ? '<button class="bt g mini" onclick="abrirNivel(\''+p.id+'\')">nível</button> ' : '')+
         '<button class="bt g mini" onclick="acaoUsuario(\'senha\',\''+p.id+'\')">senha</button> '+
         '<button class="bt g mini" onclick="acaoUsuario(\'ativar\',\''+p.id+'\','+(!p.ativo)+')">'+(p.ativo?'desativar':'ativar')+'</button> '+
         '<button class="bt g mini" onclick="acaoUsuario(\'excluir\',\''+p.id+'\')">✕</button>'+
-      '</td></tr>').join('')+'</tbody></table></div>';
+      '</div></div>').join('')+'</div></div>';
   return h;
 }
 
@@ -1648,6 +1685,87 @@ async function salvarOrigem(){
   S.modal=null; aviso('Origem salva.','ok');
 }
 
+/* --- v69: permissões por login (abas, hospitais e CNPJs) --- */
+var _perm = null;   // { id, abas:[]|null, hosp:[]|null, emp:[] , listaHosp:[] }
+function permResumo(p){
+  if(p.papel==='mestre') return '<span style="color:var(--fraco)">tudo</span>';
+  if(p.papel==='anestesista') return '<span style="color:var(--fraco)">só a escala dele</span>';
+  const tot = CPE_ABAS.reduce((n,g)=>n+g[1].length,0);
+  const a = Array.isArray(p.abas) ? p.abas.length+' de '+tot+' abas' : 'todas as abas';
+  const h = Array.isArray(p.hospitais) && p.hospitais.length ? p.hospitais.length+' hospita'+(p.hospitais.length===1?'l':'is') : 'todos os hospitais';
+  const ne = (S.permEmp||{})[p.id]; const e = ne && ne.length ? ne.length+' CNPJ'+(ne.length===1?'':'s') : 'todos os CNPJs';
+  return a+'<br>'+h+'<br>'+e;
+}
+async function permCarregarListas(){
+  const [l,hc,pe] = await Promise.all([
+    sb.from('esc_locais').select('hospital,unidade'),
+    sb.from('esc_hospitais').select('nome,ativo'),
+    sb.from('perfil_empresas').select('perfil_id,empresa_id')
+  ]);
+  const m = {};
+  (hc.data||[]).forEach(x=>{ if(x.nome) m[permNorm(x.nome)] = m[permNorm(x.nome)] || x.nome.trim(); });
+  (l.data||[]).forEach(x=>{ const n = (x.hospital||x.unidade||'').trim(); if(n) m[permNorm(n)] = m[permNorm(n)] || n; });
+  S.permHosp = Object.keys(m).map(k=>m[k]).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  S.permEmp = {}; (pe.data||[]).forEach(x=>{ (S.permEmp[x.perfil_id] = S.permEmp[x.perfil_id] || []).push(x.empresa_id); });
+}
+async function abrirPerm(id){
+  if(!S.permHosp){ try{ await permCarregarListas(); }catch(e){ return aviso('Não carregou a lista de hospitais: '+e.message,'erro'); } }
+  const p = S.perfis.find(x=>x.id===id) || {};
+  _perm = { id, abas: Array.isArray(p.abas) ? p.abas.slice() : CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]),
+            hosp: Array.isArray(p.hospitais) ? p.hospitais.slice() : [], emp: ((S.permEmp||{})[id]||[]).slice(), busca:'' };
+  permDesenhar();
+}
+function permTog(tipo, v){
+  const arr = _perm[tipo]; const i = tipo==='hosp' ? arr.map(permNorm).indexOf(permNorm(v)) : arr.indexOf(v);
+  if(i>=0) arr.splice(i,1); else arr.push(v); permDesenhar();
+}
+function permTodos(tipo){ if(tipo==='abas') _perm.abas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]); else _perm[tipo] = []; permDesenhar(); }
+function permNenhum(tipo){ _perm[tipo] = []; permDesenhar(); }
+function permChk(on, rot, acao, sub){
+  return '<button type="button" class="pchk'+(on?' on':'')+'" onclick="'+acao+'"><span class="cx">'+(on?'✓':'')+'</span><span>'+rot+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
+}
+function permDesenhar(){
+  const P = _perm, p = S.perfis.find(x=>x.id===P.id) || {};
+  const todasH = !P.hosp.length, todasE = !P.emp.length;
+  const busca = permNorm(P.busca);
+  const hs = (S.permHosp||[]).filter(n=>!busca || permNorm(n).indexOf(busca)>=0);
+  let h = '<h2>🔒 Permissões</h2><div style="color:var(--fraco);margin-bottom:10px">'+esc(p.nome||p.email||'')+' · <b>'+esc(p.papel||'')+'</b></div>'+
+    '<div class="psec"><div class="pti"><b>1. ABAS QUE ELE VÊ</b><span><a href="#" onclick="permTodos(\'abas\');return false">marcar todas</a> · <a href="#" onclick="permNenhum(\'abas\');return false">limpar</a></span></div>'+
+    CPE_ABAS.map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')")).join('')+'</div>').join('')+
+    '</div>'+
+    '<div class="psec"><div class="pti"><b>2. HOSPITAIS QUE ELE VÊ</b><span>'+(todasH?'<span class="ptag">todos</span>':'<span class="ptag">'+P.hosp.length+' marcado'+(P.hosp.length===1?'':'s')+'</span> · <a href="#" onclick="permTodos(\'hosp\');return false">liberar todos</a>')+'</span></div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Nenhum marcado = vê <b>todos</b>. Marque um ou vários para ele ver <b>só esses</b> na escala, no Financeiro e no cadastro de hospitais.</div>'+
+    '<input placeholder="🔎 buscar hospital" value="'+esc(P.busca)+'" oninput="_perm.busca=this.value;permDesenhar();var e=document.getElementById(\'pbusca\');" id="pbusca" style="margin-bottom:8px">'+
+    '<div class="pgrid">'+hs.map(n=>permChk(P.hosp.map(permNorm).indexOf(permNorm(n))>=0, esc(n), "permTog('hosp',"+JSON.stringify(n).replace(/"/g,'&quot;')+")")).join('')+'</div>'+
+    '</div>'+
+    '<div class="psec"><div class="pti"><b>3. CNPJs QUE ELE VÊ</b><span>'+(todasE?'<span class="ptag">todos</span>':'<span class="ptag">'+P.emp.length+' marcado'+(P.emp.length===1?'':'s')+'</span> · <a href="#" onclick="permTodos(\'emp\');return false">liberar todos</a>')+'</span></div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Nenhum marcado = vê <b>todos</b>.</div>'+
+    '<div class="pgrid">'+S.empresas.map(e=>permChk(P.emp.indexOf(e.id)>=0, esc(e.apelido||e.razao_social), "permTog('emp','"+e.id+"')", e.cnpj?mascaraCNPJ(e.cnpj):'')).join('')+'</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px;position:sticky;bottom:0;background:var(--carta);padding:10px 0"><button class="bt" onclick="permSalvar()">Salvar permissões</button><button class="bt g" onclick="_perm=null;fecharModal()">Cancelar</button></div>';
+  const foco = document.activeElement && document.activeElement.id==='pbusca';
+  const pos = foco ? document.activeElement.selectionStart : null;
+  const sc = document.querySelector('.modalbg') ? document.querySelector('.modalbg').scrollTop : 0;
+  abrirModal(h);
+  const m = document.querySelector('.modalbg'); if(m) m.scrollTop = sc;
+  if(foco){ const e = document.getElementById('pbusca'); if(e){ e.focus(); try{ e.setSelectionRange(pos,pos); }catch(x){} } }
+}
+async function permSalvar(){
+  const P = _perm; if(!P) return;
+  if(!P.abas.length) return aviso('Marque pelo menos uma aba.','erro');
+  const todas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]);
+  const abas = todas.every(k=>P.abas.indexOf(k)>=0) ? null : todas.filter(k=>P.abas.indexOf(k)>=0);
+  const r = await sb.from('perfis').update({ abas, hospitais: P.hosp.length ? P.hosp : null }).eq('id', P.id);
+  if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
+  const d = await sb.from('perfil_empresas').delete().eq('perfil_id', P.id);
+  if(d.error) return aviso('Não salvou os CNPJs: '+d.error.message,'erro');
+  if(P.emp.length){ const i = await sb.from('perfil_empresas').insert(P.emp.map(e=>({ perfil_id:P.id, empresa_id:e })));
+    if(i.error) return aviso('Não salvou os CNPJs: '+i.error.message,'erro'); }
+  const { data:ps } = await sb.from('perfis').select('*').order('papel'); S.perfis = ps||S.perfis;
+  S.permEmp = S.permEmp || {}; S.permEmp[P.id] = P.emp.slice();
+  _perm = null; S.modal = null; aviso('Permissões salvas. Valem no próximo login dele (ou ao recarregar a página).','ok');
+}
+
 /* --- usuários --- */
 function abrirUsuario(){
   const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','mestre'] : ['operador','leitura','anestesista'];
@@ -1659,11 +1777,7 @@ function abrirUsuario(){
     '<label>Papel</label><select id="us-papel" onchange="document.getElementById(\'us-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(p=>'<option value="'+p+'">'+p+'</option>').join('')+'</select>'+
     '<div id="us-anes-box" style="display:none"><label>Qual anestesista é este login</label><select id="us-anes"><option value="">— escolha —</option>'+S.anesTodos.filter(a=>a.ativo!==false).map(a=>'<option value="'+a.id+'">'+esc(a.nome)+' · '+a.grupo+'</option>').join('')+'</select>'+
     '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Anestesista só olha a escala, vê só os valores dele e só confirma os próprios plantões.</div></div>'+
-    '<label>Empresas que ele enxerga (nenhuma marcada = todas, para o dono)</label>'+
-    '<div style="max-height:170px;overflow:auto;border:1px solid var(--linha);border-radius:8px;padding:8px;background:var(--fundo2)">'+
-      S.empresas.map(e=>'<label style="text-transform:none;letter-spacing:0;color:var(--texto);display:flex;gap:7px;align-items:center;margin:4px 0">'+
-        '<input type="checkbox" class="us-emp" value="'+e.id+'" style="width:auto"> '+esc(e.apelido||e.razao_social)+'</label>').join('')+
-    '</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Depois de criar, abre a tela de <b>🔒 permissões</b> para escolher as abas, os hospitais e os CNPJs dele.</div>'+
     '<div style="display:flex;gap:8px;margin-top:16px">'+
       '<button class="bt" onclick="salvarUsuario()">Criar</button>'+
       '<button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
@@ -1694,14 +1808,16 @@ async function salvarUsuario(){
   const senha = val('us-senha');
   if(!email.includes('@')) return aviso('E-mail inválido.','erro');
   if(senha.length<6) return aviso('A senha precisa de ao menos 6 caracteres.','erro');
-  const empresas = Array.from(document.querySelectorAll('.us-emp')).filter(c=>c.checked).map(c=>c.value);
+  const empresas = [];
   if(val('us-papel')==='anestesista' && !val('us-anes')) return aviso('Escolha qual anestesista é este login.','erro');
   const r = await chamarCriarUsuario({ acao:'criar', nome:val('us-nome').trim(), email, senha, papel:val('us-papel'), empresas, anestesista_id: val('us-anes')||null });
   if(r.erro) return aviso('Não criou: '+r.erro,'erro');
   const { data:ps } = await sb.from('perfis').select('*').order('papel');
   S.perfis = ps||S.perfis;
   S.modal=null;
-  aviso('Usuário criado. Senha: '+senha,'ok');
+  aviso('Usuário criado. Senha: '+senha+' — agora escolha as permissões dele.','ok');
+  const novo = S.perfis.find(x=>String(x.email||'').toLowerCase()===email);   // v69: já abre as permissões do novo login
+  if(novo && ['operador','leitura','dono'].indexOf(novo.papel)>=0){ S.permHosp = null; abrirPerm(novo.id); }
 }
 function abrirNivel(id){
   if(!S.anesTodos){ escAnesTodos().then(()=>abrirNivel(id)).catch(()=>{}); return; }
@@ -1759,7 +1875,7 @@ S.esc = { locais:[], anes:[], dias:[], leitura:null, carregado:false, hosp:null,
 const ESC_GRUPOS = ['NAFS','ANESTESIA'];
 function escGrupo(){ return S.esc.grupo || 'NAFS'; }
 async function escAnesTodos(){ const r = await sb.from('esc_anestesistas').select('id,nome,grupo,ativo').order('nome'); S.anesTodos = r.data || []; }
-function irGrupo(g){ if(escGrupo()!==g){ S.esc.grupo = g; S.esc.carregado = false; S.esc.dias = []; S.esc.anes = []; _escvSel = null; S.esc.hosp = null; S.esc.modo = null; } irPara('escalahub'); }
+function irGrupo(g){ if(!ehAnes() && !veAba(g==='ANESTESIA'?'anestesia':'nafs')) return aviso('Você não tem acesso a esta aba.','erro'); if(escGrupo()!==g){ S.esc.grupo = g; S.esc.carregado = false; S.esc.dias = []; S.esc.anes = []; _escvSel = null; S.esc.hosp = null; S.esc.modo = null; } irPara('escalahub'); }
 const ESC_DS = ['dom','seg','ter','qua','qui','sex','sáb'];
 const ESC_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 function escMesNome(m){ const p=String(m||'').split('-'); return (ESC_MESES[(+p[1]||1)-1]||'')+'/'+(p[0]||''); }
@@ -1777,7 +1893,9 @@ async function escCarregar(){
     sb.from('esc_dias').select('*').eq('grupo', escGrupo()).order('data').limit(5000)
   ]);
   if(l.error) throw l.error;
-  S.esc.locais = l.data||[]; S.esc.anes = a.data||[]; S.esc.dias = d.data||[];
+  S.esc.locais = (l.data||[]).filter(x=>veHosp(escHospNome(x)));   // v69: só os hospitais liberados para este login
+  const _ids = S.esc.locais.map(x=>x.id);
+  S.esc.anes = a.data||[]; S.esc.dias = (d.data||[]).filter(x=>!x.local_id || _ids.indexOf(x.local_id)>=0);
   await hospCarregar();   // v64: cadastro de hospitais (forma de pagamento)
   S.esc.carregado = true;
 }
@@ -2817,30 +2935,29 @@ function telaInicio(){
       cpeCaixa('escalahub','🩺','Escala','NAFS e escalas por hospital e por anestesista — só consulta')+'</div>';
   }
   const nf = fila().length, ne = S.empresas.length;
-  let h = '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+
-    cpeCaixa('painel','🏢','CNPJs', ne+' empresa'+(ne===1?'':'s')+': entradas, saídas, contas a pagar e saldo do mês')+
-    cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||'')+
-    cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura')+
-    cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu')+
-  '</div>';
-  h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
+  const fin = (veAba('painel')? cpeCaixa('painel','🏢','CNPJs', ne+' empresa'+(ne===1?'':'s')+': entradas, saídas, contas a pagar e saldo do mês'):'')+
+    (veAba('fila')? cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||''):'')+
+    (veAba('origens')? cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura'):'')+
+    (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'');
+  let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
+  if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
   '</div>';
-  h += '<div class="secao"><b>ANESTESIA</b><span>Outra equipe de anestesistas, com escala própria</span></div><div class="bxs">'+
+  if(veAba('anestesia')) h += '<div class="secao"><b>ANESTESIA</b><span>Outra equipe de anestesistas, com escala própria</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'ANESTESIA\')"><div class="ic">💉</div><div><b>ANESTESIA</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
   '</div>';
-  h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+
-    cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs')+
-    (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa e o que cada um pode fazer') : '')+
-  '</div>';
+  const cad = (veAba('empresas')? cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs') : '')+
+    (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
+  if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
+  if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
 }
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
-    cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista')+
-    cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista')+
-    (!ehAnes() && podeUsuarios() ? cpeCaixa('producao','💰','Financeiro','Produção dos anestesistas: o que cada um fez no mês, validado, pago e a pagar') : '')+
-    (!ehAnes() && podeEditar() ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
+    (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
+    (ehAnes() || veAba('escalas') ? cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista') : '')+
+    (!ehAnes() && podeUsuarios() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro','Produção dos anestesistas: o que cada um fez no mês, validado, pago e a pagar') : '')+
+    (!ehAnes() && podeEditar() && veAba('hospitais') ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
   '</div>';
 }
 
@@ -2929,7 +3046,7 @@ const HOSP_FORMAS = { dia:'Por plantão / dia', turno:'Por turno', procedimento:
 async function hospCarregar(){
   const r = await sb.from('esc_hospitais').select('*').order('nome');
   if(r.error){ S.esc.hospCad = []; S.esc.hospErro = r.error.message; return; }
-  S.esc.hospCad = r.data || []; S.esc.hospErro = '';
+  S.esc.hospCad = (r.data || []).filter(h=>veHosp(h.nome)); S.esc.hospErro = '';
 }
 function hospCad(nome){ const n = String(nome||'').trim().toLowerCase(); return (S.esc.hospCad||[]).find(h=>String(h.nome).trim().toLowerCase()===n) || null; }
 function hospDoLocal(localId){ return hospCad(escHospNome(escLocal(localId))); }
