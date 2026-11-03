@@ -12,11 +12,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
-      - name: Componentes do Android
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" > /dev/null
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.9' }
       - name: Chave de assinatura
@@ -44,14 +41,16 @@ jobs:
           gradle --no-daemon --stacktrace assembleRelease 2>&1 | tee $RUNNER_TEMP/build.log
       - name: Publicar o APK no site
         run: |
+          cp android-app/app/build/outputs/apk/release/app-release.apk $RUNNER_TEMP/SistemaMR.apk
+          git config user.name "RF Sistemas"; git config user.email "comercial@rflogistica.com.br"
+          git fetch origin main
+          git checkout -f -B publicar origin/main
           mkdir -p apk
-          cp android-app/app/build/outputs/apk/release/app-release.apk apk/SistemaMR.apk
-          git config user.name "RF Sistemas"
-          git config user.email "comercial@rflogistica.com.br"
-          git add apk/SistemaMR.apk
-          git commit -m "APK Sistema MR 1.${{ github.run_number }} [skip ci]" || exit 0
-          git pull --rebase origin main
-          git push origin HEAD:main
+          cp $RUNNER_TEMP/SistemaMR.apk apk/SistemaMR.apk
+          echo "APK Sistema MR 1.${{ github.run_number }} gerado em $(date -u)" > apk/build-log.txt
+          git add apk/SistemaMR.apk apk/build-log.txt
+          git commit -m "APK Sistema MR 1.${{ github.run_number }} [skip ci]"
+          git push origin publicar:main 2>&1 | tee $RUNNER_TEMP/build.log
       - name: Registrar erro da compilação
         if: failure()
         run: |
