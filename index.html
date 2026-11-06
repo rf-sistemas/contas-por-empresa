@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v70">
-<meta name="rf-data" content="2026-11-03">
+<meta name="rf-versao" content="v71">
+<meta name="rf-data" content="2026-11-06">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -177,8 +177,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v70',
-  data   : '03/11/2026',
+  versao : 'v71',
+  data   : '06/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -1362,8 +1362,11 @@ function extratoCabecalho(t){
   const plano = String(t||'').replace(/\s+/g,' ');
   const banco = (plano.match(/\b(UNICRED|BRADESCO|ITA[UÚ]|SANTANDER|BANCO DO BRASIL|CAIXA|NUBANK|INTER|SICOOB|SICREDI|C6|BTG|SAFRA)\b/i)||[])[1] || '';
   const conta = (plano.match(/Conta:?\s*([\d.-]+)/i)||[])[1] || '';
-  const tit   = (plano.match(/Solicitado por\s+([A-ZÀ-Ÿ][^-*]{3,60})/i)||[])[1] || '';
-  return { banco: banco ? banco.charAt(0)+banco.slice(1).toLowerCase() : '', conta, titular:(tit||'').trim() };
+  let tit   = (plano.match(/Solicitado por\s+([A-ZÀ-Ÿ][^-*]{3,60})/i)||[])[1] || '';
+  // v71: Banco do Brasil ("Extrato de Conta Corrente · Cliente: NOME · Agência · Conta")
+  const ehBB = !banco && /BB Rende|OUROCARD|BB CR[ÉE]DITO|Banco do Brasil/i.test(plano);
+  if(!tit){ const mcl = plano.match(/Cliente:\s*([A-ZÀ-Ÿ][A-ZÀ-Ÿ .'-]{3,60}?)\s+(?:Per[ií]odo|Ag[êe]ncia)/i); if(mcl) tit = mcl[1]; }
+  return { banco: ehBB ? 'BB' : (banco ? banco.charAt(0)+banco.slice(1).toLowerCase() : ''), conta, titular:(tit||'').trim() };
 }
 
 function extratoLinhas(t){
@@ -1464,6 +1467,85 @@ function extratoCorrido(t){
   return out;
 }
 
+/* v71 (Renato, 06/11/2026): leitor do extrato do BANCO DO BRASIL ("Extrato de Conta Corrente" — Dia · Lote · Documento · Histórico · Valor).
+   O BB escreve o valor sem "R$" e com o sinal no fim: "1.234,56 (-)". O histórico vem numa linha acima da data
+   (ex.: "Pix - Enviado") e o detalhe numa linha abaixo (ex.: "03/08 20:11 MARINALVA GENESIA RIOS").
+   Ignora: Saldo Anterior / Saldo do dia (usados só para conferir), aplicação/resgate automático do BB Rende Fácil
+   e pares de débito + "Estorno de Débito" do mesmo valor e documento no mesmo dia (não saiu dinheiro). */
+function ehExtratoBB(texto){
+  const t = String(texto||'');
+  return /Extrato de Conta Corrente/i.test(t) && /Dia\s+Lote\s+Documento\s+Hist[óo]rico\s+Valor/i.test(t) && /\d,\d{2}\s*\([+-]\)/.test(t);
+}
+function extratoBB(itens){
+  const reData = /^\d{2}\/\d{2}\/\d{4}$/;
+  const reValor = /^([\d.]+,\d{2})\s*\(([+-])\)$/;
+  const recs = [];
+  // 1) linhas que têm data na coluna "Dia"
+  itens.forEach(it=>{
+    if(!(reData.test(it.str) && it.x < 80)) return;
+    const p = it.str.split('/');
+    recs.push({ pag:it.pag, ordem:it.ordem, y:it.y, data:p[2]+'-'+p[1]+'-'+p[0], doc:'', valor:null, sinal:'', hist:[] });
+  });
+  if(!recs.length) return [];
+  // 2) cada pedaço vai para a linha de data mais próxima na vertical (mesma página)
+  itens.forEach(it=>{
+    if(reData.test(it.str) && it.x < 80) return;
+    if(it.x < 80) return;
+    let melhor=null, dist=1e9;
+    recs.forEach(r=>{ if(r.pag!==it.pag) return; const d=Math.abs(r.ordem-it.ordem); if(d<dist){dist=d; melhor=r;} });
+    if(!melhor || dist > 12) return;
+    const mv = it.str.match(reValor);
+    if(mv && it.x > 400 && Math.abs(melhor.ordem-it.ordem) < 2){ melhor.valor = extratoValor(mv[1]); melhor.sinal = mv[2]; return; }
+    if(it.x >= 130 && it.x < 240 && /^\d{3,}$/.test(it.str) && Math.abs(melhor.ordem-it.ordem) < 2){ melhor.doc = it.str; return; }
+    if(it.x >= 240 && it.x < 500) melhor.hist.push({ ordem:it.ordem, s:it.str });
+    // coluna "Lote" (x ~ 99) não interessa
+  });
+  recs.forEach(r=>{ r.hist.sort((a,b)=>a.ordem-b.ordem); r.texto = r.hist.map(h=>h.s).join(' ').replace(/\s+/g,' ').trim(); });
+
+  // 3) conferência pelo "Saldo do dia" (antes de tirar qualquer linha)
+  let saldo = null, checks = 0, falhas = [];
+  recs.forEach(r=>{
+    if(r.valor == null) return;
+    const v = r.sinal === '-' ? -r.valor : r.valor;
+    if(/^Saldo Anterior/i.test(r.texto)){ saldo = v; return; }
+    if(/^Saldo do dia/i.test(r.texto)){
+      if(saldo != null){ checks++; if(Math.abs(saldo - v) > 0.01) falhas.push({ data:r.data, lido:saldo, banco:v }); }
+      saldo = v; return;
+    }
+    if(saldo != null) saldo = Math.round((saldo + v)*100)/100;
+  });
+
+  // 4) tira o que não é lançamento de verdade
+  const movs = recs.filter(r=> r.valor != null && r.valor > 0 && !/^Saldo (Anterior|do dia)/i.test(r.texto) && !/^SALDO$/i.test(r.texto));
+  let rende = 0, estornos = 0;
+  const fora = new Set();
+  movs.forEach((r,i)=>{
+    if(/Rende F[áa]cil/i.test(r.texto)){ fora.add(i); rende++; return; }
+    if(/^Estorno de D[ée]bito/i.test(r.texto) && r.sinal==='+'){
+      // procura o débito do mesmo dia, mesmo valor e mesmo documento, ainda não casado
+      for(let j=i-1;j>=0;j--){
+        const a = movs[j];
+        if(fora.has(j)) continue;
+        if(a.data===r.data && a.sinal==='-' && Math.abs(a.valor-r.valor)<0.01 && (a.doc===r.doc || !a.doc || !r.doc)){
+          fora.add(j); fora.add(i); estornos++; break;
+        }
+      }
+    }
+  });
+  const out = [];
+  movs.forEach((r,i)=>{
+    if(fora.has(i)) return;
+    let desc = r.texto.replace(/Estorno de D[ée]bito\s*/i,'Estorno de Débito ');
+    // contraparte: o nome que vem depois de "dd/mm hh:mm CPF/CNPJ"
+    const mc = desc.match(/\d{2}\/\d{2}\s+\d{2}:\d{2}\s+(?:\d{6,14}\s+)?([A-ZÀ-Ÿ][A-ZÀ-Ÿ .'-]{2,60})/);
+    const contraparte = mc ? mc[1].trim() : '';
+    if(r.doc) desc += ' (Doc.: '+r.doc+')';
+    out.push({ data:r.data, descricao:desc.slice(0,140), contraparte, valor:r.valor, tipo: r.sinal==='-' ? 'saida' : 'entrada' });
+  });
+  out.conferenciaBB = { checks, falhas, rende, estornos };
+  return out;
+}
+
 async function lerExtrato(){
   const inp = document.getElementById('ex-arq');
   const f = inp && inp.files && inp.files[0];
@@ -1476,6 +1558,8 @@ async function lerExtrato(){
       return statusExtrato('<span style="color:var(--vermelho)">Esse PDF não tem texto (deve ser escaneado). Peça o extrato em PDF direto do banco.</span>');
     let cab = extratoCabecalho(texto);
     let linhas = extratoDosItens(itens);            // pelas colunas (preciso)
+    if(linhas.length < 2 && ehExtratoBB(texto)) linhas = extratoBB(itens);   // v71: Banco do Brasil
+    const confBB = linhas.conferenciaBB || null;
     let fat = null;
     if(linhas.length < 2 && ehFatura(texto)){
       const r = faturaDosItens(itens, texto);
@@ -1506,7 +1590,12 @@ async function lerExtrato(){
           (alvo!=null? ', mas a fatura diz '+brl(alvo) : '')+'. Confira antes de importar.</div>';
     }
     const comSaldo = fat ? [] : linhas.filter(l=>l.saldo != null);
-    if(comSaldo.length >= 2){
+    if(confBB){
+      const ign = (confBB.estornos ? confBB.estornos+' par(es) de débito + estorno' : '') + (confBB.estornos && confBB.rende ? ' e ' : '') + (confBB.rende ? confBB.rende+' movimento(s) automático(s) do BB Rende Fácil' : '');
+      conferencia = !confBB.falhas.length
+        ? '<div class="ok">Extrato do Banco do Brasil: conferido dia a dia com o "Saldo do dia" do banco ('+confBB.checks+' dia(s)), tudo fecha.'+(ign?' Ignorados: '+ign+'.':'')+'</div>'
+        : '<div class="erro">Extrato do Banco do Brasil: <b>'+confBB.falhas.length+' dia(s) não batem</b> com o "Saldo do dia" — o primeiro é '+dataBR(confBB.falhas[0].data)+'. Confira antes de importar.</div>';
+    } else if(comSaldo.length >= 2){
       // confere pela coluna de saldo: cada linha tem que explicar a anterior.
       // é mais confiável que o "Saldo em ...", cujo sinal alguns bancos não imprimem.
       const falhas = [];
