@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v71">
-<meta name="rf-data" content="2026-11-06">
+<meta name="rf-versao" content="v72">
+<meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -90,6 +90,10 @@
 
   .resumo{cursor:pointer;display:flex;align-items:center;gap:10px}
   .resumo .seta{color:var(--ouro);font-size:12px}
+  /* v72: lista de despesas pessoais vira cartão no celular */
+  @media (max-width:640px){ .pestab thead{display:none} .pestab tr{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--linha)}
+    .pestab td{border:0!important;padding:0!important} .pestab td:nth-child(1){grid-column:1;color:var(--fraco);font-size:12px} .pestab td:nth-child(5){grid-column:2;grid-row:1/3;align-self:start}
+    .pestab td:nth-child(2){grid-column:1} .pestab td:nth-child(3){grid-column:1/3} .pestab td:nth-child(4){display:none} .pestab td:nth-child(6){grid-column:1/3} .pestab select{width:100%} }
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
   .kpi{background:var(--fundo2);border:1px solid var(--linha);border-radius:10px;padding:10px}
   .kpi small{display:block;color:var(--fraco);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
@@ -177,8 +181,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v71',
-  data   : '06/11/2026',
+  versao : 'v72',
+  data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -329,13 +333,17 @@ function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
    que enxerga (um, vários ou todos). perfis.abas = null → todas as abas do papel; perfis.hospitais = null/vazio → todos.
    O banco também trava (RLS em esc_locais/esc_dias por hospital). Mestre vê tudo sempre. */
 const CPE_ABAS = [
-  ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes']]],
+  ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
   ['ESCALAS',    [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']]],
   ['DENTRO DA NAFS / ANESTESIA', [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],['producao','💰','Financeiro'],['hospitais','🏥','Cadastro de hospitais']]],
   ['CADASTROS',  [['empresas','🏛️','Empresas']]]
 ];
 function permNorm(t){ return String(t||'').trim().toLowerCase(); }
-function veAba(k){ if(papel()==='mestre') return true; const a = S.perfil && S.perfil.abas; return !Array.isArray(a) || a.indexOf(k)>=0; }
+/* v72 (Renato, 09/11/2026): DESPESAS PESSOAIS do Vinicius — aba privada. Mestre e dono veem sempre; os demais logins
+   só se a aba estiver marcada EXPLICITAMENTE nas permissões (abas = null NÃO libera). O banco trava igual (cpe_ve_pessoais). */
+const ABA_PRIVADA = 'pessoais';
+function vePessoais(){ if(['mestre','dono'].indexOf(papel())>=0) return true; const a = S.perfil && S.perfil.abas; return Array.isArray(a) && a.indexOf(ABA_PRIVADA)>=0; }
+function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true; const a = S.perfil && S.perfil.abas; return !Array.isArray(a) || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
 function abaDaTela(t){ if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
@@ -356,7 +364,8 @@ function pfDiaMover(n){ const d=new Date((PF.dia||hojeISO())+'T12:00:00'); d.set
 function pfTexto(){ if(PF.modo==='mes') return escMesNome(PF.mes||mesHoje()); if(PF.modo==='dia') return dataBR(PF.dia||hojeISO());
   if(PF.modo==='periodo') return (PF.de?dataBR(PF.de):'início')+' a '+(PF.ate?dataBR(PF.ate):'hoje'); return 'todos os meses'; }
 function movsDaEmpresa(id){ return S.movimentos.filter(m=>m.empresa_id===id && pfOk(m)); }
-function fila(){ return S.movimentos.filter(m=>!m.empresa_id); }
+function fila(){ return S.movimentos.filter(m=>!m.empresa_id && !m.pessoal); }
+function pessoais(){ return S.movimentos.filter(m=>m.pessoal); }
 function totais(lista){
   let ent=0, sai=0, pago=0;
   lista.forEach(m=>{ const v=Number(m.valor)||0;
@@ -381,6 +390,7 @@ function render(){
   else if(S.tela==='inicio')   corpo = telaInicio();
   else if(S.tela==='escalahub') corpo = telaEscalaHub();
   else if(S.tela==='painel')   corpo = telaPainel();
+  else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
   else if(S.tela==='nomes')    corpo = telaNomes();
   else if(S.tela==='origens')  corpo = telaOrigens();
@@ -432,7 +442,7 @@ function telaLogin(){
 
 /* ---------- PAINEL: resumo fechado + caixas por CNPJ ---------- */
 function telaPainel(){
-  const doMesTodos = S.movimentos.filter(pfOk);
+  const doMesTodos = S.movimentos.filter(m=>!m.pessoal && pfOk(m));   // v72: despesa pessoal fica fora do resumo dos CNPJs
   const t = totais(doMesTodos);
   const soltas = fila().length;
 
@@ -529,6 +539,83 @@ function tabelaMovimentos(movs){
          '<th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table>';
 }
 
+/* ---------- v72 (Renato, 09/11/2026): DESPESAS PESSOAIS do Vinicius ----------
+   Ficam na mesma tabela "movimentos" com pessoal = true e sem CNPJ: não entram no resumo dos CNPJs nem na fila.
+   Chegam de dois jeitos: da fila "Apontar depois" (opção 👤 Despesa pessoal) ou lançadas à mão aqui. */
+const PES_CATS = ['Casa','Alimentação','Saúde','Educação','Transporte / carro','Lazer','Viagem','Vestuário','Contas e serviços','Impostos e taxas','Outros'];
+const PES_COR = ['#13B981','#00B8D9','#0A6CF0','#7C5CFF','#F59E0B','#EC4899','#14B8A6','#8B5CF6','#64748B','#EF4444','#94A3B8'];
+S.pesCat = '';
+function pesCategorias(){ const x = PES_CATS.slice(); pessoais().forEach(m=>{ const c=(m.categoria||'').trim(); if(c && x.indexOf(c)<0) x.push(c); }); return x; }
+function pesCatDe(m){ const c = (m.categoria||'').trim(); return pesCategorias().indexOf(c)>=0 ? c : null; }
+function pesCor(c){ const i = PES_CATS.indexOf(c); return i>=0 ? PES_COR[i] : '#94A3B8'; }
+function telaPessoais(){
+  const doPer = pessoais().filter(pfOk);
+  const sai = doPer.filter(m=>m.tipo!=='entrada'), ent = doPer.filter(m=>m.tipo==='entrada');
+  const tSai = sai.reduce((s,x)=>s+(Number(x.valor)||0),0), tEnt = ent.reduce((s,x)=>s+(Number(x.valor)||0),0);
+  const g = {}; sai.forEach(m=>{ const c = (m.categoria||'').trim() || 'Sem categoria'; g[c] = (g[c]||0) + (Number(m.valor)||0); });
+  const cats = Object.keys(g).sort((a,b)=>g[b]-g[a]);
+  const maior = cats[0];
+  S._pesCats = cats;
+
+  let h = '<div class="card"><h3 style="margin:0 0 4px">👤 DESPESAS PESSOAIS <span style="font-weight:400;color:var(--fraco);font-size:12px">· '+pfTexto()+'</span></h3>'+
+    '<div style="color:var(--fraco);font-size:12.5px">Gastos pessoais do Vinicius. Ficam fora dos CNPJs e do resumo geral.</div>'+
+    '<div class="kpis">'+
+      kpi('Gasto pessoal', brl(tSai))+
+      kpi('Lançamentos', String(doPer.length))+
+      kpi('Maior categoria', maior ? esc(maior)+' · '+(tSai?Math.round(g[maior]/tSai*100):0)+'%' : '—')+
+      (tEnt? kpi('Entradas / estornos', brl(tEnt)) : '')+
+    '</div></div>';
+
+  h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+ pfBarra()+
+    (podeEditar()? '<button class="bt" onclick="abrirLancamento(\'saida\',null,true)">− Lançar despesa pessoal</button>'+
+      '<button class="bt g" onclick="irPara(\'fila\')">📌 Trazer da fila</button>' : '')+'</div>';
+
+  if(!doPer.length) return h+'<div class="card"><div class="vazio">Nenhuma despesa pessoal em '+pfTexto()+'.<br>Lance à mão ou, na fila "Apontar depois", escolha <b>👤 Despesa pessoal</b>.</div></div>';
+
+  // por categoria
+  h += '<div class="card"><h3 style="margin:0 0 10px">POR CATEGORIA</h3>'+
+    cats.map(c=>{ const pct = tSai ? Math.round(g[c]/tSai*100) : 0; const on = S.pesCat===c;
+      return '<div onclick="pesFiltro('+cats.indexOf(c)+')" style="cursor:pointer;padding:6px 8px;border-radius:8px;margin-bottom:4px;'+(on?'background:var(--fundo2);outline:1px solid var(--ouro)':'')+'">'+
+        '<div style="display:flex;gap:8px;align-items:baseline;font-size:13.5px"><span style="width:10px;height:10px;border-radius:3px;background:'+pesCor(c)+';display:inline-block"></span>'+
+        '<b>'+esc(c)+'</b><span style="color:var(--fraco);font-size:12px">'+pct+'%</span><b style="margin-left:auto">'+brl(g[c])+'</b></div>'+
+        '<div class="barra" style="margin-top:4px"><i style="width:'+pct+'%;background:'+pesCor(c)+'"></i></div></div>'; }).join('')+
+    (S.pesCat? '<div style="font-size:12px;color:var(--fraco);margin-top:6px">Filtrando: <b>'+esc(S.pesCat)+'</b> · <a href="#" onclick="S.pesCat=\'\';render();return false">ver todas</a></div>' : '<div style="font-size:12px;color:var(--fraco);margin-top:6px">Toque numa categoria para filtrar a lista.</div>')+
+  '</div>';
+
+  // lista
+  const lista = doPer.filter(m=>!S.pesCat || ((m.categoria||'').trim()||'Sem categoria')===S.pesCat)
+    .sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||''));
+  const cs = pesCategorias();
+  h += '<div class="card"><h3 style="margin:0 0 8px">LANÇAMENTOS</h3><table class="pestab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+    lista.map(m=>{ const ent = m.tipo==='entrada';
+      return '<tr><td>'+dataBR(m.data_movimento)+'</td>'+
+        '<td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.descricao&&m.fornecedor?'<div style="color:var(--fraco);font-size:12px">'+esc(m.descricao)+'</div>':'')+'</td>'+
+        '<td>'+(podeEditar()? '<select style="min-width:140px" onchange="pesSetCat(\''+m.id+'\',this.value)"><option value="">— sem categoria —</option>'+
+            cs.map(c=>'<option'+((m.categoria||'')===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>' : esc(m.categoria||'—'))+'</td>'+
+        '<td>'+esc(nomeOrigem(m.origem_id))+'</td>'+
+        '<td style="text-align:right;white-space:nowrap;color:'+(ent?'var(--verde)':'inherit')+'"><b>'+(ent?'+ ':'')+brl(m.valor)+'</b></td>'+
+        '<td style="white-space:nowrap">'+
+          (podeEditar()? '<button class="bt g mini" onclick="editarMov(\''+m.id+'\')">editar</button> <button class="bt g mini" title="Não é pessoal: volta para a fila Apontar depois" onclick="pesDevolver(\''+m.id+'\')">↩ fila</button> ' : '')+
+          (m.anexo_path? '<button class="bt g mini" onclick="verAnexo(\''+m.anexo_path+'\')">nota</button> ' : '')+
+          (podeApagar()? '<button class="bt g mini" onclick="excluirMov(\''+m.id+'\')">✕</button>' : '')+
+        '</td></tr>'; }).join('')+
+  '</tbody></table></div>';
+  return h;
+}
+function pesFiltro(i){ const c = (S._pesCats||[])[i]||''; S.pesCat = S.pesCat===c ? '' : c; render(); }
+async function pesSetCat(id, c){
+  const m = S.movimentos.find(x=>x.id===id); if(!m) return;
+  const { error } = await sb.from('movimentos').update({ categoria: c||null }).eq('id',id);
+  if(error) return aviso('Não gravou: '+error.message,'erro');
+  m.categoria = c||null; render();
+}
+async function pesDevolver(id){
+  const m = S.movimentos.find(x=>x.id===id); if(!m) return;
+  const { error } = await sb.from('movimentos').update({ pessoal:false }).eq('id',id);
+  if(error) return aviso('Não gravou: '+error.message,'erro');
+  m.pessoal = false; aviso('Voltou para a fila "Apontar depois".','ok');
+}
+
 /* ---------- FILA: saídas sem empresa ---------- */
 function telaFila(){
   const lista = fila();
@@ -587,6 +674,7 @@ function filaCartoes(lista){
         '</div>'+
         '<div style="min-width:200px"><select id="fila-'+m.id+'">'+
           '<option value="">— escolher empresa —</option>'+
+          (vePessoais()? '<option value="__pessoal">👤 Despesa pessoal</option>' : '')+
           S.empresas.map(e=>'<option value="'+e.id+'"'+(sug===e.id?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join('')+
         '</select></div>'+
         '<div><button class="bt" onclick="apontar(\''+m.id+'\')">apontar</button></div>'+
@@ -609,6 +697,12 @@ async function apontar(id){
   const empresa = val('fila-'+id);
   if(!empresa) return aviso('Escolha a empresa.','erro');
   const m = S.movimentos.find(x=>x.id===id);
+  if(empresa==='__pessoal'){   // v72: sai da fila e vai para Despesas pessoais
+    const r = await sb.from('movimentos').update({ pessoal:true, empresa_id:null, categoria: pesCatDe(m) }).eq('id',id);
+    if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+    m.pessoal = true; m.categoria = pesCatDe(m);
+    return aviso('Foi para Despesas pessoais.','ok');
+  }
   const { error } = await sb.from('movimentos').update({ empresa_id:empresa }).eq('id',id);
   if(error) return aviso('Não gravou: '+error.message,'erro');
   m.empresa_id = empresa;
@@ -702,7 +796,7 @@ function nomesAgrupados(){
     g.qtd++;
     g.ids.push(m.id);
     if(m.tipo==='entrada') g.ent += Number(m.valor)||0; else g.sai += Number(m.valor)||0;
-    if(!m.empresa_id) g.semEmpresa++;
+    if(!m.empresa_id && !m.pessoal) g.semEmpresa++;
     if(bruto.length > g.nome.length) g.nome = bruto;   // guarda a grafia mais completa
   });
   return Object.values(mapa).sort((a,b)=> b.qtd - a.qtd || (b.sai+b.ent) - (a.sai+a.ent));
@@ -758,7 +852,7 @@ async function definirNome(chave, nome){
   if(error) return aviso('Não gravou a regra: '+error.message,'erro');
 
   // leva junto o que ainda está na fila
-  const pendentes = S.movimentos.filter(m=>!m.empresa_id && norm(m.fornecedor||'')===chave);
+  const pendentes = S.movimentos.filter(m=>!m.empresa_id && !m.pessoal && norm(m.fornecedor||'')===chave);
   let movidos = 0;
   if(pendentes.length){
     const ids = pendentes.map(m=>m.id);
@@ -784,9 +878,9 @@ function fecharModal(){ S.modal=null; render(); }
 function abrirModal(html){ S.modal = '<div class="modalbg" onclick="if(event.target===this)fecharModal()"><div class="modal">'+html+'</div></div>'; render(); }
 
 /* --- lançamento --- */
-let _edit = null;
-function abrirLancamento(tipo, m){
-  _edit = m || null;
+let _edit = null, _prePessoal = false;
+function abrirLancamento(tipo, m, pre){
+  _edit = m || null; _prePessoal = !!pre;
   const t = m ? m.tipo : tipo;
   const ent = t==='entrada';
   abrirModal(
@@ -804,6 +898,7 @@ function abrirLancamento(tipo, m){
     '</div>'+
     '<label>Empresa (pode deixar em branco)</label>'+
     '<select id="mv-empresa"><option value="">— apontar depois —</option>'+
+      (vePessoais()? '<option value="__pessoal"'+((m&&m.pessoal)||(!m&&_prePessoal)?' selected':'')+'>👤 Despesa pessoal</option>' : '')+
       S.empresas.map(e=>'<option value="'+e.id+'"'+(m&&m.empresa_id===e.id?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join('')+
     '</select>'+
     '<label>Origem (cartão / conta)</label>'+
@@ -814,7 +909,7 @@ function abrirLancamento(tipo, m){
     '<input id="mv-forn" value="'+esc(m?m.fornecedor:'')+'">'+
     '<div class="lin">'+
       '<div><label>CNPJ do documento</label><input id="mv-cnpj" value="'+esc(m?mascaraCNPJ(m.cnpj_fornecedor||''):'')+'" oninput="this.value=mascaraCNPJ(this.value)"></div>'+
-      '<div><label>Categoria</label><input id="mv-cat" value="'+esc(m?m.categoria:'')+'"></div>'+
+      '<div><label>Categoria</label><input id="mv-cat" list="mv-cat-lista" value="'+esc(m?m.categoria:'')+'"><datalist id="mv-cat-lista">'+pesCategorias().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></div>'+
     '</div>'+
     '<label>Descrição</label><input id="mv-desc" value="'+esc(m?m.descricao:'')+'">'+
     (!ent? '<label style="text-transform:none;letter-spacing:0;display:flex;gap:6px;align-items:center;margin-top:12px">'+
@@ -830,7 +925,8 @@ function editarMov(id){ const m = S.movimentos.find(x=>x.id===id); if(m) abrirLa
 
 async function salvarMovimento(){
   const tipo = val('mv-tipo');
-  const empresa = val('mv-empresa') || null;
+  const ehPessoal = val('mv-empresa')==='__pessoal';   // v72
+  const empresa = ehPessoal ? null : (val('mv-empresa') || null);
   const valor = Number(val('mv-valor'));
   if(!valor || valor<=0) return aviso('Informe o valor.','erro');
   const cnpj = soDig(val('mv-cnpj'));
@@ -842,6 +938,7 @@ async function salvarMovimento(){
     fornecedor: val('mv-forn')||null, cnpj_fornecedor: cnpj||null,
     categoria: val('mv-cat')||null, descricao: val('mv-desc')||null,
     pago: tipo==='saida' ? chk('mv-pago') : true,
+    pessoal: ehPessoal,
     criado_por: S.user.id
   };
   if(reg.pago && tipo==='saida') reg.data_pagamento = reg.data_movimento;
@@ -849,7 +946,7 @@ async function salvarMovimento(){
     if(up){ reg.anexo_path = up.path; reg.anexo_nome = up.nome; reg.lido_por_ia = _lidoPorIA; } }
 
   // sem empresa, mas com regra gravada para o nome: aponta sozinho
-  if(!empresa){
+  if(!empresa && !ehPessoal){
     const sug = sugerirEmpresa(reg);
     if(sug){ reg.empresa_id = sug; }
   }
@@ -861,9 +958,9 @@ async function salvarMovimento(){
 
   if(_edit){ const i = S.movimentos.findIndex(x=>x.id===_edit.id); if(i>=0) S.movimentos[i]=res.data; }
   else S.movimentos.unshift(res.data);
-  _edit=null; _arquivoPendente=null; _lidoPorIA=false;
+  _edit=null; _arquivoPendente=null; _lidoPorIA=false; _prePessoal=false;
   S.modal=null;
-  aviso(reg.empresa_id ? 'Movimento gravado.' : 'Gravado sem empresa — está na fila "Apontar depois".','ok');
+  aviso(ehPessoal ? 'Gravado em Despesas pessoais.' : reg.empresa_id ? 'Movimento gravado.' : 'Gravado sem empresa — está na fila "Apontar depois".','ok');
 }
 
 async function alternarPago(id){
@@ -1800,7 +1897,7 @@ async function permCarregarListas(){
 async function abrirPerm(id){
   if(!S.permHosp){ try{ await permCarregarListas(); }catch(e){ return aviso('Não carregou a lista de hospitais: '+e.message,'erro'); } }
   const p = S.perfis.find(x=>x.id===id) || {};
-  _perm = { id, abas: Array.isArray(p.abas) ? p.abas.slice() : CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]),
+  _perm = { id, abas: Array.isArray(p.abas) ? p.abas.slice() : CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]).filter(k=>k!==ABA_PRIVADA),
             hosp: Array.isArray(p.hospitais) ? p.hospitais.slice() : [], emp: ((S.permEmp||{})[id]||[]).slice(), busca:'' };
   permDesenhar();
 }
@@ -1808,7 +1905,7 @@ function permTog(tipo, v){
   const arr = _perm[tipo]; const i = tipo==='hosp' ? arr.map(permNorm).indexOf(permNorm(v)) : arr.indexOf(v);
   if(i>=0) arr.splice(i,1); else arr.push(v); permDesenhar();
 }
-function permTodos(tipo){ if(tipo==='abas') _perm.abas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]); else _perm[tipo] = []; permDesenhar(); }
+function permTodos(tipo){ if(tipo==='abas') _perm.abas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]).filter(k=>k!==ABA_PRIVADA || _perm.abas.indexOf(k)>=0); else _perm[tipo] = []; permDesenhar(); }
 function permNenhum(tipo){ _perm[tipo] = []; permDesenhar(); }
 function permChk(on, rot, acao, sub){
   return '<button type="button" class="pchk'+(on?' on':'')+'" onclick="'+acao+'"><span class="cx">'+(on?'✓':'')+'</span><span>'+rot+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
@@ -1820,7 +1917,7 @@ function permDesenhar(){
   const hs = (S.permHosp||[]).filter(n=>!busca || permNorm(n).indexOf(busca)>=0);
   let h = '<h2>🔒 Permissões</h2><div style="color:var(--fraco);margin-bottom:10px">'+esc(p.nome||p.email||'')+' · <b>'+esc(p.papel||'')+'</b></div>'+
     '<div class="psec"><div class="pti"><b>1. ABAS QUE ELE VÊ</b><span><a href="#" onclick="permTodos(\'abas\');return false">marcar todas</a> · <a href="#" onclick="permNenhum(\'abas\');return false">limpar</a></span></div>'+
-    CPE_ABAS.map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')")).join('')+'</div>').join('')+
+    CPE_ABAS.map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')", x[0]===ABA_PRIVADA?(['mestre','dono'].indexOf(p.papel)>=0?'sempre vê (mestre/dono)':'privada — só com esta marcação'):'')).join('')+'</div>').join('')+
     '</div>'+
     '<div class="psec"><div class="pti"><b>2. HOSPITAIS QUE ELE VÊ</b><span>'+(todasH?'<span class="ptag">todos</span>':'<span class="ptag">'+P.hosp.length+' marcado'+(P.hosp.length===1?'':'s')+'</span> · <a href="#" onclick="permTodos(\'hosp\');return false">liberar todos</a>')+'</span></div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Nenhum marcado = vê <b>todos</b>. Marque um ou vários para ele ver <b>só esses</b> na escala, no Financeiro e no cadastro de hospitais.</div>'+
@@ -1843,7 +1940,8 @@ async function permSalvar(){
   const P = _perm; if(!P) return;
   if(!P.abas.length) return aviso('Marque pelo menos uma aba.','erro');
   const todas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]);
-  const abas = todas.every(k=>P.abas.indexOf(k)>=0) ? null : todas.filter(k=>P.abas.indexOf(k)>=0);
+  const comuns = todas.filter(k=>k!==ABA_PRIVADA);   // v72: a aba privada nunca entra no "todas" (null)
+  const abas = (comuns.every(k=>P.abas.indexOf(k)>=0) && P.abas.indexOf(ABA_PRIVADA)<0) ? null : todas.filter(k=>P.abas.indexOf(k)>=0);
   const r = await sb.from('perfis').update({ abas, hospitais: P.hosp.length ? P.hosp : null }).eq('id', P.id);
   if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
   const d = await sb.from('perfil_empresas').delete().eq('perfil_id', P.id);
@@ -2996,7 +3094,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, hospitais:{t:'Hospitais', pai:'escalahub'}
+  producao:{t:'Financeiro', pai:'escalahub'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3027,7 +3125,8 @@ function telaInicio(){
   const fin = (veAba('painel')? cpeCaixa('painel','🏢','CNPJs', ne+' empresa'+(ne===1?'':'s')+': entradas, saídas, contas a pagar e saldo do mês'):'')+
     (veAba('fila')? cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||''):'')+
     (veAba('origens')? cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura'):'')+
-    (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'');
+    (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'')+
+    (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais','Gastos pessoais do Vinicius, por categoria — fora dos CNPJs'):'');
   let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
   if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
