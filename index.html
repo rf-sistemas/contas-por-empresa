@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v74">
+<meta name="rf-versao" content="v75">
 <meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -181,7 +181,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v74',
+  versao : 'v75',
   data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -647,7 +647,7 @@ function filaCampos(sufixo, sug, cat, rotBotao, acao){
     '<div style="flex:1;min-width:150px"><label>Categoria</label><input id="fcat-'+sufixo+'" list="fila-cats" value="'+esc(cat||'')+'" placeholder="opcional"></div>'+
     '<div><button class="bt" onclick="'+acao+'">'+rotBotao+'</button></div></div>'+
     '<label style="text-transform:none;letter-spacing:0;color:var(--fraco);display:flex;gap:6px;align-items:center;margin-top:8px">'+
-      '<input type="checkbox" id="regra-'+sufixo+'" style="width:auto" checked> gravar regra para este fornecedor (os próximos já caem na empresa)</label>'+
+      '<input type="checkbox" id="regra-'+sufixo+'" style="width:auto"> gravar regra para este fornecedor (os próximos já caem na empresa)</label>'+
     (sug? '<div style="color:var(--ouro-claro);font-size:11.5px;margin-top:4px">empresa sugerida por regra já gravada</div>':'');
 }
 function telaFila(){
