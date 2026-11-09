@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v73">
+<meta name="rf-versao" content="v74">
 <meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -181,7 +181,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v73',
+  versao : 'v74',
   data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -626,7 +626,12 @@ function sugerirEmpresa(m){
 }
 /* v73 (pedido da Neuza, 09/11/2026): na fila "Apontar depois" — filtro Entradas / Saídas, ver as pendências
    POR FORNECEDOR (apontar todas de uma vez, com empresa e categoria) ou POR DATA, e campo de categoria ao apontar. */
-S.filaTipo = 'todas'; S.filaVer = 'fornecedor'; S.filaAberto = '';
+S.filaTipo = 'todas'; S.filaVer = 'fornecedor'; S.filaAberto = ''; S.filaBusca = '';
+/* v74 (Renato, 09/11/2026): busca por nome na fila — acha o fornecedor (saídas) ou o recebedor/pagador (entradas), também pela descrição */
+function filaBuscaOk(m){ const b = norm(S.filaBusca||''); if(!b) return true; return norm((m.fornecedor||'')+' '+(m.descricao||'')).indexOf(b)>=0; }
+var _filaBuscaT = null;
+function filaBuscar(v){ S.filaBusca = v; clearTimeout(_filaBuscaT); _filaBuscaT = setTimeout(()=>{ const e=document.getElementById('fila-busca'); const pos = e? e.selectionStart : null; render();
+  const n=document.getElementById('fila-busca'); if(n){ n.focus(); try{ n.setSelectionRange(pos,pos); }catch(x){} } }, 250); }
 function filaChip(k, v, txt){ const on = S[k]===v;
   return '<button type="button" onclick="S.'+k+'=\''+v+'\';render()" style="padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;'+
     (on?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+'</button>'; }
@@ -647,28 +652,35 @@ function filaCampos(sufixo, sug, cat, rotBotao, acao){
 }
 function telaFila(){
   const toda = fila();
-  const lista = toda.filter(m=> S.filaTipo==='todas' || (S.filaTipo==='entrada' ? m.tipo==='entrada' : m.tipo!=='entrada'));
-  const nE = toda.filter(m=>m.tipo==='entrada').length, nS = toda.length - nE;
+  const lista = toda.filter(m=> (S.filaTipo==='todas' || (S.filaTipo==='entrada' ? m.tipo==='entrada' : m.tipo!=='entrada')) && filaBuscaOk(m));
+  const nomes = {}; toda.forEach(m=>{ const n=(m.fornecedor||'').trim(); if(n) nomes[n]=1; });
+  const busc = toda.filter(filaBuscaOk);
+  const nE = busc.filter(m=>m.tipo==='entrada').length, nS = busc.length - nE;
   const tot = lista.reduce((s,x)=>s+(x.tipo==='entrada'?1:-1)*(Number(x.valor)||0),0);
 
   let h = '<div class="card"><div class="aviso">Cada lançamento fica aqui até alguém apontar de qual CNPJ é (ou se é despesa pessoal). '+
     'Ao apontar, dá para gravar a regra: da próxima vez esse mesmo nome já cai na empresa certa.</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
       '<span style="font-size:12px;color:var(--fraco);font-weight:700;margin-right:4px">MOSTRAR</span>'+
-      filaChip('filaTipo','todas','Todas ('+toda.length+')')+filaChip('filaTipo','entrada','Entradas ('+nE+')')+filaChip('filaTipo','saida','Saídas ('+nS+')')+
+      filaChip('filaTipo','todas','Todas ('+busc.length+')')+filaChip('filaTipo','entrada','Entradas ('+nE+')')+filaChip('filaTipo','saida','Saídas ('+nS+')')+
       '<span style="font-size:12px;color:var(--fraco);font-weight:700;margin:0 4px 0 14px">VER POR</span>'+
       filaChip('filaVer','fornecedor','🏷️ Fornecedor')+filaChip('filaVer','data','📅 Data')+
+    '</div>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:10px">'+
+      '<input id="fila-busca" list="fila-nomes" placeholder="🔎 Buscar fornecedor ou recebedor (nome ou parte do nome)" value="'+esc(S.filaBusca||'')+'" oninput="filaBuscar(this.value)" style="flex:1">'+
+      (S.filaBusca? '<button class="bt g" onclick="S.filaBusca=\'\';render()">limpar ✕</button>' : '')+
+      '<datalist id="fila-nomes">'+Object.keys(nomes).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>'+
     '</div>'+
     '<div style="display:flex;gap:10px;align-items:baseline;margin-top:12px"><b>'+lista.length+(lista.length===1?' pendência':' pendências')+'</b>'+
       '<b style="margin-left:auto;font-size:18px;color:'+(tot>=0?'var(--verde)':'var(--vermelho)')+'">'+(tot>=0?'+ ':'− ')+brl(Math.abs(tot))+'</b></div>'+
     '<datalist id="fila-cats">'+filaCategorias().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
   '</div>';
-  if(!lista.length) return h+'<div class="card"><div class="vazio">Nada pendente aqui.</div></div>';
+  if(!lista.length) return h+'<div class="card"><div class="vazio">'+(S.filaBusca? 'Nenhuma pendência com “'+esc(S.filaBusca)+'”.' : 'Nada pendente aqui.')+'</div></div>';
   return h + (S.filaVer==='data' ? filaPorData(lista) : filaPorFornecedor(lista));
 }
 function filaPorFornecedor(lista){
   const g = {};
-  lista.forEach(m=>{ const k = filaChave(m); const x = g[k] = g[k] || { k, nome:'', itens:[], total:0 };
+  lista.forEach(m=>{ const ent = m.tipo==='entrada'; const k = (ent?'E|':'S|')+filaChave(m); const x = g[k] = g[k] || { k, ent, nome:'', itens:[], total:0 };
     const nm = m.fornecedor||m.descricao||'(sem nome)'; if(nm.length > x.nome.length) x.nome = nm;
     x.itens.push(m); x.total += (m.tipo==='entrada'?1:-1)*(Number(m.valor)||0); });
   const gs = Object.values(g).sort((a,b)=> b.itens.length - a.itens.length || Math.abs(b.total) - Math.abs(a.total));
@@ -680,6 +692,7 @@ function filaPorFornecedor(lista){
     const cats = x.itens.map(m=>m.categoria).filter(Boolean); const cat = cats.length===x.itens.length && cats.every(c=>c===cats[0]) ? cats[0] : '';
     return '<div class="card" style="border-color:'+(x.total>=0?'var(--verde)':'var(--linha)')+'">'+
       '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">'+
+        '<span class="tag '+(x.ent?'e':'s')+'">'+(x.ent?'entrada · recebedor':'saída · fornecedor')+'</span>'+
         '<b style="font-size:15px">'+esc(x.nome)+'</b>'+
         '<span style="font-size:12.5px;color:var(--fraco)">'+x.itens.length+(x.itens.length===1?' lançamento':' lançamentos')+' · '+
           dataBR(datas[0])+(datas.length>1 && datas[0]!==datas[datas.length-1]?' a '+dataBR(datas[datas.length-1]):'')+'</span>'+
