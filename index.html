@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v76">
+<meta name="rf-versao" content="v77">
 <meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -181,7 +181,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v76',
+  versao : 'v77',
   data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -586,12 +586,12 @@ function telaPessoais(){
   const lista = doPer.filter(m=>!S.pesCat || ((m.categoria||'').trim()||'Sem categoria')===S.pesCat)
     .sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||''));
   const cs = pesCategorias();
-  h += '<div class="card"><h3 style="margin:0 0 8px">LANÇAMENTOS</h3><table class="pestab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+  h += '<div class="card"><h3 style="margin:0 0 8px">LANÇAMENTOS</h3><datalist id="pes-cats">'+cs.map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Categoria é livre: escolha uma da lista ou digite uma nova — ela passa a aparecer nas sugestões.</div><table class="pestab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
     lista.map(m=>{ const ent = m.tipo==='entrada';
       return '<tr><td>'+dataBR(m.data_movimento)+'</td>'+
         '<td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.descricao&&m.fornecedor?'<div style="color:var(--fraco);font-size:12px">'+esc(m.descricao)+'</div>':'')+'</td>'+
-        '<td>'+(podeEditar()? '<select style="min-width:140px" onchange="pesSetCat(\''+m.id+'\',this.value)"><option value="">— sem categoria —</option>'+
-            cs.map(c=>'<option'+((m.categoria||'')===c?' selected':'')+'>'+esc(c)+'</option>').join('')+'</select>' : esc(m.categoria||'—'))+'</td>'+
+        '<td>'+(podeEditar()? '<input list="pes-cats" style="min-width:150px" placeholder="digite ou escolha" value="'+esc(m.categoria||'')+'" onchange="pesSetCat(\''+m.id+'\',this.value.trim())">' : esc(m.categoria||'—'))+'</td>'+
         '<td>'+esc(nomeOrigem(m.origem_id))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;color:'+(ent?'var(--verde)':'inherit')+'"><b>'+(ent?'+ ':'')+brl(m.valor)+'</b></td>'+
         '<td style="white-space:nowrap">'+
@@ -644,7 +644,7 @@ function filaOptsEmp(sug){ return '<option value="">— escolher empresa —</op
 function filaCampos(sufixo, sug, cat, rotBotao, acao){
   return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">'+
     '<div style="flex:1;min-width:180px"><label>Empresa</label><select id="fila-'+sufixo+'">'+filaOptsEmp(sug)+'</select></div>'+
-    '<div style="flex:1;min-width:150px"><label>Categoria</label><input id="fcat-'+sufixo+'" list="fila-cats" value="'+esc(cat||'')+'" placeholder="opcional"></div>'+
+    '<div style="flex:1;min-width:150px"><label>Categoria (livre)</label><input id="fcat-'+sufixo+'" list="fila-cats" value="'+esc(cat||'')+'" placeholder="digite ou escolha (opcional)"></div>'+
     '<div><button class="bt" id="fbt-'+sufixo+'" onclick="'+acao+'">'+rotBotao+'</button></div></div>'+
     '<label style="text-transform:none;letter-spacing:0;color:var(--fraco);display:flex;gap:6px;align-items:center;margin-top:8px">'+
       '<input type="checkbox" id="regra-'+sufixo+'" style="width:auto"> gravar regra para este fornecedor (os próximos já caem na empresa)</label>'+
