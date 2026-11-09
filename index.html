@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v75">
+<meta name="rf-versao" content="v76">
 <meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -181,7 +181,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v75',
+  versao : 'v76',
   data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -645,7 +645,7 @@ function filaCampos(sufixo, sug, cat, rotBotao, acao){
   return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">'+
     '<div style="flex:1;min-width:180px"><label>Empresa</label><select id="fila-'+sufixo+'">'+filaOptsEmp(sug)+'</select></div>'+
     '<div style="flex:1;min-width:150px"><label>Categoria</label><input id="fcat-'+sufixo+'" list="fila-cats" value="'+esc(cat||'')+'" placeholder="opcional"></div>'+
-    '<div><button class="bt" onclick="'+acao+'">'+rotBotao+'</button></div></div>'+
+    '<div><button class="bt" id="fbt-'+sufixo+'" onclick="'+acao+'">'+rotBotao+'</button></div></div>'+
     '<label style="text-transform:none;letter-spacing:0;color:var(--fraco);display:flex;gap:6px;align-items:center;margin-top:8px">'+
       '<input type="checkbox" id="regra-'+sufixo+'" style="width:auto"> gravar regra para este fornecedor (os próximos já caem na empresa)</label>'+
     (sug? '<div style="color:var(--ouro-claro);font-size:11.5px;margin-top:4px">empresa sugerida por regra já gravada</div>':'');
@@ -700,8 +700,11 @@ function filaPorFornecedor(lista){
       '</div>'+
       filaCampos('g'+i, sug, cat, x.itens.length>1 ? 'apontar todos ('+x.itens.length+')' : 'apontar', 'apontarGrupo('+i+')')+
       (x.itens.length>1 ? '<div style="margin-top:8px"><a href="#" onclick="filaToggle('+i+');return false" style="font-size:12.5px">'+(aberto?'▼ esconder':'▶ ver')+' os '+x.itens.length+' lançamentos</a></div>' : '')+
-      (aberto ? '<table style="margin-top:6px"><tbody>'+x.itens.slice().sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||'')).map(m=>
-        '<tr><td>'+dataBR(m.data_movimento)+'</td><td style="color:var(--fraco);font-size:12px">'+esc(nomeOrigem(m.origem_id))+(m.descricao&&m.fornecedor?' · '+esc(m.descricao):'')+'</td>'+
+      (aberto ? '<div style="font-size:12.5px;color:var(--fraco);margin:8px 0 2px">Marque só os que vão para a empresa escolhida acima e toque em <b>apontar selecionados</b>. Os demais continuam aqui para apontar depois. · '+
+          '<a href="#" onclick="filaSelTodos('+i+',true);return false">marcar todos</a> · <a href="#" onclick="filaSelTodos('+i+',false);return false">limpar</a></div>'+
+        '<table style="margin-top:4px"><tbody>'+x.itens.slice().sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||'')).map(m=>
+        '<tr style="cursor:pointer" onclick="if(event.target.tagName!==\'INPUT\'){var c=this.querySelector(\'input\');c.checked=!c.checked;}filaSelMudou('+i+')">'+
+        '<td style="width:34px"><input type="checkbox" class="fsel-'+i+'" value="'+m.id+'" style="width:auto;transform:scale(1.25)"'+(S.filaSel[m.id]?' checked':'')+'></td><td>'+dataBR(m.data_movimento)+'</td><td style="color:var(--fraco);font-size:12px">'+esc(nomeOrigem(m.origem_id))+(m.descricao&&m.fornecedor?' · '+esc(m.descricao):'')+'</td>'+
         '<td style="text-align:right;white-space:nowrap;color:'+(m.tipo==='entrada'?'var(--verde)':'var(--vermelho)')+'"><b>'+(m.tipo==='entrada'?'+ ':'− ')+brl(m.valor)+'</b></td></tr>').join('')+'</tbody></table>' : '')+
     '</div>'; }).join('');
 }
@@ -719,7 +722,22 @@ function filaPorData(lista){
   return h + (dia?'</div>':'');
 }
 function filaToggle(i){ const x=(S._filaGrupos||[])[i]; if(!x) return; S.filaAberto = S.filaAberto===x.k ? '' : x.k; render(); }
-async function apontarGrupo(i){ const x = (S._filaGrupos||[])[i]; if(!x) return; await apontarIds(x.itens.map(m=>m.id), 'g'+i); }
+/* v76 (Renato, 09/11/2026): dentro do grupo do fornecedor, marcar UM A UM quais lançamentos vão para a empresa escolhida
+   (o mesmo nome pode ter valores de CNPJs diferentes). Sem nada marcado, o botão aponta todos. */
+S.filaSel = {};
+function filaSelIds(i){ return Array.prototype.slice.call(document.querySelectorAll('.fsel-'+i)).filter(c=>c.checked).map(c=>c.value); }
+function filaSelMudou(i){ const x=(S._filaGrupos||[])[i]; if(!x) return;
+  document.querySelectorAll('.fsel-'+i).forEach(c=>{ if(c.checked) S.filaSel[c.value]=1; else delete S.filaSel[c.value]; });
+  const n = filaSelIds(i).length, b = document.getElementById('fbt-g'+i);
+  if(b) b.textContent = n ? 'apontar selecionados ('+n+')' : (x.itens.length>1 ? 'apontar todos ('+x.itens.length+')' : 'apontar'); }
+function filaSelTodos(i, on){ document.querySelectorAll('.fsel-'+i).forEach(c=>c.checked=on); filaSelMudou(i); }
+async function apontarGrupo(i){ const x = (S._filaGrupos||[])[i]; if(!x) return;
+  const sel = S.filaAberto===x.k ? filaSelIds(i) : [];
+  const ids = sel.length ? sel : x.itens.map(m=>m.id);
+  await apontarIds(ids, 'g'+i);
+  ids.forEach(id=>delete S.filaSel[id]);
+  if(sel.length && sel.length < x.itens.length){ S.filaAberto = x.k; render(); }   // ainda sobrou lançamento desse nome: deixa a lista aberta
+}
 async function apontar(id){ await apontarIds([id], id); }
 async function apontarIds(ids, sufixo){
   const empresa = val('fila-'+sufixo);
