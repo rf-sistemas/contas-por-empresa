@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v72">
+<meta name="rf-versao" content="v73">
 <meta name="rf-data" content="2026-11-09">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -181,7 +181,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v72',
+  versao : 'v73',
   data   : '09/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -617,75 +617,6 @@ async function pesDevolver(id){
 }
 
 /* ---------- FILA: saídas sem empresa ---------- */
-function telaFila(){
-  const lista = fila();
-  const ent = lista.filter(m=>m.tipo==='entrada');
-  const sai = lista.filter(m=>m.tipo==='saida');
-  const tEnt = ent.reduce((s,x)=>s+(Number(x.valor)||0),0);
-  const tSai = sai.reduce((s,x)=>s+(Number(x.valor)||0),0);
-
-  const aviso = '<div class="aviso">Cada lançamento fica na sua caixa até alguém apontar de qual CNPJ é. '+
-    'Ao apontar, dá para gravar a regra: da próxima vez esse mesmo nome já cai na empresa certa.</div>';
-
-  if(!lista.length) return '<div class="card"><h3>APONTAR DEPOIS</h3>'+aviso+
-    '<div class="vazio">Nada pendente. As duas caixas estão limpas.</div></div>';
-
-  let h = '<div class="card">'+aviso+'</div>';
-
-  // CAIXA DAS ENTRADAS
-  h += '<div class="card" style="border-color:'+(ent.length?'var(--verde)':'var(--linha)')+'">'+
-    '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">'+
-      '<h3 style="margin:0;color:var(--verde)">ENTRADAS SEM EMPRESA</h3>'+
-      '<span style="font-size:13px;color:var(--fraco)">'+ent.length+
-        (ent.length===1?' lançamento':' lançamentos')+'</span>'+
-      '<b style="margin-left:auto;font-size:20px;color:var(--verde)">+ '+brl(tEnt)+'</b>'+
-    '</div>'+
-    (ent.length ? filaCartoes(ent) : '<div class="vazio">Nenhuma entrada pendente.</div>')+
-  '</div>';
-
-  // CAIXA DAS SAÍDAS
-  h += '<div class="card" style="border-color:'+(sai.length?'var(--vermelho)':'var(--linha)')+'">'+
-    '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">'+
-      '<h3 style="margin:0;color:var(--vermelho)">SAÍDAS SEM EMPRESA</h3>'+
-      '<span style="font-size:13px;color:var(--fraco)">'+sai.length+
-        (sai.length===1?' lançamento':' lançamentos')+'</span>'+
-      '<b style="margin-left:auto;font-size:20px;color:var(--vermelho)">− '+brl(tSai)+'</b>'+
-    '</div>'+
-    (sai.length ? filaCartoes(sai) : '<div class="vazio">Nenhuma saída pendente.</div>')+
-  '</div>';
-
-  return h;
-}
-
-function filaCartoes(lista){
-  return lista.map(m=>{
-    const sug = sugerirEmpresa(m);
-    return '<div style="border:1px solid var(--linha);border-radius:10px;padding:11px;margin-bottom:9px">'+
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
-        '<div style="flex:1;min-width:200px"><b>'+esc(m.fornecedor||m.descricao||'(sem descrição)')+'</b>'+
-          '<div style="font-size:19px;font-weight:700;margin:2px 0;color:'+
-            (m.tipo==='entrada'?'var(--verde)':'var(--vermelho)')+'">'+
-            (m.tipo==='entrada'?'+ ':'− ')+brl(m.valor)+
-            ' <span style="font-size:11px;font-weight:500;letter-spacing:.5px">'+
-            (m.tipo==='entrada'?'ENTRADA':'SAÍDA')+'</span></div>'+
-          '<div style="color:var(--fraco);font-size:12px">'+dataBR(m.data_movimento)+
-          ' · '+esc(nomeOrigem(m.origem_id))+'</div>'+
-          (m.cnpj_fornecedor? '<div style="color:var(--fraco);font-size:11px">'+esc(mascaraCNPJ(m.cnpj_fornecedor))+'</div>':'')+
-        '</div>'+
-        '<div style="min-width:200px"><select id="fila-'+m.id+'">'+
-          '<option value="">— escolher empresa —</option>'+
-          (vePessoais()? '<option value="__pessoal">👤 Despesa pessoal</option>' : '')+
-          S.empresas.map(e=>'<option value="'+e.id+'"'+(sug===e.id?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join('')+
-        '</select></div>'+
-        '<div><button class="bt" onclick="apontar(\''+m.id+'\')">apontar</button></div>'+
-      '</div>'+
-      '<label style="text-transform:none;letter-spacing:0;color:var(--fraco);display:flex;gap:6px;align-items:center;margin-top:8px">'+
-        '<input type="checkbox" id="regra-'+m.id+'" style="width:auto" checked> gravar regra para este fornecedor'+
-      '</label>'+
-      (sug? '<div style="color:var(--ouro-claro);font-size:11.5px;margin-top:4px">sugerido por regra já gravada</div>':'')+
-    '</div>';
-  }).join('');
-}
 function sugerirEmpresa(m){
   const cnpj = soDig(m.cnpj_fornecedor);
   let r = cnpj ? S.regras.find(x=>x.tipo_chave==='cnpj' && soDig(x.chave)===cnpj) : null;
@@ -693,31 +624,113 @@ function sugerirEmpresa(m){
   if(!r && m.origem_id)  r = S.regras.find(x=>x.tipo_chave==='origem' && x.chave===m.origem_id);
   return r ? r.empresa_id : null;
 }
-async function apontar(id){
-  const empresa = val('fila-'+id);
-  if(!empresa) return aviso('Escolha a empresa.','erro');
-  const m = S.movimentos.find(x=>x.id===id);
-  if(empresa==='__pessoal'){   // v72: sai da fila e vai para Despesas pessoais
-    const r = await sb.from('movimentos').update({ pessoal:true, empresa_id:null, categoria: pesCatDe(m) }).eq('id',id);
-    if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
-    m.pessoal = true; m.categoria = pesCatDe(m);
-    return aviso('Foi para Despesas pessoais.','ok');
-  }
-  const { error } = await sb.from('movimentos').update({ empresa_id:empresa }).eq('id',id);
-  if(error) return aviso('Não gravou: '+error.message,'erro');
-  m.empresa_id = empresa;
+/* v73 (pedido da Neuza, 09/11/2026): na fila "Apontar depois" — filtro Entradas / Saídas, ver as pendências
+   POR FORNECEDOR (apontar todas de uma vez, com empresa e categoria) ou POR DATA, e campo de categoria ao apontar. */
+S.filaTipo = 'todas'; S.filaVer = 'fornecedor'; S.filaAberto = '';
+function filaChip(k, v, txt){ const on = S[k]===v;
+  return '<button type="button" onclick="S.'+k+'=\''+v+'\';render()" style="padding:8px 12px;border-radius:9px;cursor:pointer;font-size:13.5px;'+
+    (on?'background:var(--ouro);color:#fff;border:1px solid var(--ouro);font-weight:700':'background:var(--campo);color:var(--texto);border:1px solid var(--linha)')+'">'+txt+'</button>'; }
+function filaChave(m){ return norm(m.fornecedor||m.descricao||'') || '(sem nome)'; }
+function filaCategorias(){ const x = {}; S.movimentos.forEach(m=>{ const c=(m.categoria||'').trim(); if(c) x[c]=1; }); PES_CATS.forEach(c=>x[c]=1);
+  return Object.keys(x).sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function filaOptsEmp(sug){ return '<option value="">— escolher empresa —</option>'+
+  (vePessoais()? '<option value="__pessoal">👤 Despesa pessoal</option>' : '')+
+  S.empresas.map(e=>'<option value="'+e.id+'"'+(sug===e.id?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join(''); }
+function filaCampos(sufixo, sug, cat, rotBotao, acao){
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">'+
+    '<div style="flex:1;min-width:180px"><label>Empresa</label><select id="fila-'+sufixo+'">'+filaOptsEmp(sug)+'</select></div>'+
+    '<div style="flex:1;min-width:150px"><label>Categoria</label><input id="fcat-'+sufixo+'" list="fila-cats" value="'+esc(cat||'')+'" placeholder="opcional"></div>'+
+    '<div><button class="bt" onclick="'+acao+'">'+rotBotao+'</button></div></div>'+
+    '<label style="text-transform:none;letter-spacing:0;color:var(--fraco);display:flex;gap:6px;align-items:center;margin-top:8px">'+
+      '<input type="checkbox" id="regra-'+sufixo+'" style="width:auto" checked> gravar regra para este fornecedor (os próximos já caem na empresa)</label>'+
+    (sug? '<div style="color:var(--ouro-claro);font-size:11.5px;margin-top:4px">empresa sugerida por regra já gravada</div>':'');
+}
+function telaFila(){
+  const toda = fila();
+  const lista = toda.filter(m=> S.filaTipo==='todas' || (S.filaTipo==='entrada' ? m.tipo==='entrada' : m.tipo!=='entrada'));
+  const nE = toda.filter(m=>m.tipo==='entrada').length, nS = toda.length - nE;
+  const tot = lista.reduce((s,x)=>s+(x.tipo==='entrada'?1:-1)*(Number(x.valor)||0),0);
 
-  if(chk('regra-'+id)){
+  let h = '<div class="card"><div class="aviso">Cada lançamento fica aqui até alguém apontar de qual CNPJ é (ou se é despesa pessoal). '+
+    'Ao apontar, dá para gravar a regra: da próxima vez esse mesmo nome já cai na empresa certa.</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px">'+
+      '<span style="font-size:12px;color:var(--fraco);font-weight:700;margin-right:4px">MOSTRAR</span>'+
+      filaChip('filaTipo','todas','Todas ('+toda.length+')')+filaChip('filaTipo','entrada','Entradas ('+nE+')')+filaChip('filaTipo','saida','Saídas ('+nS+')')+
+      '<span style="font-size:12px;color:var(--fraco);font-weight:700;margin:0 4px 0 14px">VER POR</span>'+
+      filaChip('filaVer','fornecedor','🏷️ Fornecedor')+filaChip('filaVer','data','📅 Data')+
+    '</div>'+
+    '<div style="display:flex;gap:10px;align-items:baseline;margin-top:12px"><b>'+lista.length+(lista.length===1?' pendência':' pendências')+'</b>'+
+      '<b style="margin-left:auto;font-size:18px;color:'+(tot>=0?'var(--verde)':'var(--vermelho)')+'">'+(tot>=0?'+ ':'− ')+brl(Math.abs(tot))+'</b></div>'+
+    '<datalist id="fila-cats">'+filaCategorias().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
+  '</div>';
+  if(!lista.length) return h+'<div class="card"><div class="vazio">Nada pendente aqui.</div></div>';
+  return h + (S.filaVer==='data' ? filaPorData(lista) : filaPorFornecedor(lista));
+}
+function filaPorFornecedor(lista){
+  const g = {};
+  lista.forEach(m=>{ const k = filaChave(m); const x = g[k] = g[k] || { k, nome:'', itens:[], total:0 };
+    const nm = m.fornecedor||m.descricao||'(sem nome)'; if(nm.length > x.nome.length) x.nome = nm;
+    x.itens.push(m); x.total += (m.tipo==='entrada'?1:-1)*(Number(m.valor)||0); });
+  const gs = Object.values(g).sort((a,b)=> b.itens.length - a.itens.length || Math.abs(b.total) - Math.abs(a.total));
+  S._filaGrupos = gs;
+  return gs.map((x,i)=>{
+    const datas = x.itens.map(m=>String(m.data_movimento||'').slice(0,10)).sort();
+    const aberto = S.filaAberto===x.k;
+    const sug = sugerirEmpresa(x.itens[0]);
+    const cats = x.itens.map(m=>m.categoria).filter(Boolean); const cat = cats.length===x.itens.length && cats.every(c=>c===cats[0]) ? cats[0] : '';
+    return '<div class="card" style="border-color:'+(x.total>=0?'var(--verde)':'var(--linha)')+'">'+
+      '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap">'+
+        '<b style="font-size:15px">'+esc(x.nome)+'</b>'+
+        '<span style="font-size:12.5px;color:var(--fraco)">'+x.itens.length+(x.itens.length===1?' lançamento':' lançamentos')+' · '+
+          dataBR(datas[0])+(datas.length>1 && datas[0]!==datas[datas.length-1]?' a '+dataBR(datas[datas.length-1]):'')+'</span>'+
+        '<b style="margin-left:auto;font-size:18px;color:'+(x.total>=0?'var(--verde)':'var(--vermelho)')+'">'+(x.total>=0?'+ ':'− ')+brl(Math.abs(x.total))+'</b>'+
+      '</div>'+
+      filaCampos('g'+i, sug, cat, x.itens.length>1 ? 'apontar todos ('+x.itens.length+')' : 'apontar', 'apontarGrupo('+i+')')+
+      (x.itens.length>1 ? '<div style="margin-top:8px"><a href="#" onclick="filaToggle('+i+');return false" style="font-size:12.5px">'+(aberto?'▼ esconder':'▶ ver')+' os '+x.itens.length+' lançamentos</a></div>' : '')+
+      (aberto ? '<table style="margin-top:6px"><tbody>'+x.itens.slice().sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||'')).map(m=>
+        '<tr><td>'+dataBR(m.data_movimento)+'</td><td style="color:var(--fraco);font-size:12px">'+esc(nomeOrigem(m.origem_id))+(m.descricao&&m.fornecedor?' · '+esc(m.descricao):'')+'</td>'+
+        '<td style="text-align:right;white-space:nowrap;color:'+(m.tipo==='entrada'?'var(--verde)':'var(--vermelho)')+'"><b>'+(m.tipo==='entrada'?'+ ':'− ')+brl(m.valor)+'</b></td></tr>').join('')+'</tbody></table>' : '')+
+    '</div>'; }).join('');
+}
+function filaPorData(lista){
+  const ord = lista.slice().sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||''));
+  let h = '', dia = '';
+  ord.forEach(m=>{ const d = String(m.data_movimento||'').slice(0,10);
+    if(d!==dia){ if(dia) h += '</div>'; dia = d; h += '<div class="card"><h3 style="margin:0 0 8px">'+dataBR(d)+'</h3>'; }
+    h += '<div style="border:1px solid var(--linha);border-radius:10px;padding:11px;margin-bottom:9px">'+
+      '<div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b>'+esc(m.fornecedor||m.descricao||'(sem descrição)')+'</b>'+
+        '<span style="color:var(--fraco);font-size:12px">'+esc(nomeOrigem(m.origem_id))+'</span>'+
+        '<b style="margin-left:auto;font-size:17px;color:'+(m.tipo==='entrada'?'var(--verde)':'var(--vermelho)')+'">'+(m.tipo==='entrada'?'+ ':'− ')+brl(m.valor)+'</b></div>'+
+      filaCampos(m.id, sugerirEmpresa(m), m.categoria, 'apontar', 'apontar(\''+m.id+'\')')+
+    '</div>'; });
+  return h + (dia?'</div>':'');
+}
+function filaToggle(i){ const x=(S._filaGrupos||[])[i]; if(!x) return; S.filaAberto = S.filaAberto===x.k ? '' : x.k; render(); }
+async function apontarGrupo(i){ const x = (S._filaGrupos||[])[i]; if(!x) return; await apontarIds(x.itens.map(m=>m.id), 'g'+i); }
+async function apontar(id){ await apontarIds([id], id); }
+async function apontarIds(ids, sufixo){
+  const empresa = val('fila-'+sufixo);
+  if(!empresa) return aviso('Escolha a empresa.','erro');
+  const cat = (val('fcat-'+sufixo)||'').trim();
+  const movs = ids.map(id=>S.movimentos.find(x=>x.id===id)).filter(Boolean);
+  const ehP = empresa==='__pessoal';
+  const upd = ehP ? { pessoal:true, empresa_id:null } : { empresa_id:empresa };
+  if(cat) upd.categoria = cat;
+  const { error } = await sb.from('movimentos').update(upd).in('id', ids);
+  if(error) return aviso('Não gravou: '+error.message,'erro');
+  movs.forEach(m=>{ Object.assign(m, upd); if(ehP && !cat) m.categoria = pesCatDe(m); });
+  if(!ehP && chk('regra-'+sufixo)){
+    const m = movs[0];
     const chave = soDig(m.cnpj_fornecedor) || m.fornecedor || m.origem_id;
     const tipo  = soDig(m.cnpj_fornecedor) ? 'cnpj' : (m.fornecedor ? 'nome' : 'origem');
     if(chave){
       const { error:e2 } = await sb.from('regras_fornecedor')
-        .upsert({ chave:String(chave), tipo_chave:tipo, empresa_id:empresa, criado_por:S.user.id },
-                { onConflict:'tipo_chave,chave' });
+        .upsert({ chave:String(chave), tipo_chave:tipo, empresa_id:empresa, criado_por:S.user.id }, { onConflict:'tipo_chave,chave' });
       if(!e2){ const { data } = await sb.from('regras_fornecedor').select('*'); S.regras = data||S.regras; }
     }
   }
-  aviso('Apontado para '+nomeEmpresa(empresa)+'.','ok');
+  S.filaAberto = '';
+  aviso((ids.length>1? ids.length+' lançamentos apontados' : 'Apontado')+' para '+(ehP?'Despesas pessoais':nomeEmpresa(empresa))+(cat?' · '+cat:'')+'.','ok');
 }
 
 /* ---------- ORIGENS ---------- */
