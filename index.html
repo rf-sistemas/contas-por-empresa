@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v80">
+<meta name="rf-versao" content="v81">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -192,7 +192,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v80',
+  versao : 'v81',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -339,6 +339,11 @@ function papel(){ return S.perfil ? S.perfil.papel : null; }
 function ehAnes(){ return papel()==='anestesista'; }   // v54: login do anestesista — só olha; só valida os próprios plantões
 function podeEditar(){ return ['mestre','dono','operador'].indexOf(papel())>=0; }
 function podeUsuarios(){ return ['mestre','dono'].indexOf(papel())>=0; }
+/* v81 (Renato/Vinicius, 12/11/2026): nível ADM_Nivel 1 (papel 'adm1') — só consulta: Início › NAFS › Financeiro › Terceirizados.
+   Sem CNPJs, sem saldo, sem escala para editar. O banco trava igual (cpe_ve_fin, cpe_ve_grupo, cpe_ve_empresa). */
+function ehAdm1(){ return papel()==='adm1'; }
+function papelNome(x){ return x==='adm1' ? 'ADM_Nivel 1' : x; }
+function veFinanceiroGrupo(){ return podeUsuarios() || ehAdm1(); }
 function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
 /* v69 (Renato, 03/11/2026): PERMISSÕES POR LOGIN — dentro de Usuários. Cada login pode ter as abas que enxerga e os hospitais
    que enxerga (um, vários ou todos). perfis.abas = null → todas as abas do papel; perfis.hospitais = null/vazio → todos.
@@ -354,10 +359,10 @@ function permNorm(t){ return String(t||'').trim().toLowerCase(); }
    só se a aba estiver marcada EXPLICITAMENTE nas permissões (abas = null NÃO libera). O banco trava igual (cpe_ve_pessoais). */
 const ABA_PRIVADA = 'pessoais';
 function vePessoais(){ if(['mestre','dono'].indexOf(papel())>=0) return true; const a = S.perfil && S.perfil.abas; return Array.isArray(a) && a.indexOf(ABA_PRIVADA)>=0; }
-function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true; const a = S.perfil && S.perfil.abas; return !Array.isArray(a) || a.indexOf(k)>=0; }
+function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true; let a = S.perfil && S.perfil.abas; if(ehAdm1() && !Array.isArray(a)) a = ['nafs','producao']; return !Array.isArray(a) || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='saldo') return 'producao'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='saldo' || t==='terceirizados') return 'producao'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -410,7 +415,8 @@ function render(){
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
-  else if(S.tela==='producao') corpo = podeUsuarios() ? telaProducao() : telaEscalaHub();
+  else if(S.tela==='producao') corpo = veFinanceiroGrupo() ? telaProducao() : telaEscalaHub();
+  else if(S.tela==='terceirizados') corpo = veFinanceiroGrupo() ? telaTerceirizados() : telaEscalaHub();
   else if(S.tela==='saldo')    corpo = podeUsuarios() ? telaSaldo() : telaEscalaHub();
 
   const nf = fila().length;
@@ -419,7 +425,7 @@ function render(){
       '<div class="marca" style="cursor:pointer" onclick="irPara(\'inicio\')">'+marcaSVG(38)+'<div><b>SISTEMA MR</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
       '<button class="bt g mini" style="margin-left:auto" onclick="trocarTema()" title="Claro / escuro">'+(temaAtual()==='escuro'?'☀ claro':'🌙 escuro')+'</button>'+
       '<div class="quem" style="margin-left:12px"><b>'+esc(S.perfil? (S.perfil.nome||S.perfil.email) : '')+'</b>'+
-        esc(papel()||'')+' · <a href="#" onclick="sair();return false">sair</a></div>'+
+        esc(papelNome(papel()||''))+' · <a href="#" onclick="sair();return false">sair</a></div>'+
     '</div></header>'+
     '<div class="wrap">'+
       cpeTrilha()+
@@ -825,7 +831,7 @@ function telaUsuarios(){
     '<div style="margin-top:12px">'+
     visiveis.map(p=>'<div class="ucard">'+
       '<div class="uc1"><div><b>'+esc(p.nome||'—')+'</b><div class="ucm">'+esc(p.email||'')+'</div></div>'+
-        '<div style="text-align:right"><span class="ptag">'+esc(p.papel)+'</span>'+(p.ativo?'':'<div style="color:#c8452f;font-size:12px">inativo</div>')+
+        '<div style="text-align:right"><span class="ptag">'+esc(papelNome(p.papel))+'</span>'+(p.ativo?'':'<div style="color:#c8452f;font-size:12px">inativo</div>')+
         (p.papel==='anestesista'?'<div class="ucm">'+esc((function(){ const z=(S.anesTodos||[]).find(a=>a.id===p.anestesista_id); return z ? z.nome+' · '+z.grupo : 'sem vínculo'; })())+'</div>':'')+'</div></div>'+
       '<div class="uac">🔒 '+permResumo(p).replace(/<br>/g,' · ')+'</div>'+
       '<div class="ubt">'+
@@ -1933,6 +1939,7 @@ var _perm = null;   // { id, abas:[]|null, hosp:[]|null, emp:[] , listaHosp:[] }
 function permResumo(p){
   if(p.papel==='mestre') return '<span style="color:var(--fraco)">tudo</span>';
   if(p.papel==='anestesista') return '<span style="color:var(--fraco)">só a escala dele</span>';
+  if(p.papel==='adm1') return '<span style="color:var(--fraco)">só NAFS › Financeiro › Terceirizados (consulta)</span>';
   const tot = CPE_ABAS.reduce((n,g)=>n+g[1].length,0);
   const a = Array.isArray(p.abas) ? p.abas.length+' de '+tot+' abas' : 'todas as abas';
   const h = Array.isArray(p.hospitais) && p.hospitais.length ? p.hospitais.length+' hospita'+(p.hospitais.length===1?'l':'is') : 'todos os hospitais';
@@ -2012,13 +2019,13 @@ async function permSalvar(){
 
 /* --- usuários --- */
 function abrirUsuario(){
-  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','mestre'] : ['operador','leitura','anestesista'];
+  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','mestre'] : ['operador','leitura','anestesista','adm1'];
   if(!S.anesTodos){ escAnesTodos().then(abrirUsuario).catch(()=>{}); return; }
   abrirModal('<h2>Novo usuário</h2>'+
     '<label>Nome</label><input id="us-nome">'+
     '<label>E-mail</label><input id="us-email" type="email">'+
     '<label>Senha provisória</label><input id="us-senha" value="'+senhaSugerida()+'">'+
-    '<label>Papel</label><select id="us-papel" onchange="document.getElementById(\'us-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(p=>'<option value="'+p+'">'+p+'</option>').join('')+'</select>'+
+    '<label>Papel</label><select id="us-papel" onchange="document.getElementById(\'us-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(p=>'<option value="'+p+'">'+papelNome(p)+'</option>').join('')+'</select>'+
     '<div id="us-anes-box" style="display:none"><label>Qual anestesista é este login</label>'+
       '<div style="font-size:12px;color:var(--fraco);margin-bottom:4px">A lista é o cadastro de anestesistas da escala. Se a pessoa não está nela, escolha <b>➕ Novo anestesista</b>.</div>'+
       '<select id="us-anes" onchange="document.getElementById(\'us-anes-novo\').style.display=this.value===\'__novo\'?\'\':\'none\';if(this.value===\'__novo\'&&!val(\'us-an-nome\'))document.getElementById(\'us-an-nome\').value=val(\'us-nome\').replace(/[._]/g,\' \')"><option value="">— escolha —</option>'+
@@ -2085,9 +2092,9 @@ async function salvarUsuario(){
 function abrirNivel(id){
   if(!S.anesTodos){ escAnesTodos().then(()=>abrirNivel(id)).catch(()=>{}); return; }
   const p = S.perfis.find(x=>x.id===id) || {};
-  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','mestre'] : ['operador','leitura','anestesista'];
+  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','mestre'] : ['operador','leitura','anestesista','adm1'];
   abrirModal('<h2>Nível de acesso</h2><div style="color:var(--fraco);margin-bottom:8px">'+esc(p.nome||p.email||'')+'</div>'+
-    '<label>Papel</label><select id="nv-papel" onchange="document.getElementById(\'nv-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(x=>'<option value="'+x+'"'+(p.papel===x?' selected':'')+'>'+x+'</option>').join('')+'</select>'+
+    '<label>Papel</label><select id="nv-papel" onchange="document.getElementById(\'nv-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(x=>'<option value="'+x+'"'+(p.papel===x?' selected':'')+'>'+papelNome(x)+'</option>').join('')+'</select>'+
     '<div id="nv-anes-box" style="'+(p.papel==='anestesista'?'':'display:none')+'"><label>Qual anestesista é este login</label><select id="nv-anes"><option value="">— escolha —</option>'+
       S.anesTodos.filter(a=>a.ativo!==false || a.id===p.anestesista_id).map(a=>'<option value="'+a.id+'"'+(p.anestesista_id===a.id?' selected':'')+'>'+esc(a.nome)+' · '+a.grupo+'</option>').join('')+'</select></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="salvarNivel(\''+id+'\')">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
@@ -2317,7 +2324,7 @@ function escResumoAnes(trab){
     }).join('')+'</tbody></table></div></div>';
 }
 function escResumoEmpresas(trab){
-  if(ehAnes()) return '';
+  if(ehAnes() || ehAdm1()) return '';   // v81: ADM_Nivel 1 não vê CNPJ
   const g = {};
   trab.filter(d=>d.anestesista_id && escValidado(d)).forEach(d=>{ const k=d.empresa_id||'_'; const x = g[k] = g[k] || { n:0, total:0, pago:0 };
     x.n++; const v=Number(d.valor)||0; x.total+=v; if(d.pago) x.pago+=v; });
@@ -3170,7 +3177,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo e comprovantes', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo e comprovantes', pai:'producao'}, terceirizados:{t:'Terceirizados', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3205,7 +3212,7 @@ function telaInicio(){
     (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais','Gastos pessoais do Vinicius, por categoria — fora dos CNPJs'):'');
   let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
   if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
-    '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>'+(ehAdm1() ? 'Financeiro · Terceirizados' : 'Adicionar paciente e escalas por hospital e por anestesista')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   if(veAba('anestesia')) h += '<div class="secao"><b>ANESTESIA</b><span>Outra equipe de anestesistas, com escala própria</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'ANESTESIA\')"><div class="ic">💉</div><div><b>ANESTESIA</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
@@ -3220,7 +3227,7 @@ function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
     (ehAnes() || veAba('escalas') ? cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista') : '')+
-    (!ehAnes() && podeUsuarios() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro','Produção dos anestesistas: o que cada um fez no mês, validado, pago e a pagar') : '')+
+    (!ehAnes() && veFinanceiroGrupo() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro', ehAdm1() ? 'Terceirizados: o que cada anestesista fez no mês, validado, pago e a pagar' : 'Saldo e comprovantes · Terceirizados (produção dos anestesistas)') : '')+
     (!ehAnes() && podeEditar() && veAba('hospitais') ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
   '</div>';
 }
@@ -3251,13 +3258,20 @@ function prodSomar(lista){
   return x;
 }
 function prodAbrir(id){ S.prod.aberto = S.prod.aberto===id ? '' : id; render(); }
-function telaProducao(){
+function telaProducao(){   // v81: Financeiro vira um painel com caixas — Saldo (mestre/dono) e Terceirizados (produção)
+  if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
+  const T = prodSomar(escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id));
+  if(podeUsuarios() && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
+  return '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div>'+
+    (podeUsuarios() ? saldoCaixa() : '')+
+    '<div class="bxs">'+cpeCaixa('terceirizados','👥','Terceirizados','Produção dos anestesistas em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>')+'</div>';
+}
+function telaTerceirizados(){
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando a produção…</div>'; }
   const lista = prodLista(), T = prodSomar(lista);
   const hosps = escHospitais().map(h=>h.nome);
   const anes = S.esc.anes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  if(!saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
-  let h = '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>' + saldoCaixa();
+  let h = '<div class="secao"><b>TERCEIRIZADOS · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>';
   h += '<div class="card"><div class="lin" style="align-items:flex-end;flex-wrap:wrap;gap:10px">'+
     '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;S.prod.aberto=\'\';render()"></div>'+
     '<div style="min-width:180px"><label>Anestesista</label><select onchange="S.prod.anes=this.value;S.prod.aberto=\'\';render()"><option value="">Todos</option>'+
