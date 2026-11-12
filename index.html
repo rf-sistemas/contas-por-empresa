@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v81">
+<meta name="rf-versao" content="v82">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -165,6 +165,10 @@
   .login{max-width:380px;margin:9vh auto;text-align:center}
   .login .card{text-align:left}
   @media(max-width:600px){ .quem{width:100%;text-align:left;margin-left:0} th,td{padding:6px} }
+  /* v82: permissões por grupo e tela */
+  .pgb{border:1px solid var(--linha);border-radius:14px;padding:8px;margin-bottom:8px}
+  .pgb.on{border-color:var(--mr-turq);background:color-mix(in srgb, var(--mr-turq) 6%, transparent)}
+  .pgsub{margin:8px 0 0 18px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));align-items:start} .pgsub2{margin:6px 0 0 18px;display:grid;gap:6px}
   /* v78: Saldo e comprovantes */
   .sl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed var(--linha)}
   .sl span{color:var(--fraco)} .big{font-size:26px;font-weight:800}
@@ -192,7 +196,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v81',
+  versao : 'v82',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -343,26 +347,53 @@ function podeUsuarios(){ return ['mestre','dono'].indexOf(papel())>=0; }
    Sem CNPJs, sem saldo, sem escala para editar. O banco trava igual (cpe_ve_fin, cpe_ve_grupo, cpe_ve_empresa). */
 function ehAdm1(){ return papel()==='adm1'; }
 function papelNome(x){ return x==='adm1' ? 'ADM_Nivel 1' : x; }
-function veFinanceiroGrupo(){ return podeUsuarios() || ehAdm1(); }
+function grupoResumo(g){ const v = CPE_TELAS_GRUPO.filter(t=>veSub(g,t[0]) && (t[0]!=='hospitais' || podeEditar())).map(t=>t[2]);
+  return v.length===CPE_TELAS_GRUPO.length || !v.length ? 'Adicionar paciente e escalas por hospital e por anestesista' : v.join(' · '); }
 function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
 /* v69 (Renato, 03/11/2026): PERMISSÕES POR LOGIN — dentro de Usuários. Cada login pode ter as abas que enxerga e os hospitais
    que enxerga (um, vários ou todos). perfis.abas = null → todas as abas do papel; perfis.hospitais = null/vazio → todos.
    O banco também trava (RLS em esc_locais/esc_dias por hospital). Mestre vê tudo sempre. */
 const CPE_ABAS = [
   ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
-  ['ESCALAS',    [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']]],
-  ['DENTRO DA NAFS / ANESTESIA', [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],['producao','💰','Financeiro'],['hospitais','🏥','Cadastro de hospitais']]],
   ['CADASTROS',  [['empresas','🏛️','Empresas']]]
 ];
+/* v82 (Renato, 12/11/2026): permissão por GRUPO e por TELA — "dou acesso à NAFS só a duas telas, à ANESTESIA só a uma".
+   Chaves novas em perfis.abas: 'nafs' / 'anestesia' (entra no grupo) e 'nafs:escala', 'nafs:producao', 'nafs:saldo'...
+   As chaves antigas ('escala', 'producao'... sem grupo) continuam valendo para os dois grupos (logins antigos).
+   Financeiro, Saldo e Terceirizados são reservados: só aparecem se marcados (mestre e dono veem sempre). */
+const CPE_GRUPOS = [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']];
+const CPE_TELAS_GRUPO = [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],
+  ['producao','💰','Financeiro',[['saldo','🧾','Saldo e comprovantes'],['terceirizados','👥','Terceirizados']]],['hospitais','🏥','Cadastro de hospitais']];
+const SUB_GRUPO = ['escala','escalas','producao','saldo','terceirizados','hospitais'];
+const SUB_RESERVADA = ['producao','saldo','terceirizados'];
+function permChavesGrupo(g){ const r = [g]; CPE_TELAS_GRUPO.forEach(t=>{ r.push(g+':'+t[0]); (t[3]||[]).forEach(x=>r.push(g+':'+x[0])); }); return r; }
+function permTodasChaves(){ return CPE_ABAS.reduce((a,x)=>a.concat(x[1].map(y=>y[0])),[]).concat(CPE_GRUPOS.reduce((a,g)=>a.concat(permChavesGrupo(g[0])),[])); }
+function permReservada(k){ return k===ABA_PRIVADA || (k.indexOf(':')>0 && SUB_RESERVADA.indexOf(k.split(':')[1])>=0); }
 function permNorm(t){ return String(t||'').trim().toLowerCase(); }
 /* v72 (Renato, 09/11/2026): DESPESAS PESSOAIS do Vinicius — aba privada. Mestre e dono veem sempre; os demais logins
    só se a aba estiver marcada EXPLICITAMENTE nas permissões (abas = null NÃO libera). O banco trava igual (cpe_ve_pessoais). */
 const ABA_PRIVADA = 'pessoais';
 function vePessoais(){ if(['mestre','dono'].indexOf(papel())>=0) return true; const a = S.perfil && S.perfil.abas; return Array.isArray(a) && a.indexOf(ABA_PRIVADA)>=0; }
-function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true; let a = S.perfil && S.perfil.abas; if(ehAdm1() && !Array.isArray(a)) a = ['nafs','producao']; return !Array.isArray(a) || a.indexOf(k)>=0; }
+function minhasAbas(){ let a = S.perfil && S.perfil.abas;
+  if(ehAdm1() && (!Array.isArray(a) || (a.length===2 && a.indexOf('nafs')>=0 && a.indexOf('producao')>=0))) a = ['nafs','nafs:producao','nafs:terceirizados'];   // padrão do ADM_Nivel 1
+  return Array.isArray(a) ? a : null; }
+function veSub(g, k){   // v82: g = 'nafs' | 'anestesia'; k = escala, escalas, producao, saldo, terceirizados, hospitais
+  if(papel()==='mestre') return true;
+  const a = minhasAbas(), res = SUB_RESERVADA.indexOf(k)>=0;
+  if(!a) return res ? podeUsuarios() : true;
+  if(a.indexOf(g+':'+k)>=0) return true;
+  if(k==='producao' && (veSub(g,'saldo') || veSub(g,'terceirizados'))) return true;
+  const ant = (k==='saldo' || k==='terceirizados') ? 'producao' : k;          // chaves antigas, sem grupo
+  return a.indexOf(ant)>=0 && a.indexOf(g)>=0;
+}
+function veGrupo(g){ if(papel()==='mestre') return true; const a = minhasAbas(); if(!a) return true; return a.indexOf(g)>=0 || a.some(x=>x.indexOf(g+':')===0); }
+function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true;
+  if(k==='nafs' || k==='anestesia') return veGrupo(k);
+  if(SUB_GRUPO.indexOf(k)>=0) return veSub(escGrupo().toLowerCase(), k);
+  const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='saldo' || t==='terceirizados') return 'producao'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -415,9 +446,9 @@ function render(){
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
-  else if(S.tela==='producao') corpo = veFinanceiroGrupo() ? telaProducao() : telaEscalaHub();
-  else if(S.tela==='terceirizados') corpo = veFinanceiroGrupo() ? telaTerceirizados() : telaEscalaHub();
-  else if(S.tela==='saldo')    corpo = podeUsuarios() ? telaSaldo() : telaEscalaHub();
+  else if(S.tela==='producao') corpo = veAba('producao') ? telaProducao() : telaEscalaHub();
+  else if(S.tela==='terceirizados') corpo = veAba('terceirizados') ? telaTerceirizados() : telaEscalaHub();
+  else if(S.tela==='saldo')    corpo = veAba('saldo') ? telaSaldo() : telaEscalaHub();
 
   const nf = fila().length;
   app.innerHTML =
@@ -1939,12 +1970,18 @@ var _perm = null;   // { id, abas:[]|null, hosp:[]|null, emp:[] , listaHosp:[] }
 function permResumo(p){
   if(p.papel==='mestre') return '<span style="color:var(--fraco)">tudo</span>';
   if(p.papel==='anestesista') return '<span style="color:var(--fraco)">só a escala dele</span>';
-  if(p.papel==='adm1') return '<span style="color:var(--fraco)">só NAFS › Financeiro › Terceirizados (consulta)</span>';
-  const tot = CPE_ABAS.reduce((n,g)=>n+g[1].length,0);
-  const a = Array.isArray(p.abas) ? p.abas.length+' de '+tot+' abas' : 'todas as abas';
+  const a = !Array.isArray(p.abas) ? (p.papel==='adm1' ? 'NAFS › Financeiro › Terceirizados' : 'todas as abas') : permResumoAbas(p.abas);
   const h = Array.isArray(p.hospitais) && p.hospitais.length ? p.hospitais.length+' hospita'+(p.hospitais.length===1?'l':'is') : 'todos os hospitais';
   const ne = (S.permEmp||{})[p.id]; const e = ne && ne.length ? ne.length+' CNPJ'+(ne.length===1?'':'s') : 'todos os CNPJs';
   return a+'<br>'+h+'<br>'+e;
+}
+function permResumoAbas(a){
+  const nomes = {}; CPE_ABAS.forEach(g=>g[1].forEach(x=>nomes[x[0]]=x[2]));
+  const partes = a.filter(k=>nomes[k]).map(k=>nomes[k]);
+  CPE_GRUPOS.forEach(g=>{ const t = []; CPE_TELAS_GRUPO.forEach(x=>{ if(a.indexOf(g[0]+':'+x[0])>=0 || (a.indexOf(g[0])>=0 && a.indexOf(x[0])>=0)){
+      const subs = (x[3]||[]).filter(y=>a.indexOf(g[0]+':'+y[0])>=0).map(y=>y[2]); t.push(x[2]+(subs.length?' ('+subs.join(', ')+')':'')); } });
+    if(t.length || a.indexOf(g[0])>=0) partes.push(g[2]+(t.length?' › '+t.join(', '):'')); });
+  return partes.length ? partes.join(' · ') : 'nenhuma aba';
 }
 async function permCarregarListas(){
   const [l,hc,pe] = await Promise.all([
@@ -1961,15 +1998,40 @@ async function permCarregarListas(){
 async function abrirPerm(id){
   if(!S.permHosp){ try{ await permCarregarListas(); }catch(e){ return aviso('Não carregou a lista de hospitais: '+e.message,'erro'); } }
   const p = S.perfis.find(x=>x.id===id) || {};
-  _perm = { id, abas: Array.isArray(p.abas) ? p.abas.slice() : CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]).filter(k=>k!==ABA_PRIVADA),
+  _perm = { id, abas: (p.papel==='adm1' && Array.isArray(p.abas) && p.abas.length===2 && p.abas.indexOf('producao')>=0) ? ['nafs','nafs:producao','nafs:terceirizados'] : Array.isArray(p.abas) ? permConverter(p.abas) : (p.papel==='adm1' ? ['nafs','nafs:producao','nafs:terceirizados'] : permTodasChaves().filter(k=>!permReservada(k) || p.papel==='dono')),
             hosp: Array.isArray(p.hospitais) ? p.hospitais.slice() : [], emp: ((S.permEmp||{})[id]||[]).slice(), busca:'' };
   permDesenhar();
+}
+function permConverter(a){   // v82: chaves antigas (sem grupo) viram chaves por grupo para a tela nova
+  const r = a.filter(k=>SUB_GRUPO.indexOf(k)<0);
+  CPE_GRUPOS.forEach(g=>{ if(a.indexOf(g[0])<0) return; SUB_GRUPO.forEach(k=>{ const ant = (k==='saldo'||k==='terceirizados') ? 'producao' : k;
+    if(a.indexOf(ant)>=0 && r.indexOf(g[0]+':'+k)<0) r.push(g[0]+':'+k); }); });
+  return r;
+}
+function permTogGrupo(g){ const ks = permChavesGrupo(g), on = _perm.abas.indexOf(g)>=0;
+  _perm.abas = _perm.abas.filter(k=>ks.indexOf(k)<0); if(!on) _perm.abas.push(g); permDesenhar(); }
+function permTogSub(g, k, subs){ const key = g+':'+k, i = _perm.abas.indexOf(key);
+  if(i>=0){ _perm.abas.splice(i,1); (subs||[]).forEach(x=>{ const j = _perm.abas.indexOf(g+':'+x); if(j>=0) _perm.abas.splice(j,1); }); }
+  else { _perm.abas.push(key); if(_perm.abas.indexOf(g)<0) _perm.abas.push(g);
+    const pai = CPE_TELAS_GRUPO.find(t=>(t[3]||[]).some(x=>x[0]===k)); if(pai && _perm.abas.indexOf(g+':'+pai[0])<0) _perm.abas.push(g+':'+pai[0]);
+    if(subs && subs.length && !subs.some(x=>_perm.abas.indexOf(g+':'+x)>=0)) subs.forEach(x=>_perm.abas.push(g+':'+x)); }
+  permDesenhar(); }
+function permBlocoGrupo(g, papelAlvo){
+  const P = _perm, on = P.abas.indexOf(g[0])>=0;
+  let h = '<div class="pgb'+(on?' on':'')+'">'+permChk(on, g[1]+' <b>'+g[2]+'</b>', "permTogGrupo('"+g[0]+"')", on ? 'entra em '+g[2]+' — escolha abaixo as telas' : 'sem acesso a '+g[2]);
+  if(on){ h += '<div class="pgrid pgsub">';
+    CPE_TELAS_GRUPO.forEach(t=>{ const k = g[0]+':'+t[0], tOn = P.abas.indexOf(k)>=0, subs = (t[3]||[]).map(x=>x[0]);
+      h += '<div>'+permChk(tOn, t[1]+' '+t[2], "permTogSub('"+g[0]+"','"+t[0]+"',"+JSON.stringify(subs).replace(/"/g,"&quot;")+")", SUB_RESERVADA.indexOf(t[0])>=0 ? 'reservado — só com esta marcação' : '');
+      if(t[3] && tOn) h += '<div class="pgsub2">'+t[3].map(x=>permChk(P.abas.indexOf(g[0]+':'+x[0])>=0, x[1]+' '+x[2], "permTogSub('"+g[0]+"','"+x[0]+"')")).join('')+'</div>';
+      h += '</div>'; });
+    h += '</div>'; }
+  return h+'</div>';
 }
 function permTog(tipo, v){
   const arr = _perm[tipo]; const i = tipo==='hosp' ? arr.map(permNorm).indexOf(permNorm(v)) : arr.indexOf(v);
   if(i>=0) arr.splice(i,1); else arr.push(v); permDesenhar();
 }
-function permTodos(tipo){ if(tipo==='abas') _perm.abas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]).filter(k=>k!==ABA_PRIVADA || _perm.abas.indexOf(k)>=0); else _perm[tipo] = []; permDesenhar(); }
+function permTodos(tipo){ if(tipo==='abas') _perm.abas = permTodasChaves().filter(k=>!permReservada(k) || _perm.abas.indexOf(k)>=0); else _perm[tipo] = []; permDesenhar(); }
 function permNenhum(tipo){ _perm[tipo] = []; permDesenhar(); }
 function permChk(on, rot, acao, sub){
   return '<button type="button" class="pchk'+(on?' on':'')+'" onclick="'+acao+'"><span class="cx">'+(on?'✓':'')+'</span><span>'+rot+(sub?'<small>'+sub+'</small>':'')+'</span></button>';
@@ -1979,9 +2041,11 @@ function permDesenhar(){
   const todasH = !P.hosp.length, todasE = !P.emp.length;
   const busca = permNorm(P.busca);
   const hs = (S.permHosp||[]).filter(n=>!busca || permNorm(n).indexOf(busca)>=0);
-  let h = '<h2>🔒 Permissões</h2><div style="color:var(--fraco);margin-bottom:10px">'+esc(p.nome||p.email||'')+' · <b>'+esc(p.papel||'')+'</b></div>'+
+  let h = '<h2>🔒 Permissões</h2><div style="color:var(--fraco);margin-bottom:10px">'+esc(p.nome||p.email||'')+' · <b>'+esc(papelNome(p.papel||''))+'</b></div>'+
     '<div class="psec"><div class="pti"><b>1. ABAS QUE ELE VÊ</b><span><a href="#" onclick="permTodos(\'abas\');return false">marcar todas</a> · <a href="#" onclick="permNenhum(\'abas\');return false">limpar</a></span></div>'+
-    CPE_ABAS.map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')", x[0]===ABA_PRIVADA?(['mestre','dono'].indexOf(p.papel)>=0?'sempre vê (mestre/dono)':'privada — só com esta marcação'):'')).join('')+'</div>').join('')+
+    CPE_ABAS.slice(0,1).map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')", x[0]===ABA_PRIVADA?(['mestre','dono'].indexOf(p.papel)>=0?'sempre vê (mestre/dono)':'privada — só com esta marcação'):'')).join('')+'</div>').join('')+
+    '<div class="pgr">ESCALAS — marque o grupo e escolha as telas de cada um</div>'+CPE_GRUPOS.map(g=>permBlocoGrupo(g, p.papel)).join('')+
+    CPE_ABAS.slice(1).map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')")).join('')+'</div>').join('')+
     '</div>'+
     '<div class="psec"><div class="pti"><b>2. HOSPITAIS QUE ELE VÊ</b><span>'+(todasH?'<span class="ptag">todos</span>':'<span class="ptag">'+P.hosp.length+' marcado'+(P.hosp.length===1?'':'s')+'</span> · <a href="#" onclick="permTodos(\'hosp\');return false">liberar todos</a>')+'</span></div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Nenhum marcado = vê <b>todos</b>. Marque um ou vários para ele ver <b>só esses</b> na escala, no Financeiro e no cadastro de hospitais.</div>'+
@@ -2003,9 +2067,9 @@ function permDesenhar(){
 async function permSalvar(){
   const P = _perm; if(!P) return;
   if(!P.abas.length) return aviso('Marque pelo menos uma aba.','erro');
-  const todas = CPE_ABAS.reduce((a,g)=>a.concat(g[1].map(x=>x[0])),[]);
-  const comuns = todas.filter(k=>k!==ABA_PRIVADA);   // v72: a aba privada nunca entra no "todas" (null)
-  const abas = (comuns.every(k=>P.abas.indexOf(k)>=0) && P.abas.indexOf(ABA_PRIVADA)<0) ? null : todas.filter(k=>P.abas.indexOf(k)>=0);
+  const todas = permTodasChaves();
+  const comuns = todas.filter(k=>!permReservada(k));   // v72/v82: privada e reservadas nunca entram no "todas" (null)
+  const abas = (comuns.every(k=>P.abas.indexOf(k)>=0) && !P.abas.some(permReservada)) ? null : todas.filter(k=>P.abas.indexOf(k)>=0);
   const r = await sb.from('perfis').update({ abas, hospitais: P.hosp.length ? P.hosp : null }).eq('id', P.id);
   if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
   const d = await sb.from('perfil_empresas').delete().eq('perfil_id', P.id);
@@ -3212,10 +3276,10 @@ function telaInicio(){
     (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais','Gastos pessoais do Vinicius, por categoria — fora dos CNPJs'):'');
   let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
   if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
-    '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>'+(ehAdm1() ? 'Financeiro · Terceirizados' : 'Adicionar paciente e escalas por hospital e por anestesista')+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>'+grupoResumo('nafs')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   if(veAba('anestesia')) h += '<div class="secao"><b>ANESTESIA</b><span>Outra equipe de anestesistas, com escala própria</span></div><div class="bxs">'+
-    '<button type="button" class="bx" onclick="irGrupo(\'ANESTESIA\')"><div class="ic">💉</div><div><b>ANESTESIA</b><small>Adicionar paciente e escalas por hospital e por anestesista</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irGrupo(\'ANESTESIA\')"><div class="ic">💉</div><div><b>ANESTESIA</b><small>'+grupoResumo('anestesia')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   const cad = (veAba('empresas')? cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs') : '')+
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
@@ -3227,7 +3291,7 @@ function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
     (ehAnes() || veAba('escalas') ? cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista') : '')+
-    (!ehAnes() && veFinanceiroGrupo() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro', ehAdm1() ? 'Terceirizados: o que cada anestesista fez no mês, validado, pago e a pagar' : 'Saldo e comprovantes · Terceirizados (produção dos anestesistas)') : '')+
+    (!ehAnes() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro', [veAba('saldo')?'Saldo e comprovantes':'', veAba('terceirizados')?'Terceirizados (produção dos anestesistas)':''].filter(Boolean).join(' · ')) : '')+
     (!ehAnes() && podeEditar() && veAba('hospitais') ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
   '</div>';
 }
@@ -3261,10 +3325,10 @@ function prodAbrir(id){ S.prod.aberto = S.prod.aberto===id ? '' : id; render(); 
 function telaProducao(){   // v81: Financeiro vira um painel com caixas — Saldo (mestre/dono) e Terceirizados (produção)
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
   const T = prodSomar(escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id));
-  if(podeUsuarios() && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
+  if(veAba('saldo') && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
   return '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div>'+
-    (podeUsuarios() ? saldoCaixa() : '')+
-    '<div class="bxs">'+cpeCaixa('terceirizados','👥','Terceirizados','Produção dos anestesistas em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>')+'</div>';
+    (veAba('saldo') ? saldoCaixa() : '')+
+    (!veAba('terceirizados') ? '' : '<div class="bxs">'+cpeCaixa('terceirizados','👥','Terceirizados','Produção dos anestesistas em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>')+'</div>');
 }
 function telaTerceirizados(){
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando a produção…</div>'; }
@@ -3356,6 +3420,7 @@ function telaSaldo(){
   const c = saldoCiclo(), g = escGrupo();
   let h = '<div class="secao"><b>SALDO · '+esc(g)+'</b><span>'+(c.inicio?'desde '+dataBR(c.inicio):'ainda sem valor de partida')+'</span></div>';
   if(!S.saldo.movs.length){
+    if(!podeEditar()) return h+'<div class="card"><div class="vazio">Ainda não há valor de partida lançado.</div></div>';
     return h+'<div class="card"><div class="aviso">Comece lançando o <b>valor de partida</b> — pode ser lido do comprovante da transferência recebida ou digitado à mão. Depois, cada comprovante ou extrato de pagamento vai sendo descontado.</div>'+
       '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura(\'partida\')">📷 Ler comprovante da partida</button><button class="bt g" onclick="saldoAbrirManual(null,\'partida\')">✍️ Digitar valor de partida</button></div></div>';
   }
@@ -3367,8 +3432,8 @@ function telaSaldo(){
     '<div style="margin-top:10px;color:var(--fraco);font-size:12px">SALDO ATUAL</div><div class="big" style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</div>'+
     '<div class="barra"><i style="width:'+pct.toFixed(1)+'%"></i></div><div style="font-size:12px;color:var(--fraco)">'+
       (c.saldo<0 ? '<b style="color:var(--vermelho)">Saldo negativo — gastou mais do que o valor de partida.</b>' : pct.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% do valor ainda disponível')+'</div></div>'+
-  '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
-    '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>';
+  (!podeEditar() ? '' : '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
+    '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>');
   h += '<div class="card"><h3>MOVIMENTOS</h3>'+ c.lista.slice().reverse().map(saldoLinha).join('')+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Toque num movimento para ver o comprovante, corrigir ou excluir. O mesmo comprovante não entra duas vezes (o sistema confere o ID da transação).</div></div>';
   if(c.ant.length) h += '<div class="card"><h3 style="cursor:pointer" onclick="S.saldo.verAnt=!S.saldo.verAnt;render()">'+(S.saldo.verAnt?'▲':'▼')+' SALDOS ANTERIORES ('+c.ant.length+' movimento'+(c.ant.length===1?'':'s')+')</h3>'+
@@ -3388,7 +3453,7 @@ function saldoLinha(m){
   else if(m.origem==='manual') ln2.push('✍️ lançado à mão');
   if(m.id_transacao) ln2.push('ID '+(m.id_transacao.length>16 ? m.id_transacao.slice(0,5)+'…'+m.id_transacao.slice(-7) : m.id_transacao));
   if(m.obs) ln2.push(m.obs);
-  return '<div class="mv" style="cursor:pointer" onclick="saldoAbrirManual(\''+m.id+'\')"><div class="d">'+dataBR(m.data).slice(0,5)+(m.hora?'<br>'+esc(m.hora):'')+'</div>'+
+  return '<div class="mv" style="cursor:pointer" onclick="'+(podeEditar() ? 'saldoAbrirManual(\''+m.id+'\')' : (m.anexo_path ? 'verAnexo(\''+esc(m.anexo_path)+'\')' : ''))+'"><div class="d">'+dataBR(m.data).slice(0,5)+(m.hora?'<br>'+esc(m.hora):'')+'</div>'+
     '<div class="t"><b>'+esc(tit)+'</b>'+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+(ln2.length?'<small>'+esc(ln2.join(' · '))+'</small>':'')+'</div>'+
     '<div class="v"><b style="color:'+(s<0?'var(--vermelho)':'var(--verde)')+'">'+(s<0?'− ':'+ ')+brl(Math.abs(s))+'</b>'+(m._saldo!=null?'<small>saldo '+brl(m._saldo)+'</small>':'')+'</div></div>';
 }
