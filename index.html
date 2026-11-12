@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v77">
-<meta name="rf-data" content="2026-11-09">
+<meta name="rf-versao" content="v78">
+<meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -165,6 +165,17 @@
   .login{max-width:380px;margin:9vh auto;text-align:center}
   .login .card{text-align:left}
   @media(max-width:600px){ .quem{width:100%;text-align:left;margin-left:0} th,td{padding:6px} }
+  /* v78: Saldo e comprovantes */
+  .sl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed var(--linha)}
+  .sl span{color:var(--fraco)} .big{font-size:26px;font-weight:800}
+  .barra{height:10px;border-radius:6px;background:var(--linha2);overflow:hidden;margin:8px 0 2px}
+  .barra i{display:block;height:100%;background:linear-gradient(90deg,var(--mr-verde),var(--mr-turq),var(--mr-azul))}
+  .mv{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--linha2);align-items:flex-start}
+  .mv .d{font-size:12px;color:var(--fraco);width:42px;flex:none}
+  .mv .t{flex:1;min-width:0} .mv .t small{display:block;color:var(--fraco);font-size:12px;overflow-wrap:anywhere}
+  .mv .v{text-align:right;white-space:nowrap} .mv .v small{display:block;color:var(--fraco);font-size:11px}
+  .acoes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 12px}
+  .acoes button{padding:12px 8px}
 </style>
 </head>
 <body>
@@ -181,8 +192,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v77',
-  data   : '09/11/2026',
+  versao : 'v78',
+  data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -346,7 +357,7 @@ function vePessoais(){ if(['mestre','dono'].indexOf(papel())>=0) return true; co
 function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true; const a = S.perfil && S.perfil.abas; return !Array.isArray(a) || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='saldo') return 'producao'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -400,6 +411,7 @@ function render(){
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
   else if(S.tela==='producao') corpo = podeUsuarios() ? telaProducao() : telaEscalaHub();
+  else if(S.tela==='saldo')    corpo = podeUsuarios() ? telaSaldo() : telaEscalaHub();
 
   const nf = fila().length;
   app.innerHTML =
@@ -3138,7 +3150,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo e comprovantes', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3224,7 +3236,8 @@ function telaProducao(){
   const lista = prodLista(), T = prodSomar(lista);
   const hosps = escHospitais().map(h=>h.nome);
   const anes = S.esc.anes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  let h = '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>';
+  if(!saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
+  let h = '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>' + saldoCaixa();
   h += '<div class="card"><div class="lin" style="align-items:flex-end;flex-wrap:wrap;gap:10px">'+
     '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;S.prod.aberto=\'\';render()"></div>'+
     '<div style="min-width:180px"><label>Anestesista</label><select onchange="S.prod.anes=this.value;S.prod.aberto=\'\';render()"><option value="">Todos</option>'+
@@ -3265,6 +3278,238 @@ function telaProducao(){
         '<td style="white-space:nowrap">'+(venc ? dataBR(venc) : '<span style="color:var(--fraco)">'+esc(hospPrazoTxt(hc))+'</span>')+'</td></tr>'; }).join('')+
     '</tbody></table></div></div>';
   return h + escResumoEmpresas(lista);
+}
+
+/* ===== v78 (12/11/2026): "🧾 Saldo e comprovantes" dentro do Financeiro (NAFS / ANESTESIA) =====
+   Pedido do Renato: um valor de partida (ex.: transferência de R$ 30.000 recebida da NAFS) que vai sendo
+   descontado pelos comprovantes e extratos (lidos por foto/PDF pela Edge Function ler-comprovante) e por
+   lançamentos à mão (ajustes). Tabela fin_saldo_mov, separada por grupo. Só mestre e dono.
+   Regra do saldo: vale a partir do ÚLTIMO "valor de partida" (Recomeçar saldo abre um ciclo novo).
+   partida/aporte/entrada somam, saída desconta, ajuste soma ou desconta pelo sinal. */
+S.saldo = { grupo:'', movs:[], carregado:false, erro:'', leitura:null, verAnt:false };
+const SALDO_TIPOS = { partida:'Valor de partida', aporte:'Aporte', entrada:'Entrada', saida:'Saída', ajuste:'Ajuste manual' };
+async function saldoCarregar(){
+  const g = escGrupo();
+  const r = await sb.from('fin_saldo_mov').select('*').eq('grupo', g).order('data').order('created_at');
+  S.saldo.grupo = g; S.saldo.carregado = true;
+  if(r.error){ S.saldo.movs = []; S.saldo.erro = r.error.message; return; }
+  S.saldo.movs = r.data || []; S.saldo.erro = '';
+}
+function saldoPronto(){ return S.saldo.carregado && S.saldo.grupo===escGrupo(); }
+function saldoSinal(m){ const v = Number(m.valor)||0; if(m.tipo==='saida') return -Math.abs(v); if(m.tipo==='ajuste') return v; return Math.abs(v); }
+function saldoOrd(a,b){ return String(a.data).localeCompare(String(b.data)) || String(a.hora||'').localeCompare(String(b.hora||'')) || String(a.created_at||'').localeCompare(String(b.created_at||'')); }
+/* ciclo atual = do último "partida" em diante */
+function saldoCiclo(){
+  const t = S.saldo.movs.slice().sort(saldoOrd);
+  let i0 = -1; t.forEach((m,i)=>{ if(m.tipo==='partida') i0 = i; });
+  const atual = i0>=0 ? t.slice(i0) : t, ant = i0>0 ? t.slice(0,i0) : [];
+  let s = 0; const comSaldo = atual.map(m=>{ s += saldoSinal(m); return Object.assign({ _saldo:s }, m); });
+  const part = atual.filter(m=>m.tipo==='partida').reduce((a,m)=>a+Math.abs(+m.valor||0),0);
+  const mais = atual.filter(m=>m.tipo==='aporte'||m.tipo==='entrada'||(m.tipo==='ajuste'&&+m.valor>0)).reduce((a,m)=>a+Math.abs(+m.valor||0),0);
+  const menos = atual.filter(m=>m.tipo==='saida'||(m.tipo==='ajuste'&&+m.valor<0)).reduce((a,m)=>a+Math.abs(+m.valor||0),0);
+  return { lista:comSaldo, ant, partida:part, mais, menos, saldo:s, inicio: atual[0] ? atual[0].data : null, nSaidas: atual.filter(m=>m.tipo==='saida').length };
+}
+function saldoCaixa(){
+  const pronto = saldoPronto(), c = pronto ? saldoCiclo() : null;
+  const desc = !pronto ? 'Valor de partida descontado pelos extratos e comprovantes'
+    : !S.saldo.movs.length ? 'Lance o valor de partida e vá descontando pelos comprovantes e extratos'
+    : 'Valor de partida descontado pelos extratos e comprovantes · saldo atual <b style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</b>';
+  return '<div class="bxs" style="margin-bottom:12px"><button type="button" class="bx" onclick="irPara(\'saldo\')"><div class="ic">🧾</div><div><b>Saldo e comprovantes</b><small>'+desc+'</small></div><span class="seta">›</span></button></div>';
+}
+function telaSaldo(){
+  if(!saldoPronto()){ saldoCarregar().then(render).catch(e=>{ S.saldo.carregado=true; S.saldo.grupo=escGrupo(); S.saldo.erro=e.message; render(); }); return '<div class="vazio">Carregando o saldo…</div>'; }
+  if(S.saldo.erro) return '<div class="card"><b style="color:var(--vermelho)">Não consegui abrir o saldo.</b><div style="font-size:13px;margin-top:6px;color:var(--fraco)">'+esc(S.saldo.erro)+'</div></div>';
+  const c = saldoCiclo(), g = escGrupo();
+  let h = '<div class="secao"><b>SALDO · '+esc(g)+'</b><span>'+(c.inicio?'desde '+dataBR(c.inicio):'ainda sem valor de partida')+'</span></div>';
+  if(!S.saldo.movs.length){
+    return h+'<div class="card"><div class="aviso">Comece lançando o <b>valor de partida</b> — pode ser lido do comprovante da transferência recebida ou digitado à mão. Depois, cada comprovante ou extrato de pagamento vai sendo descontado.</div>'+
+      '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura(\'partida\')">📷 Ler comprovante da partida</button><button class="bt g" onclick="saldoAbrirManual(null,\'partida\')">✍️ Digitar valor de partida</button></div></div>';
+  }
+  const pct = c.partida+c.mais>0 ? Math.max(0, Math.min(100, c.saldo/(c.partida+c.mais)*100)) : 0;
+  h += '<div class="card">'+
+    '<div class="sl"><span>Valor de partida'+(c.inicio?' · '+dataBR(c.inicio).slice(0,5):'')+'</span><b>'+brl(c.partida)+'</b></div>'+
+    (c.mais>0.004 ? '<div class="sl"><span>Aportes e entradas</span><b style="color:var(--verde)">+ '+brl(c.mais)+'</b></div>' : '')+
+    '<div class="sl"><span>Descontado ('+c.nSaidas+' comprovante'+(c.nSaidas===1?'':'s')+')</span><b style="color:var(--vermelho)">− '+brl(c.menos)+'</b></div>'+
+    '<div style="margin-top:10px;color:var(--fraco);font-size:12px">SALDO ATUAL</div><div class="big" style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</div>'+
+    '<div class="barra"><i style="width:'+pct.toFixed(1)+'%"></i></div><div style="font-size:12px;color:var(--fraco)">'+
+      (c.saldo<0 ? '<b style="color:var(--vermelho)">Saldo negativo — gastou mais do que o valor de partida.</b>' : pct.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% do valor ainda disponível')+'</div></div>'+
+  '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
+    '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>';
+  h += '<div class="card"><h3>MOVIMENTOS</h3>'+ c.lista.slice().reverse().map(saldoLinha).join('')+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Toque num movimento para ver o comprovante, corrigir ou excluir. O mesmo comprovante não entra duas vezes (o sistema confere o ID da transação).</div></div>';
+  if(c.ant.length) h += '<div class="card"><h3 style="cursor:pointer" onclick="S.saldo.verAnt=!S.saldo.verAnt;render()">'+(S.saldo.verAnt?'▲':'▼')+' SALDOS ANTERIORES ('+c.ant.length+' movimento'+(c.ant.length===1?'':'s')+')</h3>'+
+    (S.saldo.verAnt ? c.ant.slice().reverse().map(m=>saldoLinha(Object.assign({_saldo:null},m))).join('') : '')+'</div>';
+  return h;
+}
+function saldoLinha(m){
+  const s = saldoSinal(m), quem = m.tipo==='saida' ? (m.recebedor||'') : (m.pagador||m.recebedor||'');
+  const tit = (m.tipo==='partida' ? 'Valor de partida' : m.tipo==='aporte' ? 'Aporte' : m.tipo==='ajuste' ? 'Ajuste manual' : (m.descricao || SALDO_TIPOS[m.tipo]))+
+    (m.tipo!=='saida' && m.tipo!=='entrada' && m.descricao ? ' · '+m.descricao : '')+(quem ? ' · '+quem : '');
+  const sub = [];
+  if(m.tipo==='saida' && m.recebedor_doc) sub.push('CNPJ/CPF '+m.recebedor_doc);
+  if(m.tipo==='saida' && m.pagador) sub.push('pago por '+m.pagador);
+  if(m.tipo!=='saida' && m.pagador_doc) sub.push('CNPJ/CPF '+m.pagador_doc);
+  const ln2 = [];
+  if(m.anexo_path) ln2.push('📎 '+(m.origem==='extrato'?'extrato':'comprovante'));
+  else if(m.origem==='manual') ln2.push('✍️ lançado à mão');
+  if(m.id_transacao) ln2.push('ID '+(m.id_transacao.length>16 ? m.id_transacao.slice(0,5)+'…'+m.id_transacao.slice(-7) : m.id_transacao));
+  if(m.obs) ln2.push(m.obs);
+  return '<div class="mv" style="cursor:pointer" onclick="saldoAbrirManual(\''+m.id+'\')"><div class="d">'+dataBR(m.data).slice(0,5)+(m.hora?'<br>'+esc(m.hora):'')+'</div>'+
+    '<div class="t"><b>'+esc(tit)+'</b>'+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+(ln2.length?'<small>'+esc(ln2.join(' · '))+'</small>':'')+'</div>'+
+    '<div class="v"><b style="color:'+(s<0?'var(--vermelho)':'var(--verde)')+'">'+(s<0?'− ':'+ ')+brl(Math.abs(s))+'</b>'+(m._saldo!=null?'<small>saldo '+brl(m._saldo)+'</small>':'')+'</div></div>';
+}
+
+/* ---------- lançar / corrigir à mão ---------- */
+function saldoNum(t){ t = String(t||'').trim().replace(/[R$\s]/g,''); if(t.indexOf(',')>=0) t = t.replace(/\./g,'').replace(',','.'); return Number(t); }
+function saldoFmt(v){ return (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+let _saldoEd = null;
+function saldoAbrirManual(id, tipo){
+  const m = id ? S.saldo.movs.find(x=>x.id===id) : null; _saldoEd = m;
+  const tp = m ? m.tipo : (tipo || 'saida');
+  const v = m ? (m.tipo==='ajuste' ? Math.abs(+m.valor) : +m.valor) : '';
+  const sinal = m && m.tipo==='ajuste' && +m.valor>0 ? '+' : '-';
+  abrirModal('<h2>'+(m?'✏️ Movimento':'✍️ Lançar à mão')+'</h2>'+
+    (m && m.anexo_path ? '<div style="margin-bottom:6px"><button class="bt g mini" onclick="verAnexo(\''+esc(m.anexo_path)+'\')">📎 Ver '+(m.origem==='extrato'?'extrato':'comprovante')+'</button></div>' : '')+
+    '<label>Tipo</label><select id="sd-tipo" onchange="document.getElementById(\'sd-sinal\').style.display=this.value===\'ajuste\'?\'block\':\'none\'">'+
+      Object.keys(SALDO_TIPOS).map(k=>'<option value="'+k+'"'+(k===tp?' selected':'')+'>'+SALDO_TIPOS[k]+(k==='saida'?' — desconta do saldo':k==='ajuste'?' — soma ou desconta':' — soma ao saldo')+'</option>').join('')+'</select>'+
+    '<div id="sd-sinal" style="display:'+(tp==='ajuste'?'block':'none')+'"><label>O ajuste…</label><select id="sd-sn"><option value="-"'+(sinal==='-'?' selected':'')+'>desconta do saldo (−)</option><option value="+"'+(sinal==='+'?' selected':'')+'>soma ao saldo (+)</option></select></div>'+
+    '<div class="lin"><div><label>Data</label><input type="date" id="sd-data" value="'+esc(m?String(m.data).slice(0,10):hojeISO())+'"></div>'+
+      '<div><label>Valor (R$)</label><input id="sd-valor" inputmode="decimal" placeholder="0,00" value="'+(v===''?'':saldoFmt(v))+'"></div></div>'+
+    '<label>Descrição</label><input id="sd-desc" value="'+esc(m?m.descricao||'':'')+'" placeholder="Ex.: Pix enviado, tarifa, acerto…">'+
+    '<label>Recebedor (para quem foi)</label><input id="sd-rec" value="'+esc(m?m.recebedor||'':'')+'">'+
+    '<label>Pagador (quem pagou / mandou)</label><input id="sd-pag" value="'+esc(m?m.pagador||'':'')+'">'+
+    '<label>Observação</label><input id="sd-obs" value="'+esc(m?m.obs||'':'')+'">'+
+    '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="bt" onclick="saldoSalvarManual()">✔ Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button>'+
+      (m ? '<button class="bt g" style="margin-left:auto;color:var(--vermelho)" onclick="saldoExcluir()">Excluir</button>' : '')+'</div>');
+}
+async function saldoSalvarManual(){
+  const tipo = val('sd-tipo'), v = saldoNum(val('sd-valor')), data = val('sd-data');
+  if(!data) return aviso('Informe a data.','erro');
+  if(!(v>0)) return aviso('Informe um valor maior que zero.','erro');
+  const reg = { tipo, data, valor: tipo==='ajuste' ? (val('sd-sn')==='+' ? v : -v) : v,
+    descricao: val('sd-desc').trim()||null, recebedor: val('sd-rec').trim()||null, pagador: val('sd-pag').trim()||null, obs: val('sd-obs').trim()||null, updated_at: new Date().toISOString() };
+  let r;
+  if(_saldoEd) r = await sb.from('fin_saldo_mov').update(reg).eq('id', _saldoEd.id).select().maybeSingle();
+  else r = await sb.from('fin_saldo_mov').insert(Object.assign({ grupo: escGrupo(), origem:'manual' }, reg)).select().maybeSingle();
+  if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
+  if(_saldoEd) S.saldo.movs = S.saldo.movs.map(x=>x.id===_saldoEd.id ? r.data : x); else S.saldo.movs.push(r.data);
+  S.modal = null; aviso('Movimento salvo. Saldo atual: '+brl(saldoCiclo().saldo)+'.','ok');
+}
+async function saldoExcluir(){
+  if(!_saldoEd || !confirm('Excluir este movimento? O saldo é recalculado.')) return;
+  const r = await sb.from('fin_saldo_mov').delete().eq('id', _saldoEd.id);
+  if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.saldo.movs = S.saldo.movs.filter(x=>x.id!==_saldoEd.id); S.modal = null; aviso('Movimento excluído.','ok');
+}
+function saldoRecomecar(){
+  abrirModal('<h2>🔁 Recomeçar saldo</h2><div class="aviso">Lança um <b>novo valor de partida</b>. O saldo passa a contar dele em diante; o que veio antes fica guardado em "Saldos anteriores".</div>'+
+    '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura(\'partida\')">📷 Ler comprovante</button><button class="bt g" onclick="saldoAbrirManual(null,\'partida\')">✍️ Digitar valor</button></div>'+
+    '<button class="bt g" onclick="fecharModal()">Cancelar</button>');
+}
+
+/* ---------- ler comprovante / extrato (foto ou PDF) ---------- */
+let _saldoArq = null, _saldoModo = '';
+function saldoAbrirLeitura(modo){
+  _saldoModo = modo || ''; _saldoArq = null; S.saldo.leitura = null;
+  abrirModal('<h2>📷 Ler '+(modo==='partida'?'comprovante da partida':'comprovante / extrato')+'</h2>'+
+    '<div class="aviso">Mande a <b>foto, o print ou o PDF</b> do comprovante (Pix, TED, transferência, boleto) ou do extrato. O sistema lê e mostra para você conferir <b>antes</b> de mexer no saldo.</div>'+
+    '<input type="file" id="sd-arq" accept="image/*,application/pdf">'+
+    '<div id="sd-st" style="margin-top:8px;font-size:13px;color:var(--fraco)"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="bt" id="sd-ler" onclick="saldoLer()">Ler</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+/* imagem → JPEG de até 1800px (manda menos dados e lê igual) */
+function saldoImgJpeg(blob){
+  return new Promise((ok, nok)=>{
+    const u = URL.createObjectURL(blob), im = new Image();
+    im.onload = ()=>{ const k = Math.min(1, 1800/Math.max(im.width, im.height)); const cv = document.createElement('canvas');
+      cv.width = Math.round(im.width*k); cv.height = Math.round(im.height*k); const cx = cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(im,0,0,cv.width,cv.height);
+      URL.revokeObjectURL(u); ok(cv.toDataURL('image/jpeg',0.85).split(',')[1]); };
+    im.onerror = ()=>{ URL.revokeObjectURL(u); nok(new Error('não consegui abrir a imagem')); };
+    im.src = u;
+  });
+}
+async function saldoPdfImagens(buf){
+  if(!window.pdfjsLib) throw new Error('o leitor de PDF não carregou — mande como foto ou print');
+  const pdf = await pdfjsLib.getDocument({ data:buf }).promise, out = [];
+  for(let p=1; p<=Math.min(pdf.numPages, 6); p++){
+    const pg = await pdf.getPage(p), vp0 = pg.getViewport({ scale:1 }), vp = pg.getViewport({ scale: Math.min(2.5, 1800/Math.max(vp0.width, vp0.height)) });
+    const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+    await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    out.push({ b64: cv.toDataURL('image/jpeg',0.85).split(',')[1], mime:'image/jpeg' });
+  }
+  return out;
+}
+async function saldoLer(){
+  const inp = document.getElementById('sd-arq'), st = document.getElementById('sd-st'), bt = document.getElementById('sd-ler');
+  const f = inp && inp.files && inp.files[0]; if(!f){ st.textContent = 'Escolha o arquivo.'; return; }
+  try{
+    if(bt) bt.disabled = true;
+    st.textContent = 'Preparando o arquivo…';
+    const buf = await f.arrayBuffer();
+    if(!buf.byteLength) throw new Error('o arquivo veio vazio do seletor — tente escolher pela Galeria');
+    _saldoArq = new File([buf], f.name || 'comprovante', { type: f.type || 'application/octet-stream' });
+    const ehPdf = (f.type==='application/pdf') || /\.pdf$/i.test(f.name||'');
+    const imagens = ehPdf ? await saldoPdfImagens(buf.slice(0)) : [{ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }];
+    st.textContent = 'Lendo… (uns 10 a 30 segundos)';
+    const { data, error } = await sb.functions.invoke('ler-comprovante', { body: { imagens } });
+    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
+    if(data && data.error) throw new Error(data.error);
+    const movs = (data && data.movimentos) || [];
+    if(!movs.length) throw new Error('não encontrei nenhum valor no arquivo');
+    const ids = new Set(S.saldo.movs.map(x=>x.id_transacao).filter(Boolean));
+    S.saldo.leitura = { documento: data.documento, banco: data.banco || '', movs: movs.map((x,i)=>{
+      const dup = (x.id_transacao && ids.has(x.id_transacao)) || S.saldo.movs.some(y=>String(y.data).slice(0,10)===x.data && Math.abs(Math.abs(+y.valor)-x.valor)<0.005 && (y.tipo===x.tipo || (y.tipo==='partida'&&x.tipo==='entrada')));
+      const tipo = _saldoModo==='partida' && i===0 ? 'partida' : x.tipo;
+      return Object.assign({}, x, { tipo, ok: !dup, dup }); }) };
+    saldoMostrarLeitura();
+  }catch(e){ st.innerHTML = '<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'; if(bt) bt.disabled = false; }
+}
+function saldoMostrarLeitura(){
+  const L = S.saldo.leitura, um = L.movs.length===1, c = saldoCiclo();
+  const linha = (x,i)=>{
+    const tsel = '<select onchange="S.saldo.leitura.movs['+i+'].tipo=this.value;saldoMostrarLeitura()">'+['saida','entrada','partida','aporte'].map(k=>'<option value="'+k+'"'+(x.tipo===k?' selected':'')+'>'+SALDO_TIPOS[k]+(k==='saida'?' — desconta':' — soma')+'</option>').join('')+'</select>';
+    return '<div class="card" style="padding:10px;margin-bottom:8px;'+(x.dup?'border-color:var(--vermelho)':'')+'">'+
+      (um ? '' : '<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:13px;color:var(--texto);margin:0 0 4px"><input type="checkbox" style="width:auto"'+(x.ok?' checked':'')+' onchange="S.saldo.leitura.movs['+i+'].ok=this.checked;saldoMostrarLeitura()"> lançar este</label>')+
+      (x.dup ? '<div class="erro" style="margin-bottom:6px">Parece que este já foi lançado (mesmo ID ou mesma data e valor).'+(um?' Marque abaixo se quiser lançar mesmo assim.':'')+'</div>' : '')+
+      '<label>Tipo</label>'+tsel+
+      '<div class="lin"><div><label>Data</label><input type="date" value="'+esc(x.data)+'" onchange="S.saldo.leitura.movs['+i+'].data=this.value"></div>'+
+        '<div><label>Valor (R$)</label><input inputmode="decimal" value="'+saldoFmt(x.valor)+'" onchange="S.saldo.leitura.movs['+i+'].valor=saldoNum(this.value);saldoMostrarLeitura()"></div></div>'+
+      '<label>Recebedor</label><input value="'+esc(x.recebedor+(x.recebedor_doc?' — CNPJ/CPF '+x.recebedor_doc:''))+'" onchange="S.saldo.leitura.movs['+i+'].recebedor=this.value;S.saldo.leitura.movs['+i+'].recebedor_doc=\'\'">'+
+      '<label>Pagador</label><input value="'+esc(x.pagador+(x.pagador_doc?' — CNPJ/CPF '+x.pagador_doc:''))+'" onchange="S.saldo.leitura.movs['+i+'].pagador=this.value;S.saldo.leitura.movs['+i+'].pagador_doc=\'\'">'+
+      '<label>Descrição</label><input value="'+esc(x.descricao)+'" onchange="S.saldo.leitura.movs['+i+'].descricao=this.value">'+
+      (um && x.dup ? '<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:13px;color:var(--texto)"><input type="checkbox" style="width:auto"'+(x.ok?' checked':'')+' onchange="S.saldo.leitura.movs[0].ok=this.checked;saldoMostrarLeitura()"> lançar mesmo assim</label>' : '')+
+    '</div>';
+  };
+  const sel = L.movs.filter(x=>x.ok && x.valor>0);
+  const temPartida = sel.some(x=>x.tipo==='partida');
+  let depois = temPartida ? 0 : c.saldo; sel.forEach(x=>{ depois += x.tipo==='saida' ? -x.valor : x.valor; });
+  const tot = sel.reduce((a,x)=>a+(x.tipo==='saida'?-x.valor:x.valor),0);
+  const btxt = !sel.length ? 'Nada marcado' : (sel.length===1 ? (sel[0].tipo==='saida'?'✔ Descontar do saldo':sel[0].tipo==='partida'?'✔ Lançar valor de partida':'✔ Somar ao saldo') : '✔ Lançar '+sel.length+' movimentos');
+  abrirModal('<h2>📷 Conferir antes de '+(sel.length===1&&sel[0].tipo==='saida'?'descontar':'lançar')+'</h2><div style="font-size:12px;color:var(--fraco);margin-bottom:10px">Li '+(L.documento==='extrato'?'o extrato':'o comprovante')+(L.banco?' ('+esc(L.banco)+')':'')+(um?'':' — '+L.movs.length+' lançamentos')+'. Confira e corrija se precisar.</div>'+
+    L.movs.map(linha).join('')+
+    (sel.length ? '<div class="ok" style="margin-top:6px;font-size:13px">'+(temPartida ? 'Novo valor de partida — o saldo recomeça' : 'Saldo atual '+brl(c.saldo)+(sel.length>1?' · '+(tot<0?'− ':'+ ')+brl(Math.abs(tot)):''))+' → depois '+(sel.length===1?'deste':'destes')+': <b>'+brl(depois)+'</b></div>' : '')+
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="bt" id="sd-grv" onclick="saldoGravarLeitura()"'+(sel.length?'':' disabled')+'>'+btxt+'</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function saldoGravarLeitura(){
+  const L = S.saldo.leitura; if(!L) return;
+  const sel = L.movs.filter(x=>x.ok && x.valor>0 && /^\d{4}-\d{2}-\d{2}$/.test(x.data));
+  if(!sel.length) return;
+  const b = document.getElementById('sd-grv'); if(b){ b.disabled = true; b.textContent = 'Gravando…'; }
+  let anexo = null;
+  if(_saldoArq){
+    try{ const nome = (_saldoArq.name||'comprovante').replace(/[^\w.\-]/g,'_'), path = 'saldo/'+escGrupo()+'/'+Date.now()+'-'+nome;
+      const up = await sb.storage.from('notas').upload(path, _saldoArq, { contentType:_saldoArq.type||'application/octet-stream', upsert:false });
+      if(!up.error) anexo = { path, nome }; }catch(e){}
+  }
+  const regs = sel.map(x=>({ grupo: escGrupo(), tipo: x.tipo, data: x.data, hora: x.hora||null, valor: x.valor, descricao: x.descricao||null,
+    recebedor: x.recebedor||null, recebedor_doc: x.recebedor_doc||null, pagador: x.pagador||null, pagador_doc: x.pagador_doc||null,
+    id_transacao: x.dup ? null : (x.id_transacao||null), origem: L.documento==='extrato' ? 'extrato' : 'comprovante',
+    anexo_path: anexo ? anexo.path : null, anexo_nome: anexo ? anexo.nome : null }));
+  const r = await sb.from('fin_saldo_mov').insert(regs).select();
+  if(r.error){ if(b){ b.disabled = false; b.textContent = 'Tentar de novo'; }
+    return aviso(/duplicate|unique/i.test(r.error.message) ? 'Este comprovante já foi lançado antes (mesmo ID da transação).' : 'Não gravou: '+r.error.message,'erro'); }
+  S.saldo.movs = S.saldo.movs.concat(r.data||[]); S.saldo.leitura = null; _saldoArq = null; S.modal = null;
+  aviso((regs.length===1?'Lançado.':regs.length+' movimentos lançados.')+' Saldo atual: '+brl(saldoCiclo().saldo)+'.','ok');
 }
 
 /* ===== v64 (21/10/2026): caixa "🏥 Hospitais" — CADASTRO DE HOSPITAIS =====
