@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v84">
+<meta name="rf-versao" content="v85">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v84',
+  versao : 'v85',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3439,6 +3439,7 @@ function telaTerceirizados(){
    lançamentos à mão (ajustes). Tabela fin_saldo_mov, separada por grupo. Só mestre e dono.
    Regra do saldo: vale a partir do ÚLTIMO "valor de partida" (Recomeçar saldo abre um ciclo novo).
    partida/aporte/entrada somam, saída desconta, ajuste soma ou desconta pelo sinal. */
+function podeEditarSaldo(){ return podeEditar() || ehAdm1(); }   // v85: ADM_Nivel 1 com o Saldo marcado também lança
 S.saldo = { grupo:'', movs:[], carregado:false, erro:'', leitura:null, verAnt:false };
 const SALDO_TIPOS = { partida:'Valor de partida', aporte:'Aporte', entrada:'Entrada', saida:'Saída', ajuste:'Ajuste manual' };
 async function saldoCarregar(){
@@ -3475,7 +3476,7 @@ function telaSaldo(){
   const c = saldoCiclo(), g = escGrupo();
   let h = '<div class="secao"><b>SALDO TERCEIRIZADO · '+esc(g)+'</b><span>'+(c.inicio?'desde '+dataBR(c.inicio):'ainda sem valor de partida')+'</span></div>';
   if(!S.saldo.movs.length){
-    if(!podeEditar()) return h+'<div class="card"><div class="vazio">Ainda não há valor de partida lançado.</div></div>';
+    if(!podeEditarSaldo()) return h+'<div class="card"><div class="vazio">Ainda não há valor de partida lançado.</div></div>';
     return h+'<div class="card"><div class="aviso">Comece lançando o <b>valor de partida</b> — pode ser lido do comprovante da transferência recebida ou digitado à mão. Depois, cada comprovante ou extrato de pagamento vai sendo descontado.</div>'+
       '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura(\'partida\')">📷 Ler comprovante da partida</button><button class="bt g" onclick="saldoAbrirManual(null,\'partida\')">✍️ Digitar valor de partida</button></div></div>';
   }
@@ -3487,7 +3488,7 @@ function telaSaldo(){
     '<div style="margin-top:10px;color:var(--fraco);font-size:12px">SALDO ATUAL</div><div class="big" style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</div>'+
     '<div class="barra"><i style="width:'+pct.toFixed(1)+'%"></i></div><div style="font-size:12px;color:var(--fraco)">'+
       (c.saldo<0 ? '<b style="color:var(--vermelho)">Saldo negativo — gastou mais do que o valor de partida.</b>' : pct.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% do valor ainda disponível')+'</div></div>'+
-  (!podeEditar() ? '' : '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
+  (!podeEditarSaldo() ? '' : '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
     '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>');
   h += '<div class="card"><h3>MOVIMENTOS</h3>'+ c.lista.slice().reverse().map(saldoLinha).join('')+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Toque num movimento para ver o comprovante, corrigir ou excluir. O mesmo comprovante não entra duas vezes (o sistema confere o ID da transação).</div></div>';
@@ -3508,7 +3509,7 @@ function saldoLinha(m){
   else if(m.origem==='manual') ln2.push('✍️ lançado à mão');
   if(m.id_transacao) ln2.push('ID '+(m.id_transacao.length>16 ? m.id_transacao.slice(0,5)+'…'+m.id_transacao.slice(-7) : m.id_transacao));
   if(m.obs) ln2.push(m.obs);
-  return '<div class="mv" style="cursor:pointer" onclick="'+(podeEditar() ? 'saldoAbrirManual(\''+m.id+'\')' : (m.anexo_path ? 'verAnexo(\''+esc(m.anexo_path)+'\')' : ''))+'"><div class="d">'+dataBR(m.data).slice(0,5)+(m.hora?'<br>'+esc(m.hora):'')+'</div>'+
+  return '<div class="mv" style="cursor:pointer" onclick="'+(podeEditarSaldo() ? 'saldoAbrirManual(\''+m.id+'\')' : (m.anexo_path ? 'verAnexo(\''+esc(m.anexo_path)+'\')' : ''))+'"><div class="d">'+dataBR(m.data).slice(0,5)+(m.hora?'<br>'+esc(m.hora):'')+'</div>'+
     '<div class="t"><b>'+esc(tit)+'</b>'+(sub.length?'<small>'+esc(sub.join(' · '))+'</small>':'')+(ln2.length?'<small>'+esc(ln2.join(' · '))+'</small>':'')+'</div>'+
     '<div class="v"><b style="color:'+(s<0?'var(--vermelho)':'var(--verde)')+'">'+(s<0?'− ':'+ ')+brl(Math.abs(s))+'</b>'+(m._saldo!=null?'<small>saldo '+brl(m._saldo)+'</small>':'')+'</div></div>';
 }
