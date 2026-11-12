@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v78">
+<meta name="rf-versao" content="v79">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -192,7 +192,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v78',
+  versao : 'v79',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -434,7 +434,8 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } S.tela=t; S.msg=null; render(); }
+function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='producao'||t==='saldo') && S.saldo && S.tela!=='producao' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+  S.tela=t; S.msg=null; render(); }
 
 function telaLogin(){
   return '<div class="login">'+
