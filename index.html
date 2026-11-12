@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v87">
+<meta name="rf-versao" content="v88">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v87',
+  versao : 'v88',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2019,11 +2019,10 @@ function permConverter(a){   // v82: chaves antigas (sem grupo) viram chaves por
 function permTogGrupo(g){ const ks = permChavesGrupo(g), on = _perm.abas.indexOf(g)>=0;
   _perm.abas = _perm.abas.filter(k=>ks.indexOf(k)<0); if(!on) _perm.abas.push(g); permDesenhar(); }
 function permTogSub(g, k, subs){ const key = g+':'+k, i = _perm.abas.indexOf(key);
-  if(i>=0){ _perm.abas.splice(i,1); if(k==='terceirizados'){ const j = _perm.abas.indexOf(g+':saldo'); if(j>=0) _perm.abas.splice(j,1); } (subs||[]).forEach(x=>{ const j = _perm.abas.indexOf(g+':'+x); if(j>=0) _perm.abas.splice(j,1); }); }
+  if(i>=0){ _perm.abas.splice(i,1); (subs||[]).forEach(x=>{ const j = _perm.abas.indexOf(g+':'+x); if(j>=0) _perm.abas.splice(j,1); }); }
   else { _perm.abas.push(key); if(_perm.abas.indexOf(g)<0) _perm.abas.push(g);
     const pai = CPE_TELAS_GRUPO.find(t=>(t[3]||[]).some(x=>x[0]===k)); if(pai && _perm.abas.indexOf(g+':'+pai[0])<0) _perm.abas.push(g+':'+pai[0]);
-    if(k==='saldo' && _perm.abas.indexOf(g+':terceirizados')<0) _perm.abas.push(g+':terceirizados');   // v84: o saldo fica dentro de Terceirizados
-    if(subs && subs.length && !subs.some(x=>_perm.abas.indexOf(g+':'+x)>=0)) subs.forEach(x=>_perm.abas.push(g+':'+x)); }
+  }   // v88: Produção e Saldo terceirizado são marcações independentes — marcar o Financeiro não marca nenhuma das duas
   permDesenhar(); }
 function permBlocoGrupo(g, papelAlvo){
   const P = _perm, on = P.abas.indexOf(g[0])>=0;
