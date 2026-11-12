@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v85">
+<meta name="rf-versao" content="v86">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v85',
+  versao : 'v86',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -365,8 +365,8 @@ const CPE_ABAS = [
    Financeiro, Saldo e Terceirizados são reservados: só aparecem se marcados (mestre e dono veem sempre). */
 const CPE_GRUPOS = [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']];
 const CPE_TELAS_GRUPO = [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],
-  ['producao','💰','Financeiro',[['terceirizados','👥','Terceirizados'],['saldo','💵','Saldo terceirizado (botão dentro de Terceirizados)']]],['hospitais','🏥','Cadastro de hospitais']];
-const SUB_GRUPO = ['escala','escalas','producao','saldo','terceirizados','hospitais'];
+  ['producao','💰','Financeiro',[['terceirizados','👥','Terceirizados › Produção'],['saldo','💵','Terceirizados › Saldo terceirizado']]],['hospitais','🏥','Cadastro de hospitais']];
+const SUB_GRUPO = ['escala','escalas','producao','saldo','terceirizados','hospitais','prodgrupo'];
 const SUB_RESERVADA = ['producao','saldo','terceirizados'];
 function permChavesGrupo(g){ const r = [g]; CPE_TELAS_GRUPO.forEach(t=>{ r.push(g+':'+t[0]); (t[3]||[]).forEach(x=>r.push(g+':'+x[0])); }); return r; }
 function permTodasChaves(){ return CPE_ABAS.reduce((a,x)=>a.concat(x[1].map(y=>y[0])),[]).concat(CPE_GRUPOS.reduce((a,g)=>a.concat(permChavesGrupo(g[0])),[])); }
@@ -379,7 +379,9 @@ function vePessoais(){ if(['mestre','dono'].indexOf(papel())>=0) return true; co
 function minhasAbas(){ let a = S.perfil && S.perfil.abas;
   if(ehAdm1() && (!Array.isArray(a) || (a.length===2 && a.indexOf('nafs')>=0 && a.indexOf('producao')>=0))) a = ['nafs','nafs:producao','nafs:terceirizados'];   // padrão do ADM_Nivel 1
   return Array.isArray(a) ? a : null; }
-function veSub(g, k){   // v82: g = 'nafs' | 'anestesia'; k = escala, escalas, producao, saldo, terceirizados, hospitais
+function veSub(g, k){   // v86: 'prodgrupo' (tela Produção NAFS) segue a marcação de Terceirizados, sem o atalho do saldo
+  if(k==='prodgrupo'){ if(papel()==='mestre') return true; const a0 = minhasAbas(); if(!a0) return podeUsuarios(); return a0.indexOf(g+':terceirizados')>=0 || (a0.indexOf('producao')>=0 && a0.indexOf(g)>=0); }
+  // v82: g = 'nafs' | 'anestesia'; k = escala, escalas, producao, saldo, terceirizados, hospitais
   if(papel()==='mestre') return true;
   const a = minhasAbas(), res = SUB_RESERVADA.indexOf(k)>=0;
   if(!a) return res ? podeUsuarios() : true;
@@ -451,6 +453,7 @@ function render(){
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
   else if(S.tela==='producao') corpo = veAba('producao') ? telaProducao() : telaEscalaHub();
   else if(S.tela==='terceirizados') corpo = veAba('terceirizados') ? telaTerceirizados() : telaEscalaHub();
+  else if(S.tela==='prodgrupo') corpo = veAba('prodgrupo') ? telaProdGrupo() : telaEscalaHub();
   else if(S.tela==='saldo')    corpo = veAba('saldo') ? telaSaldo() : telaEscalaHub();
 
   const nf = fila().length;
@@ -3296,11 +3299,11 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizados', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizados', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
-  CPE_TELAS.escalahub.t = escGrupo();
+  CPE_TELAS.escalahub.t = escGrupo(); CPE_TELAS.prodgrupo.t = 'Produção '+escGrupo();
   if(ehAnes()){
     if(S.tela==='escala') return '<div style="height:8px"></div>';
     return '<div class="trilha"><button class="bt g" onclick="irPara(\'escala\')">‹ Voltar</button><span class="cam"><a href="#" onclick="irPara(\'escala\');return false">'+escGrupo()+'</a> › <b>Minha escala</b></span></div>';
@@ -3383,14 +3386,23 @@ function telaProducao(){   // v81: Financeiro vira um painel com caixas — Sald
   return '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div>'+
     (!veAba('terceirizados') ? '' : '<div class="bxs">'+cpeCaixa('terceirizados','👥','Terceirizados','Produção dos anestesistas em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>')+'</div>');
 }
-function telaTerceirizados(){
+function telaTerceirizados(){   // v86: painel com 2 botões — Saldo terceirizado e Produção do grupo
+  if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
+  if(veAba('saldo') && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='terceirizados') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
+  let desc = 'Valor de partida descontado pelos extratos e comprovantes';
+  if(saldoPronto()){ const c = saldoCiclo(); desc = !S.saldo.movs.length ? 'Lance o valor de partida e vá descontando pelos comprovantes e extratos' : desc+' · saldo atual <b style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</b>'; }
+  const T = prodSomar(escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id));
+  return '<div class="secao"><b>TERCEIRIZADOS · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
+    (veAba('saldo') ? saldoBotao(desc) : '')+
+    (veAba('prodgrupo') ? cpeCaixa('prodgrupo','📊','Produção '+escGrupo(),'O que cada anestesista fez em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>') : '')+
+  '</div>';
+}
+function telaProdGrupo(){
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando a produção…</div>'; }
   const lista = prodLista(), T = prodSomar(lista);
   const hosps = escHospitais().map(h=>h.nome);
   const anes = S.esc.anes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  if(veAba('saldo') && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='terceirizados') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
-  let h = '<div class="secao"><b>TERCEIRIZADOS · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>'+
-    (veAba('saldo') ? saldoCaixa() : '');   // v84: o Saldo virou "Saldo terceirizado", um botão dentro de Terceirizados
+  let h = '<div class="secao"><b>PRODUÇÃO '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>';
   h += '<div class="card"><div class="lin" style="align-items:flex-end;flex-wrap:wrap;gap:10px">'+
     '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;S.prod.aberto=\'\';render()"></div>'+
     '<div style="min-width:180px"><label>Anestesista</label><select onchange="S.prod.anes=this.value;S.prod.aberto=\'\';render()"><option value="">Todos</option>'+
@@ -3468,7 +3480,10 @@ function saldoCaixa(){
   const desc = !pronto ? 'Valor de partida descontado pelos extratos e comprovantes'
     : !S.saldo.movs.length ? 'Lance o valor de partida e vá descontando pelos comprovantes e extratos'
     : 'Valor de partida descontado pelos extratos e comprovantes · saldo atual <b style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</b>';
-  return '<div class="bxs" style="margin-bottom:12px"><button type="button" class="bx" onclick="irPara(\'saldo\')"><div class="ic">💵</div><div><b>Saldo terceirizado</b><small>'+desc+'</small></div><span class="seta">›</span></button></div>';
+  return '<div class="bxs" style="margin-bottom:12px">'+saldoBotao(desc)+'</div>';
+}
+function saldoBotao(desc){
+  return '<button type="button" class="bx" onclick="irPara(\'saldo\')"><div class="ic">💵</div><div><b>Saldo terceirizado</b><small>'+desc+'</small></div><span class="seta">›</span></button>';
 }
 function telaSaldo(){
   if(!saldoPronto()){ saldoCarregar().then(render).catch(e=>{ S.saldo.carregado=true; S.saldo.grupo=escGrupo(); S.saldo.erro=e.message; render(); }); return '<div class="vazio">Carregando o saldo…</div>'; }
