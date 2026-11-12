@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v79">
+<meta name="rf-versao" content="v80">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -192,7 +192,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v79',
+  versao : 'v80',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2019,7 +2019,15 @@ function abrirUsuario(){
     '<label>E-mail</label><input id="us-email" type="email">'+
     '<label>Senha provisória</label><input id="us-senha" value="'+senhaSugerida()+'">'+
     '<label>Papel</label><select id="us-papel" onchange="document.getElementById(\'us-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(p=>'<option value="'+p+'">'+p+'</option>').join('')+'</select>'+
-    '<div id="us-anes-box" style="display:none"><label>Qual anestesista é este login</label><select id="us-anes"><option value="">— escolha —</option>'+S.anesTodos.filter(a=>a.ativo!==false).map(a=>'<option value="'+a.id+'">'+esc(a.nome)+' · '+a.grupo+'</option>').join('')+'</select>'+
+    '<div id="us-anes-box" style="display:none"><label>Qual anestesista é este login</label>'+
+      '<div style="font-size:12px;color:var(--fraco);margin-bottom:4px">A lista é o cadastro de anestesistas da escala. Se a pessoa não está nela, escolha <b>➕ Novo anestesista</b>.</div>'+
+      '<select id="us-anes" onchange="document.getElementById(\'us-anes-novo\').style.display=this.value===\'__novo\'?\'\':\'none\';if(this.value===\'__novo\'&&!val(\'us-an-nome\'))document.getElementById(\'us-an-nome\').value=val(\'us-nome\').replace(/[._]/g,\' \')"><option value="">— escolha —</option>'+
+      '<option value="__novo">➕ Novo anestesista (não está na lista)</option>'+
+      S.anesTodos.filter(a=>a.ativo!==false).map(a=>{ const tem = (S.perfis||[]).some(p=>p.anestesista_id===a.id);
+        return '<option value="'+a.id+'"'+(tem?' disabled':'')+'>'+esc(a.nome)+' · '+a.grupo+(tem?' — já tem login':'')+'</option>'; }).join('')+'</select>'+
+      '<div id="us-anes-novo" style="display:none"><div class="lin"><div><label>Nome na escala</label><input id="us-an-nome" placeholder="Ex.: Kátia Lima"></div>'+
+        '<div><label>Grupo</label><select id="us-an-grupo"><option value="NAFS">NAFS</option><option value="ANESTESIA">ANESTESIA</option></select></div></div>'+
+        '<div style="font-size:12px;color:var(--fraco)">O anestesista entra no cadastro da escala e o login já fica ligado a ele. Valor por dia, CRM e Pix dá para completar depois em Anestesistas.</div></div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-top:4px">Anestesista só olha a escala, vê só os valores dele e só confirma os próprios plantões.</div></div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Depois de criar, abre a tela de <b>🔒 permissões</b> para escolher as abas, os hospitais e os CNPJs dele.</div>'+
     '<div style="display:flex;gap:8px;margin-top:16px">'+
@@ -2054,7 +2062,18 @@ async function salvarUsuario(){
   if(senha.length<6) return aviso('A senha precisa de ao menos 6 caracteres.','erro');
   const empresas = [];
   if(val('us-papel')==='anestesista' && !val('us-anes')) return aviso('Escolha qual anestesista é este login.','erro');
-  const r = await chamarCriarUsuario({ acao:'criar', nome:val('us-nome').trim(), email, senha, papel:val('us-papel'), empresas, anestesista_id: val('us-anes')||null });
+  let anesId = val('us-papel')==='anestesista' ? val('us-anes') : null;
+  if(anesId==='__novo'){   // v80: cadastra o anestesista na hora e liga o login a ele
+    const nomeA = val('us-an-nome').trim(); if(!nomeA) return aviso('Informe o nome do anestesista na escala.','erro');
+    const g = val('us-an-grupo') || 'NAFS';
+    const nn = x=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+    const igual = (S.anesTodos||[]).find(a=>a.grupo===g && nn(a.nome)===nn(nomeA));
+    if(igual && !confirm('Já existe "'+igual.nome+'" em '+g+'. Cadastrar outro "'+nomeA+'" mesmo assim?')) return;
+    const ra = await sb.from('esc_anestesistas').insert({ nome: nomeA, grupo: g, ativo: true }).select().maybeSingle();
+    if(ra.error || !ra.data) return aviso('Não cadastrou o anestesista: '+(ra.error ? ra.error.message : 'sem retorno'),'erro');
+    anesId = ra.data.id; S.anesTodos = null; if(S.esc) S.esc.carregado = false;
+  }
+  const r = await chamarCriarUsuario({ acao:'criar', nome:val('us-nome').trim(), email, senha, papel:val('us-papel'), empresas, anestesista_id: anesId||null });
   if(r.erro) return aviso('Não criou: '+r.erro,'erro');
   const { data:ps } = await sb.from('perfis').select('*').order('papel');
   S.perfis = ps||S.perfis;
