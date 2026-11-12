@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v82">
+<meta name="rf-versao" content="v84">
 <meta name="rf-data" content="2026-11-12">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -165,6 +165,8 @@
   .login{max-width:380px;margin:9vh auto;text-align:center}
   .login .card{text-align:left}
   @media(max-width:600px){ .quem{width:100%;text-align:left;margin-left:0} th,td{padding:6px} }
+  /* v83: faixa de nova versão */
+  .novaver{background:linear-gradient(90deg,var(--mr-verde),var(--mr-turq),var(--mr-azul));color:#fff;font-weight:700;text-align:center;padding:10px;cursor:pointer}
   /* v82: permissões por grupo e tela */
   .pgb{border:1px solid var(--linha);border-radius:14px;padding:8px;margin-bottom:8px}
   .pgb.on{border-color:var(--mr-turq);background:color-mix(in srgb, var(--mr-turq) 6%, transparent)}
@@ -196,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v82',
+  versao : 'v84',
   data   : '12/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -363,7 +365,7 @@ const CPE_ABAS = [
    Financeiro, Saldo e Terceirizados são reservados: só aparecem se marcados (mestre e dono veem sempre). */
 const CPE_GRUPOS = [['nafs','🩺','NAFS'],['anestesia','💉','ANESTESIA']];
 const CPE_TELAS_GRUPO = [['escala','➕','Adicionar paciente'],['escalas','🗓️','Escalas'],
-  ['producao','💰','Financeiro',[['saldo','🧾','Saldo e comprovantes'],['terceirizados','👥','Terceirizados']]],['hospitais','🏥','Cadastro de hospitais']];
+  ['producao','💰','Financeiro',[['terceirizados','👥','Terceirizados'],['saldo','💵','Saldo terceirizado (botão dentro de Terceirizados)']]],['hospitais','🏥','Cadastro de hospitais']];
 const SUB_GRUPO = ['escala','escalas','producao','saldo','terceirizados','hospitais'];
 const SUB_RESERVADA = ['producao','saldo','terceirizados'];
 function permChavesGrupo(g){ const r = [g]; CPE_TELAS_GRUPO.forEach(t=>{ r.push(g+':'+t[0]); (t[3]||[]).forEach(x=>r.push(g+':'+x[0])); }); return r; }
@@ -383,6 +385,7 @@ function veSub(g, k){   // v82: g = 'nafs' | 'anestesia'; k = escala, escalas, p
   if(!a) return res ? podeUsuarios() : true;
   if(a.indexOf(g+':'+k)>=0) return true;
   if(k==='producao' && (veSub(g,'saldo') || veSub(g,'terceirizados'))) return true;
+  if(k==='terceirizados' && a.indexOf(g+':saldo')>=0) return true;
   const ant = (k==='saldo' || k==='terceirizados') ? 'producao' : k;          // chaves antigas, sem grupo
   return a.indexOf(ant)>=0 && a.indexOf(g)>=0;
 }
@@ -454,10 +457,12 @@ function render(){
   app.innerHTML =
     '<header class="top"><div class="topin">'+
       '<div class="marca" style="cursor:pointer" onclick="irPara(\'inicio\')">'+marcaSVG(38)+'<div><b>SISTEMA MR</b><span>'+SISTEMA.casa.toUpperCase()+'</span></div></div>'+
-      '<button class="bt g mini" style="margin-left:auto" onclick="trocarTema()" title="Claro / escuro">'+(temaAtual()==='escuro'?'☀ claro':'🌙 escuro')+'</button>'+
+      '<button class="bt g mini" style="margin-left:auto" onclick="atualizarAgora()" title="Buscar dados novos">⟳</button>'+
+      '<button class="bt g mini" style="margin-left:6px" onclick="trocarTema()" title="Claro / escuro">'+(temaAtual()==='escuro'?'☀ claro':'🌙 escuro')+'</button>'+
       '<div class="quem" style="margin-left:12px"><b>'+esc(S.perfil? (S.perfil.nome||S.perfil.email) : '')+'</b>'+
         esc(papelNome(papel()||''))+' · <a href="#" onclick="sair();return false">sair</a></div>'+
     '</div></header>'+
+    (S.novaVersao ? '<div class="novaver" onclick="cpeRecarregar(S.novaVersao)">⬆ Nova versão '+esc(S.novaVersao)+' disponível — toque aqui para atualizar</div>' : '')+
     '<div class="wrap">'+
       cpeTrilha()+
       (S.msg? '<div class="'+S.msgTipo+'">'+esc(S.msg)+'</div>' : '')+
@@ -471,7 +476,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='producao'||t==='saldo') && S.saldo && S.tela!=='producao' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   S.tela=t; S.msg=null; render(); }
 
 function telaLogin(){
@@ -2011,9 +2016,10 @@ function permConverter(a){   // v82: chaves antigas (sem grupo) viram chaves por
 function permTogGrupo(g){ const ks = permChavesGrupo(g), on = _perm.abas.indexOf(g)>=0;
   _perm.abas = _perm.abas.filter(k=>ks.indexOf(k)<0); if(!on) _perm.abas.push(g); permDesenhar(); }
 function permTogSub(g, k, subs){ const key = g+':'+k, i = _perm.abas.indexOf(key);
-  if(i>=0){ _perm.abas.splice(i,1); (subs||[]).forEach(x=>{ const j = _perm.abas.indexOf(g+':'+x); if(j>=0) _perm.abas.splice(j,1); }); }
+  if(i>=0){ _perm.abas.splice(i,1); if(k==='terceirizados'){ const j = _perm.abas.indexOf(g+':saldo'); if(j>=0) _perm.abas.splice(j,1); } (subs||[]).forEach(x=>{ const j = _perm.abas.indexOf(g+':'+x); if(j>=0) _perm.abas.splice(j,1); }); }
   else { _perm.abas.push(key); if(_perm.abas.indexOf(g)<0) _perm.abas.push(g);
     const pai = CPE_TELAS_GRUPO.find(t=>(t[3]||[]).some(x=>x[0]===k)); if(pai && _perm.abas.indexOf(g+':'+pai[0])<0) _perm.abas.push(g+':'+pai[0]);
+    if(k==='saldo' && _perm.abas.indexOf(g+':terceirizados')<0) _perm.abas.push(g+':terceirizados');   // v84: o saldo fica dentro de Terceirizados
     if(subs && subs.length && !subs.some(x=>_perm.abas.indexOf(g+':'+x)>=0)) subs.forEach(x=>_perm.abas.push(g+':'+x)); }
   permDesenhar(); }
 function permBlocoGrupo(g, papelAlvo){
@@ -3212,6 +3218,55 @@ function telaAnesValidar(logado){
   return h+(logado?'':'<div style="text-align:center;color:var(--fraco);font-size:11px;margin-top:10px">'+SISTEMA.codigo+' '+SISTEMA.versao+'</div>')+'</div>';
 }
 
+/* ===== v83 (Renato, 12/11/2026): "toda vez tenho que sair e entrar de novo" =====
+   1) VERSÃO: a cada 1 min e sempre que o app volta para a frente, busca o index.html sem cache e compara o rf-versao.
+      Se mudou, recarrega sozinho (com ?v= novo, que fura o cache do GitHub e do WebView). Se tiver janela aberta
+      ou alguém digitando, só mostra a faixa "Nova versão" no topo, para não perder o que está sendo feito.
+   2) DADOS: a cada 2 min e ao voltar para o app, busca de novo perfil/permissões, CNPJs, movimentos, escala e saldo,
+      sem tela de carregando. Botão ⟳ no topo faz isso na hora. */
+var _atuRodando = false, _atuUlt = 0;
+function cpeOcupado(){ const a = document.activeElement; return !!S.modal || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type!=='button'); }
+function cpeRecarregar(v){
+  try{ const u = new URL(location.href); u.searchParams.set('v', v || Date.now()); location.replace(u.toString()); }catch(e){ location.reload(); }
+}
+async function checarVersao(){
+  try{
+    const r = await fetch('index.html?_='+Date.now(), { cache:'no-store' }); if(!r.ok) return;
+    const m = (await r.text()).match(/name="rf-versao" content="(v\d+)"/); if(!m || m[1]===SISTEMA.versao) return;
+    let ja = ''; try{ ja = sessionStorage.getItem('cpe_recarregou')||''; }catch(e){}
+    if(!cpeOcupado() && ja!==m[1]){ try{ sessionStorage.setItem('cpe_recarregou', m[1]); }catch(e){} cpeRecarregar(m[1]); return; }
+    if(S.novaVersao!==m[1]){ S.novaVersao = m[1]; if(!cpeOcupado()) render(); }
+  }catch(e){}
+}
+async function atualizarSilencioso(forcar){
+  if(!S.user || S.anesTok || S.carregando || _atuRodando) return;
+  if(!forcar && cpeOcupado()) return;
+  _atuRodando = true; _atuUlt = Date.now();
+  try{
+    const { data:perfil } = await sb.from('perfis').select('*').eq('id', S.user.id).maybeSingle();
+    if(perfil) S.perfil = perfil;
+    if(!ehAnes()){
+      const [emp, ori, mov, reg] = await Promise.all([
+        sb.from('empresas').select('*').order('razao_social'),
+        sb.from('origens').select('*').order('nome'),
+        sb.from('movimentos').select('*').order('data_movimento',{ascending:false}).limit(4000),
+        sb.from('regras_fornecedor').select('*')
+      ]);
+      if(!emp.error) S.empresas = emp.data||[]; if(!ori.error) S.origens = ori.data||[];
+      if(!mov.error) S.movimentos = mov.data||[]; if(!reg.error) S.regras = reg.data||[];
+      if(podeUsuarios()){ const { data:ps } = await sb.from('perfis').select('*').order('papel'); if(ps) S.perfis = ps; }
+    }
+    if(S.esc && S.esc.carregado){ S.esc.carregado = false; await escCarregar(); }
+    if(S.saldo) S.saldo.carregado = false;
+  }catch(e){}
+  _atuRodando = false;
+  if(forcar || !cpeOcupado()) render();
+}
+async function atualizarAgora(){ aviso('Atualizando…','ok'); await checarVersao(); await atualizarSilencioso(true); aviso('Atualizado.','ok'); }
+setInterval(()=>{ if(document.visibilityState!=='visible') return; checarVersao(); if(Date.now()-_atuUlt > 120000) atualizarSilencioso(); }, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ checarVersao(); if(Date.now()-_atuUlt > 20000) atualizarSilencioso(); } });
+window.addEventListener('focus', ()=>{ checarVersao(); });
+
 /* ===== v43: app instalável — service worker (não guarda cache) + botão/aviso de instalar ===== */
 var _cpeInstalar = null;
 try{ if('serviceWorker' in navigator) window.addEventListener('load', ()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{})); }catch(e){}
@@ -3241,7 +3296,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo e comprovantes', pai:'producao'}, terceirizados:{t:'Terceirizados', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizados', pai:'producao'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3291,7 +3346,7 @@ function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
     (ehAnes() || veAba('escalas') ? cpeCaixa('escalas','🗓️','Escalas','Calendário preenchido por hospital e por anestesista') : '')+
-    (!ehAnes() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro', [veAba('saldo')?'Saldo e comprovantes':'', veAba('terceirizados')?'Terceirizados (produção dos anestesistas)':''].filter(Boolean).join(' · ')) : '')+
+    (!ehAnes() && veAba('producao') ? cpeCaixa('producao','💰','Financeiro', 'Terceirizados: produção dos anestesistas'+(veAba('saldo')?' e saldo terceirizado':'')) : '')+
     (!ehAnes() && podeEditar() && veAba('hospitais') ? cpeCaixa('hospitais','🏥','Hospitais','Cadastro: forma de pagamento, serviços, prazo e contato de cada hospital') : '')+
   '</div>';
 }
@@ -3325,9 +3380,7 @@ function prodAbrir(id){ S.prod.aberto = S.prod.aberto===id ? '' : id; render(); 
 function telaProducao(){   // v81: Financeiro vira um painel com caixas — Saldo (mestre/dono) e Terceirizados (produção)
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando…</div>'; }
   const T = prodSomar(escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id));
-  if(veAba('saldo') && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='producao') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
   return '<div class="secao"><b>FINANCEIRO · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div>'+
-    (veAba('saldo') ? saldoCaixa() : '')+
     (!veAba('terceirizados') ? '' : '<div class="bxs">'+cpeCaixa('terceirizados','👥','Terceirizados','Produção dos anestesistas em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>')+'</div>');
 }
 function telaTerceirizados(){
@@ -3335,7 +3388,9 @@ function telaTerceirizados(){
   const lista = prodLista(), T = prodSomar(lista);
   const hosps = escHospitais().map(h=>h.nome);
   const anes = S.esc.anes.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  let h = '<div class="secao"><b>TERCEIRIZADOS · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>';
+  if(veAba('saldo') && !saldoPronto() && !S.saldo._carregando){ S.saldo._carregando = true; saldoCarregar().then(()=>{ S.saldo._carregando = false; if(S.tela==='terceirizados') render(); }).catch(()=>{ S.saldo._carregando = false; }); }
+  let h = '<div class="secao"><b>TERCEIRIZADOS · '+esc(escGrupo())+'</b><span>Produção dos anestesistas · '+escMesNome(S.mes)+'</span></div>'+
+    (veAba('saldo') ? saldoCaixa() : '');   // v84: o Saldo virou "Saldo terceirizado", um botão dentro de Terceirizados
   h += '<div class="card"><div class="lin" style="align-items:flex-end;flex-wrap:wrap;gap:10px">'+
     '<div style="max-width:190px"><label>Mês</label><input type="month" value="'+S.mes+'" onchange="S.mes=this.value;S.prod.aberto=\'\';render()"></div>'+
     '<div style="min-width:180px"><label>Anestesista</label><select onchange="S.prod.anes=this.value;S.prod.aberto=\'\';render()"><option value="">Todos</option>'+
@@ -3412,13 +3467,13 @@ function saldoCaixa(){
   const desc = !pronto ? 'Valor de partida descontado pelos extratos e comprovantes'
     : !S.saldo.movs.length ? 'Lance o valor de partida e vá descontando pelos comprovantes e extratos'
     : 'Valor de partida descontado pelos extratos e comprovantes · saldo atual <b style="color:'+(c.saldo>=0?'var(--verde)':'var(--vermelho)')+'">'+brl(c.saldo)+'</b>';
-  return '<div class="bxs" style="margin-bottom:12px"><button type="button" class="bx" onclick="irPara(\'saldo\')"><div class="ic">🧾</div><div><b>Saldo e comprovantes</b><small>'+desc+'</small></div><span class="seta">›</span></button></div>';
+  return '<div class="bxs" style="margin-bottom:12px"><button type="button" class="bx" onclick="irPara(\'saldo\')"><div class="ic">💵</div><div><b>Saldo terceirizado</b><small>'+desc+'</small></div><span class="seta">›</span></button></div>';
 }
 function telaSaldo(){
   if(!saldoPronto()){ saldoCarregar().then(render).catch(e=>{ S.saldo.carregado=true; S.saldo.grupo=escGrupo(); S.saldo.erro=e.message; render(); }); return '<div class="vazio">Carregando o saldo…</div>'; }
   if(S.saldo.erro) return '<div class="card"><b style="color:var(--vermelho)">Não consegui abrir o saldo.</b><div style="font-size:13px;margin-top:6px;color:var(--fraco)">'+esc(S.saldo.erro)+'</div></div>';
   const c = saldoCiclo(), g = escGrupo();
-  let h = '<div class="secao"><b>SALDO · '+esc(g)+'</b><span>'+(c.inicio?'desde '+dataBR(c.inicio):'ainda sem valor de partida')+'</span></div>';
+  let h = '<div class="secao"><b>SALDO TERCEIRIZADO · '+esc(g)+'</b><span>'+(c.inicio?'desde '+dataBR(c.inicio):'ainda sem valor de partida')+'</span></div>';
   if(!S.saldo.movs.length){
     if(!podeEditar()) return h+'<div class="card"><div class="vazio">Ainda não há valor de partida lançado.</div></div>';
     return h+'<div class="card"><div class="aviso">Comece lançando o <b>valor de partida</b> — pode ser lido do comprovante da transferência recebida ou digitado à mão. Depois, cada comprovante ou extrato de pagamento vai sendo descontado.</div>'+
