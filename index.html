@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v91">
+<meta name="rf-versao" content="v92">
 <meta name="rf-data" content="2026-11-16">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v91',
+  versao : 'v92',
   data   : '16/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3458,13 +3458,14 @@ function idadPacListaHtml(){
     return '<button type="button" class="bx" style="align-items:flex-start" onclick="idadPacAbrir(\''+p.id+'\')"><div class="ic">'+icoPaciente()+'</div><div style="text-align:left">'+
       '<b>'+esc(p.usar_nome_social&&p.nome_social?p.nome_social:p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+(p.convenio?'':'')+'</small>'+
       '<small>'+[p.cpf?'CPF '+esc(mascaraCPF(p.cpf)):'', p.convenio?esc(p.convenio)+(p.carteirinha?' nº '+esc(p.carteirinha):''):''].filter(Boolean).join(' · ')+'</small>'+
-      ((p.celular||p.telefone)?'<small>'+esc(mascaraTel(p.celular||p.telefone))+(p.whatsapp?' · WhatsApp':'')+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
+      (p.origem?'<small>Veio por: '+esc(p.origem)+(p.origem_detalhe?' ('+esc(p.origem_detalhe)+')':'')+'</small>':'')+((p.celular||p.telefone)?'<small>'+esc(mascaraTel(p.celular||p.telefone))+(p.whatsapp?' · WhatsApp':'')+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
 }
 /* v91 (Renato, 16/11/2026): ficha do paciente com os mesmos campos do Pixeon (tela "Atendimento ao Paciente") */
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const PAC_FICHA = [
   ['IDENTIFICAÇÃO', [
     ['data_registro','Data do registro','date'],['status','Status'],['arquivo','Arq.'],
+    ['origem','Como chegou até nós','select',['Indicação','Instagram','Facebook','Google','WhatsApp','Site','Convênio','Médico','Passou na frente','Outro']],['origem_detalhe','Quem indicou / detalhe'],
     ['nome','Nome completo *','text',null,'full'],
     ['usar_nome_social','Usar nome social?','check'],['nome_social','Nome social','text',null,'2'],
     ['sexo','Sexo','select',['Feminino','Masculino']],['nascimento','Nascimento','date'],['estado_civil','Estado civil','select',['Solteiro(a)','Casado(a)','União estável','Divorciado(a)','Viúvo(a)']],
