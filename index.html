@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v94">
+<meta name="rf-versao" content="v95">
 <meta name="rf-data" content="2026-11-16">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v94',
+  versao : 'v95',
   data   : '16/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -399,7 +399,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -446,6 +446,7 @@ function render(){
   else if(S.tela==='idadpac')  corpo = telaIdadPac();
   else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
+  else if(S.tela==='idadobra')  corpo = telaIdadObra();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3303,7 +3304,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3373,7 +3374,7 @@ function telaInicio(){
    Tela própria a partir do Início, com o resumo do CNPJ do IDAD (33.231.594/0001-09) e os plantões lançados no local IDAD.
    Permissão: chave 'idad' em perfis.abas. As funções do módulo serão definidas com o Renato a partir daqui. */
 const IDAD_CNPJ = '33231594000109';
-S.idad = { carregado:false, carregando:false, plantoes:[], pac:[], pacOk:false, pacErro:false, busca:'', itens:[], movs:[], estBusca:'' };
+S.idad = { carregado:false, carregando:false, plantoes:[], pac:[], pacOk:false, pacErro:false, busca:'', itens:[], movs:[], estBusca:'', obra:[], obraF:'' };
 function idadEmpresa(){ return S.empresas.find(e=>soDig(e.cnpj)===IDAD_CNPJ) || null; }
 function icoHospital(){
   return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gHos" x1="0" y1="1" x2="1" y2="0">'+
@@ -3404,6 +3405,7 @@ async function idadCarregar(){
   S.idad.pacOk = true;
   try{ const a = await sb.from('idad_itens').select('*').order('nome'), b = await sb.from('idad_movs').select('*').order('data');
     S.idad.itens = a.data||[]; S.idad.movs = b.data||[]; }catch(e){}
+  try{ const o = await sb.from('idad_obra').select('*').order('data',{ascending:false}); S.idad.obra = o.data||[]; }catch(e){}
   S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac') render();
 }
 function idadAbrirFinanceiro(){ const e = idadEmpresa(); if(!e) return aviso('CNPJ do IDAD não está cadastrado em Empresas.','erro'); irPara('painel'); S.aberta = e.id; render(); }
@@ -3413,16 +3415,12 @@ function telaIdad(){
   const movs = e ? S.movimentos.filter(m=>m.empresa_id===e.id && !m.pessoal) : [];
   const tm = totais(movs.filter(m=>String(m.data_movimento||'').slice(0,7)===mes)), tg = totais(movs);
   const pl = S.idad.plantoes, plMes = pl.filter(x=>String(x.data).slice(0,7)===mes);
-  let h = '<div class="card"><div style="display:flex;gap:12px;align-items:center">'+icoHospital()+
-    '<div><div style="font-size:18px;font-weight:800">Hospital IDAD</div><div style="color:var(--fraco);font-size:13px">CNPJ '+mascaraCNPJ(IDAD_CNPJ)+(e&&e.razao_social&&e.razao_social!=='IDAD'?' · '+esc(e.razao_social):'')+'</div></div></div>'+
-    '<div class="kpis" style="margin-top:12px">'+
-      kpi('Entradas (total)', brl(tg.ent))+kpi('Saídas (total)', brl(tg.sai))+kpi('Saldo (total)', brl(tg.saldo))+
-      kpi('Pacientes', S.idad.pacOk ? String(S.idad.pac.length) : '…')+kpi('Alertas de estoque', S.idad.carregado ? String(estAlertas('farmacia')+estAlertas('almox')) : '…')+
-    '</div></div>';
+  let h = '';   // v95: quadro de resumo do topo retirado a pedido do Renato
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
     '<div style="color:var(--fraco);font-size:13.5px;line-height:1.5">Este é o espaço do Hospital IDAD dentro do Sistema MR. As próximas funções serão definidas com o Vinicius e entram aqui como novas caixas.</div></div>';
@@ -3686,6 +3684,68 @@ async function estMovSalvar(){
   if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
   S.idad.movs.push(r.data); S.modal=null; aviso((tipo==='entrada'?'Entrada':'Saída')+' lançada.','ok');
 }
+
+/* ===== v95 (Renato, 16/11/2026): OBRA DO IDAD — controle dos gastos da obra (tabela idad_obra):
+   descrição, categoria, etapa, fornecedor, valor, forma de pagamento, pago / a pagar e quem pagou. */
+const OBRA_CATS = ['Material','Mão de obra','Serviço','Equipamento','Projeto / engenharia','Taxas e licenças','Frete','Outros'];
+function icoObra(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gObr')+
+  '<path d="M8 38 Q8 20 24 20 Q40 20 40 38 Z" fill="url(#gObr)"/><rect x="21" y="13" width="6" height="9" rx="2" fill="url(#gObr)"/>'+
+  '<rect x="5" y="37" width="38" height="5" rx="2.5" fill="url(#gObr)" opacity=".55"/><path d="M15 31 Q24 26 33 31" fill="none" stroke="#fff" stroke-width="2" opacity=".8"/></svg>'; }
+function obraTot(l){ let t=0,p=0; l.forEach(x=>{ t+=+x.valor||0; if(x.pago) p+=+x.valor||0; }); return { t, p, ap:t-p }; }
+function obraResumo(){ if(!S.idad.carregado) return 'carregando…'; const t = obraTot(S.idad.obra); return S.idad.obra.length ? brl(t.t)+' gastos · '+brl(t.ap)+' a pagar' : 'gastos da obra, fornecedores e pagamentos'; }
+function telaIdadObra(){
+  if(!S.idad.carregado) idadCarregar();
+  let h = '<div class="secao"><b>OBRA DO IDAD</b><span>Gastos da obra por categoria, etapa e fornecedor</span></div>';
+  if(!S.idad.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const all = S.idad.obra, t = obraTot(all), f = permNorm(S.idad.obraF);
+  const l = all.filter(x=>!f || [x.descricao,x.categoria,x.etapa,x.fornecedor,x.pago_por].some(v=>permNorm(v).indexOf(f)>=0));
+  const porCat = {}; all.forEach(x=>{ const k=x.categoria||'Sem categoria'; porCat[k]=(porCat[k]||0)+(+x.valor||0); });
+  h += '<div class="card"><div class="kpis">'+kpi('Total gasto', brl(t.t))+kpi('Pago', brl(t.p))+kpi('A pagar', brl(t.ap))+kpi('Lançamentos', String(all.length))+'</div>'+
+    (all.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'+Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+      '<span style="background:var(--campo);border:1px solid var(--linha);border-radius:20px;padding:5px 11px;font-size:12.5px"><b>'+esc(k)+'</b> '+brl(v)+' · '+(t.t?Math.round(v/t.t*100):0)+'%</span>').join('')+'</div>' : '')+'</div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input placeholder="Buscar por descrição, categoria, etapa, fornecedor ou quem pagou" value="'+esc(S.idad.obraF)+'" oninput="S.idad.obraF=this.value;render();setTimeout(()=>{const e=document.getElementById(\'ob-busca\');if(e){e.focus();e.setSelectionRange(e.value.length,e.value.length)}},0)" id="ob-busca" style="flex:1;min-width:220px">'+
+    (podeEditar()?'<button class="bt" onclick="obraAbrir()">+ Lançar gasto</button>':'')+'</div>';
+  if(!all.length) return h+'<div class="vazio">Nenhum gasto lançado ainda. Toque em <b>+ Lançar gasto</b>.</div>';
+  if(!l.length) return h+'<div class="vazio">Nada encontrado.</div>';
+  return h+'<div class="card" style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Etapa</th><th>Fornecedor</th><th style="text-align:right">Valor</th><th>Situação</th></tr></thead><tbody>'+
+    l.map(x=>'<tr style="cursor:pointer" onclick="obraAbrir(\''+x.id+'\')"><td>'+dataBR(x.data)+'</td><td><b>'+esc(x.descricao)+'</b>'+(x.nf?'<br><small style="color:var(--fraco)">NF '+esc(x.nf)+'</small>':'')+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+esc(x.etapa||'—')+'</td><td>'+esc(x.fornecedor||'—')+'</td>'+
+      '<td style="text-align:right;font-weight:800">'+brl(+x.valor)+'</td><td><span style="font-weight:700;color:'+(x.pago?'var(--verde)':'#d97706')+'">'+(x.pago?'Pago'+(x.pago_por?' · '+esc(x.pago_por):''):'A pagar')+'</span></td></tr>').join('')+'</tbody></table></div>';
+}
+function obraAbrir(id){
+  const x = id ? S.idad.obra.find(o=>o.id===id) : { data: hojeISO() }, ro = podeEditar() ? '' : ' disabled';
+  const uniq = k => { const v={}; S.idad.obra.forEach(o=>{ if(o[k]) v[o[k]]=1; }); return Object.keys(v).sort(); };
+  const dl = (id, ops) => '<datalist id="'+id+'">'+ops.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>';
+  abrirModal('<h2>'+(id?'Gasto da obra':'Lançar gasto da obra')+'</h2><input type="hidden" id="ob-id" value="'+(id||'')+'">'+
+    '<label>Descrição *</label><input id="ob-desc"'+ro+' value="'+esc(x.descricao||'')+'" placeholder="Ex.: Cimento CP-II 50kg (40 sacos)">'+
+    '<div class="lin"><div><label>Data</label><input id="ob-data" type="date"'+ro+' value="'+(x.data||'')+'"></div>'+
+      '<div><label>Valor (R$) *</label><input id="ob-valor" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+(x.valor!=null?x.valor:'')+'"></div>'+
+      '<div><label>Categoria</label><input id="ob-cat" list="ob-cats"'+ro+' value="'+esc(x.categoria||'')+'">'+dl('ob-cats', OBRA_CATS.concat(uniq('categoria').filter(c=>OBRA_CATS.indexOf(c)<0)))+'</div>'+
+      '<div><label>Etapa</label><input id="ob-etapa" list="ob-etapas"'+ro+' value="'+esc(x.etapa||'')+'" placeholder="Ex.: Fundação, Elétrica">'+dl('ob-etapas', uniq('etapa').concat(['Fundação','Estrutura','Alvenaria','Elétrica','Hidráulica','Acabamento','Pintura']).filter((v,i,a)=>a.indexOf(v)===i))+'</div></div>'+
+    '<div class="lin"><div><label>Fornecedor</label><input id="ob-forn" list="ob-forns"'+ro+' value="'+esc(x.fornecedor||'')+'">'+dl('ob-forns', uniq('fornecedor'))+'</div>'+
+      '<div><label>Nota fiscal</label><input id="ob-nf"'+ro+' value="'+esc(x.nf||'')+'"></div>'+
+      '<div><label>Forma de pagamento</label><input id="ob-forma" list="ob-formas"'+ro+' value="'+esc(x.forma_pag||'')+'">'+dl('ob-formas',['Pix','Boleto','Cartão de crédito','Transferência','Dinheiro','Cheque'])+'</div></div>'+
+    '<div class="lin"><label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;padding-top:22px"><input type="checkbox" id="ob-pago" style="width:auto"'+ro+(x.pago?' checked':'')+'> Já está pago</label>'+
+      '<div><label>Pago em</label><input id="ob-pagoem" type="date"'+ro+' value="'+(x.pago_em||'')+'"></div>'+
+      '<div><label>Quem pagou</label><input id="ob-pagopor" list="ob-pagadores"'+ro+' value="'+esc(x.pago_por||'')+'">'+dl('ob-pagadores', uniq('pago_por'))+'</div></div>'+
+    '<label>Observações</label><textarea id="ob-obs"'+ro+' rows="2">'+esc(x.obs||'')+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt" onclick="obraSalvar()">Salvar</button>'+(id?'<button class="bt g" style="color:var(--vermelho)" onclick="obraExcluir(\''+id+'\')">Excluir</button>':''):'')+
+      '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
+}
+async function obraSalvar(){
+  const id = val('ob-id'), g = k => val(k).trim()||null;
+  const reg = { descricao:g('ob-desc'), data:g('ob-data')||hojeISO(), valor:Number(val('ob-valor')), categoria:g('ob-cat'), etapa:g('ob-etapa'), fornecedor:g('ob-forn'),
+    nf:g('ob-nf'), forma_pag:g('ob-forma'), pago:document.getElementById('ob-pago').checked, pago_em:g('ob-pagoem'), pago_por:g('ob-pagopor'), obs:g('ob-obs') };
+  if(!reg.descricao) return aviso('Informe a descrição.','erro');
+  if(!(reg.valor>0)) return aviso('Informe o valor.','erro');
+  if(reg.pago && !reg.pago_em) reg.pago_em = hojeISO();
+  const r = id ? await sb.from('idad_obra').update(reg).eq('id',id).select().maybeSingle() : await sb.from('idad_obra').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  if(id){ const i=S.idad.obra.findIndex(o=>o.id===id); S.idad.obra[i]=r.data; } else S.idad.obra.unshift(r.data);
+  S.idad.obra.sort((a,b)=>String(b.data).localeCompare(String(a.data))); S.modal=null; aviso('Gasto salvo.','ok');
+}
+async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) return;
+  const r = await sb.from('idad_obra').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.idad.obra = S.idad.obra.filter(o=>o.id!==id); S.modal=null; aviso('Gasto excluído.','ok'); }
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
