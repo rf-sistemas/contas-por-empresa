@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v90">
+<meta name="rf-versao" content="v91">
 <meta name="rf-data" content="2026-11-16">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v90',
+  versao : 'v91',
   data   : '16/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3451,44 +3451,95 @@ function telaIdadPac(){
 function idadPacLista(){ const e=document.getElementById('pac-lista'); if(e) e.innerHTML = idadPacListaHtml(); }
 function idadPacListaHtml(){
   const b = permNorm(S.idad.busca), bd = soDig(S.idad.busca);
-  const l = S.idad.pac.filter(p=>!b || permNorm(p.nome).indexOf(b)>=0 || (bd && (soDig(p.cpf).indexOf(bd)>=0 || soDig(p.telefone).indexOf(bd)>=0 || String(p.prontuario||'')===bd)));
+  const l = S.idad.pac.filter(p=>!b || permNorm(p.nome).indexOf(b)>=0 || (bd && (soDig(p.cpf).indexOf(bd)>=0 || soDig(p.telefone).indexOf(bd)>=0 || soDig(p.celular).indexOf(bd)>=0 || String(p.prontuario||'')===bd)));
   if(!S.idad.pac.length) return '<div class="vazio">Nenhum paciente cadastrado ainda. Toque em <b>+ Novo paciente</b>.</div>';
   if(!l.length) return '<div class="vazio">Nenhum paciente encontrado.</div>';
   return '<div class="bxs">'+l.map(p=>{ const id = idadeDe(p.nascimento);
     return '<button type="button" class="bx" style="align-items:flex-start" onclick="idadPacAbrir(\''+p.id+'\')"><div class="ic">'+icoPaciente()+'</div><div style="text-align:left">'+
-      '<b>'+esc(p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+'</small>'+
+      '<b>'+esc(p.usar_nome_social&&p.nome_social?p.nome_social:p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+(p.convenio?'':'')+'</small>'+
       '<small>'+[p.cpf?'CPF '+esc(mascaraCPF(p.cpf)):'', p.convenio?esc(p.convenio)+(p.carteirinha?' nº '+esc(p.carteirinha):''):''].filter(Boolean).join(' · ')+'</small>'+
-      (p.telefone?'<small>'+esc(mascaraTel(p.telefone))+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
+      ((p.celular||p.telefone)?'<small>'+esc(mascaraTel(p.celular||p.telefone))+(p.whatsapp?' · WhatsApp':'')+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
 }
+/* v91 (Renato, 16/11/2026): ficha do paciente com os mesmos campos do Pixeon (tela "Atendimento ao Paciente") */
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+const PAC_FICHA = [
+  ['IDENTIFICAÇÃO', [
+    ['data_registro','Data do registro','date'],['status','Status'],['arquivo','Arq.'],
+    ['nome','Nome completo *','text',null,'full'],
+    ['usar_nome_social','Usar nome social?','check'],['nome_social','Nome social','text',null,'2'],
+    ['sexo','Sexo','select',['Feminino','Masculino']],['nascimento','Nascimento','date'],['estado_civil','Estado civil','select',['Solteiro(a)','Casado(a)','União estável','Divorciado(a)','Viúvo(a)']],
+    ['cpf','CPF','cpf'],['cns','CNS (Cartão SUS)'],
+    ['rg','RG'],['rg_orgao','Órgão','text',null,'p'],['rg_uf','UF','select',UFS,'p'],['rg_emissao','Emissão do RG','date'],
+    ['nome_mae','Mãe','text',null,'2'],['mae_desconhecida','Mãe desconhecida','check'],
+    ['profissao','Profissão'],['ocupacao','Ocupação'],['local_trabalho','Local de trabalho'],
+    ['vip','VIP','check'],['produtor_rural','Produtor rural','check']]],
+  ['CONVÊNIO', [
+    ['convenio','Convênio','conv'],['plano','Plano'],['carteirinha','Matrícula'],['conv_validade','Validade','date'],
+    ['lotacao','Lotação'],['acomodacao','Acomodação'],['matr_emp','Matr. empresa'],
+    ['titular_proprio','O titular é o próprio paciente','check'],['titular','Titular','text',null,'2'],['titular_cpf','CPF do titular','cpf']]],
+  ['CONVÊNIO SECUNDÁRIO', [
+    ['conv2','Convênio','conv'],['conv2_plano','Plano'],['conv2_matricula','Matrícula'],['conv2_validade','Validade','date']]],
+  ['CONTATO', [
+    ['telefone','Fone','tel'],['celular','Celular','tel'],['whatsapp','WhatsApp','check'],['sms','SMS','check'],
+    ['tel2','Tel 2','tel'],['ramal','Ramal','text',null,'p'],['email','E-mail','text',null,'2']]],
+  ['ENDEREÇO', [
+    ['cep','CEP','cep'],['endereco','Endereço','text',null,'2'],['numero','Nº','text',null,'p'],['complemento','Complemento'],
+    ['bairro','Bairro'],['cidade','Cidade'],['uf','UF','select',UFS,'p'],['zona','Zona','select',['Urbana','Rural'],'p'],['pais','País']]],
+  ['DADOS CLÍNICOS', [
+    ['grupo_sang','G. sang.','select',['A+','A-','B+','B-','AB+','AB-','O+','O-'],'p'],['altura','Altura (m)','num'],['peso','Peso (kg)','num'],
+    ['cid','CID'],['medico','Médico'],['tratamento','Tratamento','text',null,'2']]],
+  ['ACOMPANHANTE / RESPONSÁVEL', [
+    ['contato_emergencia','Nome','text',null,'2'],['contato_tel','Telefone','tel']]]
+];
+function pacConvenios(){ const v = {}; ['SUS','Particular'].concat(S.idad.pac.map(x=>x.convenio), S.idad.pac.map(x=>x.conv2)).forEach(c=>{ if(c) v[c]=1; }); return Object.keys(v).sort(); }
 function idadPacAbrir(id){
-  const p = id ? S.idad.pac.find(x=>x.id===id) : {};
+  const p = id ? S.idad.pac.find(x=>x.id===id) : { data_registro: hojeISO(), titular_proprio:true, pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
   const ro = podeEditar() ? '' : ' disabled';
-  const f = (k, rot, v, extra) => '<div><label>'+rot+'</label><input id="pc-'+k+'"'+ro+' value="'+esc(v==null?'':v)+'"'+(extra||'')+'></div>';
-  const sel = (k, rot, ops, v) => '<div><label>'+rot+'</label><select id="pc-'+k+'"'+ro+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select></div>';
-  abrirModal('<h2>'+(id?'Paciente · prontuário nº '+(p.prontuario||'—'):'Novo paciente')+'</h2>'+
-    '<input type="hidden" id="pc-id" value="'+(id||'')+'">'+
-    f('nome','Nome completo *',p.nome)+
-    '<div class="lin">'+f('cpf','CPF',p.cpf?mascaraCPF(p.cpf):'',' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"')+
-      f('nasc','Data de nascimento',p.nascimento,' type="date"')+sel('sexo','Sexo',['Feminino','Masculino'],p.sexo)+'</div>'+
-    '<div class="lin">'+f('tel','Telefone / WhatsApp',p.telefone?mascaraTel(p.telefone):'',' inputmode="tel" oninput="this.value=mascaraTel(this.value)"')+
-      f('mae','Nome da mãe',p.nome_mae)+'</div>'+
-    '<div class="lin">'+sel('conv','Convênio',IDAD_CONV,p.convenio)+f('plano','Plano (se for plano de saúde)',p.plano)+f('cart','Nº da carteirinha / Cartão SUS',p.carteirinha)+'</div>'+
-    '<div class="lin">'+f('end','Endereço',p.endereco)+f('cid','Cidade',p.cidade||'')+'</div>'+
-    '<div class="lin">'+f('emerg','Contato de emergência',p.contato_emergencia)+f('emtel','Telefone do contato',p.contato_tel?mascaraTel(p.contato_tel):'',' inputmode="tel" oninput="this.value=mascaraTel(this.value)"')+'</div>'+
-    '<label>Observações</label><textarea id="pc-obs"'+ro+' rows="3">'+esc(p.obs||'')+'</textarea>'+
+  const campo = c => { const [k, rot, t, ops, lg] = c, v = p[k];
+    const cls = 'pcf'+(lg==='full'?' pcf-full':lg==='2'?' pcf-2':lg==='p'?' pcf-p':'');
+    if(t==='check') return '<label class="'+cls+' pcf-chk"><input type="checkbox" id="pc-'+k+'"'+ro+(v?' checked':'')+'> '+rot+'</label>';
+    let inp;
+    if(t==='select') inp = '<select id="pc-'+k+'"'+ro+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
+    else {
+      const ex = t==='date' ? ' type="date"' : t==='num' ? ' type="number" step="0.01" inputmode="decimal"' :
+        t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
+        t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
+      const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
+      inp = '<input id="pc-'+k+'"'+ro+ex+' value="'+esc(vv)+'">';
+    }
+    return '<div class="'+cls+'"><label>'+rot+'</label>'+inp+(k==='nascimento'?'<small id="pc-idade" style="color:var(--fraco)">'+(v?idadeDe(v)+' anos':'')+'</small>':'')+'</div>'; };
+  abrirModal('<style>.modal{max-width:980px}.pcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;align-items:end}'+
+    '.pcf-2{grid-column:span 2}.pcf-full{grid-column:1/-1}.pcf-chk{display:flex;gap:6px;align-items:center;text-transform:none;font-size:13.5px;padding:10px 0;cursor:pointer}'+
+    '.pcf-chk input{width:auto}.pcs{font-size:12px;font-weight:800;letter-spacing:1.5px;color:var(--ouro);margin:18px 0 4px;border-bottom:1px solid var(--linha);padding-bottom:4px}'+
+    '@media(max-width:520px){.pcf-2{grid-column:1/-1}}</style>'+
+    '<h2>'+(id?'Paciente · Reg. / Prontuário nº '+(p.prontuario||'—'):'Novo paciente')+'</h2>'+
+    '<input type="hidden" id="pc-id" value="'+(id||'')+'"><datalist id="pc-convs">'+pacConvenios().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
+    PAC_FICHA.map(sec=>'<div class="pcs">'+sec[0]+'</div><div class="pcg">'+sec[1].map(campo).join('')+'</div>').join('')+
+    '<div class="pcs">OBSERVAÇÕES</div><textarea id="pc-obs"'+ro+' rows="3">'+esc(p.obs||'')+'</textarea>'+
     '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+
       (podeEditar()?'<button class="bt" onclick="idadPacSalvar()">Salvar</button>':'')+
       '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
+  const n = document.getElementById('pc-nascimento'); if(n) n.addEventListener('change', ()=>{ const a = idadeDe(n.value); document.getElementById('pc-idade').textContent = a!=null && n.value ? a+' anos' : ''; });
 }
+function mascaraCEP(t){ const d=soDig(t).slice(0,8); return d.length>5 ? d.slice(0,5)+'-'+d.slice(5) : d; }
+async function pacBuscaCEP(c){ c = soDig(c); if(c.length!==8) return;
+  try{ const r = await (await fetch('https://viacep.com.br/ws/'+c+'/json/')).json(); if(r.erro) return aviso('CEP não encontrado.','erro');
+    const set = (k,v)=>{ const e=document.getElementById('pc-'+k); if(e && v && !e.value) e.value = v; };
+    set('endereco', r.logradouro); set('bairro', r.bairro); set('cidade', r.localidade); const u=document.getElementById('pc-uf'); if(u && r.uf) u.value = r.uf;
+    const ci=document.getElementById('pc-cidade'); if(ci && r.localidade) ci.value = r.localidade;
+  }catch(e){} }
 async function idadPacSalvar(){
-  const id = val('pc-id'), nome = val('pc-nome').trim(), cpf = soDig(val('pc-cpf'));
-  if(!nome) return aviso('Informe o nome do paciente.','erro');
-  if(cpf && !validaCPF(cpf)) return aviso('CPF inválido — confira os dígitos.','erro');
-  if(cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===cpf)) return aviso('Já existe paciente com este CPF.','erro');
-  const reg = { nome, cpf:cpf||null, nascimento:val('pc-nasc')||null, sexo:val('pc-sexo')||null, telefone:soDig(val('pc-tel'))||null,
-    nome_mae:val('pc-mae').trim()||null, convenio:val('pc-conv')||null, plano:val('pc-plano').trim()||null, carteirinha:val('pc-cart').trim()||null,
-    endereco:val('pc-end').trim()||null, cidade:val('pc-cid').trim()||null, contato_emergencia:val('pc-emerg').trim()||null,
-    contato_tel:soDig(val('pc-emtel'))||null, obs:val('pc-obs').trim()||null };
+  const id = val('pc-id'), reg = {};
+  PAC_FICHA.forEach(sec=>sec[1].forEach(([k,rot,t])=>{ const e = document.getElementById('pc-'+k); if(!e) return;
+    if(t==='check') reg[k] = e.checked;
+    else { let v = String(e.value||'').trim(); if(['cpf','tel','cep'].indexOf(t)>=0) v = soDig(v); if(t==='num') v = v ? Number(v.replace(',','.')) : ''; reg[k] = v==='' ? null : v; } }));
+  reg.obs = val('pc-obs').trim()||null;
+  if(!reg.nome) return aviso('Informe o nome do paciente.','erro');
+  if(reg.cpf && !validaCPF(reg.cpf)) return aviso('CPF do paciente inválido — confira os dígitos.','erro');
+  if(reg.titular_cpf && !validaCPF(reg.titular_cpf)) return aviso('CPF do titular inválido.','erro');
+  if(reg.cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===reg.cpf)) return aviso('Já existe paciente com este CPF.','erro');
+  if(reg.titular_proprio){ reg.titular = reg.titular || reg.nome; reg.titular_cpf = reg.titular_cpf || reg.cpf; }
+  reg.atualizado_em = new Date().toISOString();
   const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
                : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
   if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
