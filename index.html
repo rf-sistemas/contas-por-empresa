@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v92">
+<meta name="rf-versao" content="v94">
 <meta name="rf-data" content="2026-11-16">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v92',
+  versao : 'v94',
   data   : '16/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -399,7 +399,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -444,6 +444,8 @@ function render(){
   else if(S.tela==='escalahub') corpo = telaEscalaHub();
   else if(S.tela==='idad')     corpo = telaIdad();
   else if(S.tela==='idadpac')  corpo = telaIdadPac();
+  else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
+  else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3301,7 +3303,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3371,7 +3373,7 @@ function telaInicio(){
    Tela própria a partir do Início, com o resumo do CNPJ do IDAD (33.231.594/0001-09) e os plantões lançados no local IDAD.
    Permissão: chave 'idad' em perfis.abas. As funções do módulo serão definidas com o Renato a partir daqui. */
 const IDAD_CNPJ = '33231594000109';
-S.idad = { carregado:false, carregando:false, plantoes:[], pac:[], pacOk:false, pacErro:false, busca:'' };
+S.idad = { carregado:false, carregando:false, plantoes:[], pac:[], pacOk:false, pacErro:false, busca:'', itens:[], movs:[], estBusca:'' };
 function idadEmpresa(){ return S.empresas.find(e=>soDig(e.cnpj)===IDAD_CNPJ) || null; }
 function icoHospital(){
   return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gHos" x1="0" y1="1" x2="1" y2="0">'+
@@ -3400,6 +3402,8 @@ async function idadCarregar(){
   }catch(e){ console.warn('IDAD', e); }
   try{ const r = await sb.from('idad_pacientes').select('*').order('nome'); if(r.error) S.idad.pacErro = true; else S.idad.pac = r.data||[]; }catch(e){ S.idad.pacErro = true; }
   S.idad.pacOk = true;
+  try{ const a = await sb.from('idad_itens').select('*').order('nome'), b = await sb.from('idad_movs').select('*').order('data');
+    S.idad.itens = a.data||[]; S.idad.movs = b.data||[]; }catch(e){}
   S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac') render();
 }
 function idadAbrirFinanceiro(){ const e = idadEmpresa(); if(!e) return aviso('CNPJ do IDAD não está cadastrado em Empresas.','erro'); irPara('painel'); S.aberta = e.id; render(); }
@@ -3413,11 +3417,12 @@ function telaIdad(){
     '<div><div style="font-size:18px;font-weight:800">Hospital IDAD</div><div style="color:var(--fraco);font-size:13px">CNPJ '+mascaraCNPJ(IDAD_CNPJ)+(e&&e.razao_social&&e.razao_social!=='IDAD'?' · '+esc(e.razao_social):'')+'</div></div></div>'+
     '<div class="kpis" style="margin-top:12px">'+
       kpi('Entradas (total)', brl(tg.ent))+kpi('Saídas (total)', brl(tg.sai))+kpi('Saldo (total)', brl(tg.saldo))+
-      kpi('Pacientes', S.idad.pacOk ? String(S.idad.pac.length) : '…')+kpi('Plantões · '+escMesNome(mes), S.idad.carregado ? String(plMes.length) : '…')+
+      kpi('Pacientes', S.idad.pacOk ? String(S.idad.pac.length) : '…')+kpi('Alertas de estoque', S.idad.carregado ? String(estAlertas('farmacia')+estAlertas('almox')) : '…')+
     '</div></div>';
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
-    '<button type="button" class="bx" onclick="irGrupo(\'NAFS\');irPara(\'escalas\')"><div class="ic">'+icoCalendario()+'</div><div><b>Plantões no IDAD</b><small>'+(S.idad.carregado ? pl.length+(pl.length===1?' plantão lançado':' plantões lançados')+' na escala da NAFS' : 'carregando…')+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
     '<div style="color:var(--fraco);font-size:13.5px;line-height:1.5">Este é o espaço do Hospital IDAD dentro do Sistema MR. As próximas funções serão definidas com o Vinicius e entram aqui como novas caixas.</div></div>';
@@ -3462,66 +3467,82 @@ function idadPacListaHtml(){
 }
 /* v91 (Renato, 16/11/2026): ficha do paciente com os mesmos campos do Pixeon (tela "Atendimento ao Paciente") */
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
-const PAC_FICHA = [
-  ['IDENTIFICAÇÃO', [
-    ['data_registro','Data do registro','date'],['status','Status'],['arquivo','Arq.'],
-    ['origem','Como chegou até nós','select',['Indicação','Instagram','Facebook','Google','WhatsApp','Site','Convênio','Médico','Passou na frente','Outro']],['origem_detalhe','Quem indicou / detalhe'],
-    ['nome','Nome completo *','text',null,'full'],
-    ['usar_nome_social','Usar nome social?','check'],['nome_social','Nome social','text',null,'2'],
-    ['sexo','Sexo','select',['Feminino','Masculino']],['nascimento','Nascimento','date'],['estado_civil','Estado civil','select',['Solteiro(a)','Casado(a)','União estável','Divorciado(a)','Viúvo(a)']],
-    ['cpf','CPF','cpf'],['cns','CNS (Cartão SUS)'],
-    ['rg','RG'],['rg_orgao','Órgão','text',null,'p'],['rg_uf','UF','select',UFS,'p'],['rg_emissao','Emissão do RG','date'],
-    ['nome_mae','Mãe','text',null,'2'],['mae_desconhecida','Mãe desconhecida','check'],
-    ['profissao','Profissão'],['ocupacao','Ocupação'],['local_trabalho','Local de trabalho'],
-    ['vip','VIP','check'],['produtor_rural','Produtor rural','check']]],
-  ['CONVÊNIO', [
-    ['convenio','Convênio','conv'],['plano','Plano'],['carteirinha','Matrícula'],['conv_validade','Validade','date'],
-    ['lotacao','Lotação'],['acomodacao','Acomodação'],['matr_emp','Matr. empresa'],
-    ['titular_proprio','O titular é o próprio paciente','check'],['titular','Titular','text',null,'2'],['titular_cpf','CPF do titular','cpf']]],
-  ['CONVÊNIO SECUNDÁRIO', [
-    ['conv2','Convênio','conv'],['conv2_plano','Plano'],['conv2_matricula','Matrícula'],['conv2_validade','Validade','date']]],
-  ['CONTATO', [
-    ['telefone','Fone','tel'],['celular','Celular','tel'],['whatsapp','WhatsApp','check'],['sms','SMS','check'],
-    ['tel2','Tel 2','tel'],['ramal','Ramal','text',null,'p'],['email','E-mail','text',null,'2']]],
-  ['ENDEREÇO', [
-    ['cep','CEP','cep'],['endereco','Endereço','text',null,'2'],['numero','Nº','text',null,'p'],['complemento','Complemento'],
-    ['bairro','Bairro'],['cidade','Cidade'],['uf','UF','select',UFS,'p'],['zona','Zona','select',['Urbana','Rural'],'p'],['pais','País']]],
-  ['DADOS CLÍNICOS', [
-    ['grupo_sang','G. sang.','select',['A+','A-','B+','B-','AB+','AB-','O+','O-'],'p'],['altura','Altura (m)','num'],['peso','Peso (kg)','num'],
-    ['cid','CID'],['medico','Médico'],['tratamento','Tratamento','text',null,'2']]],
-  ['ACOMPANHANTE / RESPONSÁVEL', [
-    ['contato_emergencia','Nome','text',null,'2'],['contato_tel','Telefone','tel']]]
+/* v93 (Renato, 16/11/2026): a ficha segue FIEL a tela "Atendimento ao Paciente" do Pixeon — mesma ordem, linha por linha,
+   rótulo ao lado do campo. Conv. Secundário e Acompanhantes abrem pelos botões de baixo, como no Pixeon. */
+const PAC_LINHAS = [
+  [['prontuario','Reg.','reg',null,90],['nome','Nome','text',null,420],['sexo','Sexo','select',['F','M'],70],['nascimento','Nasc.','date',null,150],['_idade','','idade',null,90]],
+  [['data_registro','Dt Reg.','date',null,140],['convenio','Conv.','conv',null,200],['telefone','Fone','tel',null,140],['cpf','CPF','cpf',null,140],['_proprio1','Próprio','proprio'],['vip','VIP','check'],['produtor_rural','Produtor Rural','check']],
+  'linha',
+  [['pront','Pront.','text',null,110],['status','Status','text',null,120],['arquivo','Arq.','text',null,100],['titular','Titular','text',null,300]],
+  [['carteirinha','Matric.','text',null,180],['acomodacao','Acomodação','text',null,150],['nome_mae','Mãe','text',null,300],['mae_desconhecida','Desconhecida','check']],
+  [['plano','Plano','text',null,200],['lotacao','Lot.','text',null,200],['matr_emp','Matr. Emp.','text',null,200]],
+  [['conv_validade','Valid.','date',null,150],['dt_val','Dt.Val.','date',null,150],['profissao','Profissão','text',null,250]],
+  [['grupo_sang','G Sang.','select',['A+','A-','B+','B-','AB+','AB-','O+','O-'],80],['altura','Altura','num',null,80],['peso','Peso','num',null,80],['estado_civil','Estado Civil','select',['Solteiro','Casado','União estável','Divorciado','Viúvo'],140],['local_trabalho','Local Trab.','text',null,220]],
+  [['cns','CNS','text',null,180],['ocupacao','Ocupação','text',null,260],['titular_cpf','CPF','cpf',null,150],['_proprio2','Próprio','proprio']],
+  [['rg','RG','text',null,140],['rg_orgao','Órgão','text',null,70],['rg_uf','','select',UFS,70],['rg_emissao','','date',null,150],['rg_complemento','Complemento','text',null,250]],
+  [['tratamento','Tratam.','text',null,140],['cid','CID','text',null,110],['medico','Médico','text',null,280]],
+  [['email','e-mail','text',null,260],['celular','Celular','tel',null,150],['sms','SMS','check'],['whatsapp','Whatsapp','check'],['tel2','Tel 2','tel',null,150],['ramal','Ramal','text',null,80]],
+  [['cep','CEP','cep',null,120],['tipo_logradouro','Endereço','text',null,90],['endereco','','text',null,300],['bairro','Bairro','text',null,220]],
+  [['numero','No.','text',null,80],['complemento','Complemento','text',null,280],['pais','País','text',null,200]],
+  [['cidade','Cidade','text',null,260],['uf','','select',UFS,70],['zona','Zona','select',['Urbana','Rural'],110],['usar_nome_social','Usar nome social?','check'],['nome_social','Nome Social','text',null,240]],
+  [['origem','Como chegou até nós','select',['Indicação','Instagram','Facebook','Google','WhatsApp','Site','Convênio','Médico','Passou na frente','Outro'],170],['origem_detalhe','Quem indicou / detalhe','text',null,280]]
 ];
+const PAC_ABAS = {
+  conv2: ['Conv. Secundário', [[['conv2','Conv.','conv',null,240],['conv2_plano','Plano','text',null,200],['conv2_matricula','Matric.','text',null,180],['conv2_validade','Valid.','date',null,150]]]],
+  acomp: ['Acompanhantes', [[['contato_emergencia','Nome','text',null,320],['contato_tel','Fone','tel',null,150]]]]
+};
+const PAC_BOTOES = [['dados','Dados Complementares'],['conv2','Conv. Secundário'],['guias','Guias'],['prontuario','Prontuário'],['quest','Questionários'],['acomp','Acompanhantes'],['trat','Trat. Ambulatorial']];
+function pacTodosCampos(){ const r=[]; PAC_LINHAS.forEach(l=>{ if(Array.isArray(l)) l.forEach(c=>r.push(c)); }); Object.values(PAC_ABAS).forEach(a=>a[1].forEach(l=>l.forEach(c=>r.push(c)))); return r; }
 function pacConvenios(){ const v = {}; ['SUS','Particular'].concat(S.idad.pac.map(x=>x.convenio), S.idad.pac.map(x=>x.conv2)).forEach(c=>{ if(c) v[c]=1; }); return Object.keys(v).sort(); }
+function pacCampo(c, p, ro){
+  const [k, rot, t, ops, w] = c, v = p[k];
+  const lb = rot ? '<span class="pxl">'+rot+(t==='check'?'':':')+'</span>' : '';
+  if(t==='check') return '<label class="pxf pxc"><input type="checkbox" id="pc-'+k+'"'+ro+(v?' checked':'')+'> '+rot+'</label>';
+  if(t==='proprio') return '<button type="button" class="bt g mini pxb" onclick="pacProprio()"'+ro+'>Próprio</button>';
+  if(t==='idade') return '<span class="pxf"><input id="pc-idade" disabled style="width:'+w+'px;text-align:center" value="'+(p.nascimento?idadeDe(p.nascimento)+' anos':'')+'"></span>';
+  if(t==='reg') return '<span class="pxf">'+lb+'<input disabled style="width:'+w+'px" value="'+(p.prontuario||'novo')+'"></span>';
+  let inp;
+  if(t==='select') inp = '<select id="pc-'+k+'"'+ro+' style="width:'+w+'px"><option value=""></option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
+  else {
+    const ex = t==='date' ? ' type="date"' : t==='num' ? ' type="number" step="0.01" inputmode="decimal"' :
+      t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
+      t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
+    const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
+    inp = '<input id="pc-'+k+'"'+ro+ex+' style="width:'+w+'px" value="'+esc(vv)+'">';
+  }
+  return '<span class="pxf">'+lb+inp+'</span>';
+}
+var _pacAba = null, _pacReg = null;
 function idadPacAbrir(id){
-  const p = id ? S.idad.pac.find(x=>x.id===id) : { data_registro: hojeISO(), titular_proprio:true, pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
-  const ro = podeEditar() ? '' : ' disabled';
-  const campo = c => { const [k, rot, t, ops, lg] = c, v = p[k];
-    const cls = 'pcf'+(lg==='full'?' pcf-full':lg==='2'?' pcf-2':lg==='p'?' pcf-p':'');
-    if(t==='check') return '<label class="'+cls+' pcf-chk"><input type="checkbox" id="pc-'+k+'"'+ro+(v?' checked':'')+'> '+rot+'</label>';
-    let inp;
-    if(t==='select') inp = '<select id="pc-'+k+'"'+ro+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
-    else {
-      const ex = t==='date' ? ' type="date"' : t==='num' ? ' type="number" step="0.01" inputmode="decimal"' :
-        t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
-        t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
-      const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
-      inp = '<input id="pc-'+k+'"'+ro+ex+' value="'+esc(vv)+'">';
-    }
-    return '<div class="'+cls+'"><label>'+rot+'</label>'+inp+(k==='nascimento'?'<small id="pc-idade" style="color:var(--fraco)">'+(v?idadeDe(v)+' anos':'')+'</small>':'')+'</div>'; };
-  abrirModal('<style>.modal{max-width:980px}.pcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;align-items:end}'+
-    '.pcf-2{grid-column:span 2}.pcf-full{grid-column:1/-1}.pcf-chk{display:flex;gap:6px;align-items:center;text-transform:none;font-size:13.5px;padding:10px 0;cursor:pointer}'+
-    '.pcf-chk input{width:auto}.pcs{font-size:12px;font-weight:800;letter-spacing:1.5px;color:var(--ouro);margin:18px 0 4px;border-bottom:1px solid var(--linha);padding-bottom:4px}'+
-    '@media(max-width:520px){.pcf-2{grid-column:1/-1}}</style>'+
-    '<h2>'+(id?'Paciente · Reg. / Prontuário nº '+(p.prontuario||'—'):'Novo paciente')+'</h2>'+
+  const p = id ? Object.assign({}, S.idad.pac.find(x=>x.id===id)) : { data_registro: hojeISO(), pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
+  _pacReg = p; _pacAba = null; pacDesenhar(id);
+}
+function pacDesenhar(id){
+  const p = _pacReg, ro = podeEditar() ? '' : ' disabled';
+  const linha = l => l==='linha' ? '<div class="pxsep"></div>' : '<div class="pxr">'+l.map(c=>pacCampo(c,p,ro)).join('')+'</div>';
+  abrirModal('<style>.modal{max-width:1180px}.pxr{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:0 0 8px}'+
+    '.pxf{display:inline-flex;align-items:center;gap:6px;max-width:100%}.pxf input,.pxf select{margin:0;padding:7px 9px;max-width:100%}'+
+    '.pxl{font-size:13px;font-weight:700;white-space:nowrap;color:var(--texto)}.pxc{font-size:13px;font-weight:700;text-transform:none;cursor:pointer;white-space:nowrap}.pxc input{width:auto}'+
+    '.pxsep{border-top:1px solid var(--linha);margin:10px 0 12px}.pxbt{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}'+
+    '.pxbt button.on{background:var(--ouro);color:#fff;border-color:var(--ouro)}.pxaba{border:1px solid var(--linha);border-radius:10px;padding:12px;margin-top:10px}'+
+    '@media(max-width:620px){.pxf{flex-wrap:wrap}.pxf input,.pxf select{width:100%!important}}</style>'+
+    '<h2>Atendimento ao Paciente'+(id?' · Reg. '+(p.prontuario||''):' · novo')+'</h2>'+
     '<input type="hidden" id="pc-id" value="'+(id||'')+'"><datalist id="pc-convs">'+pacConvenios().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
-    PAC_FICHA.map(sec=>'<div class="pcs">'+sec[0]+'</div><div class="pcg">'+sec[1].map(campo).join('')+'</div>').join('')+
-    '<div class="pcs">OBSERVAÇÕES</div><textarea id="pc-obs"'+ro+' rows="3">'+esc(p.obs||'')+'</textarea>'+
+    PAC_LINHAS.map(linha).join('')+
+    '<div class="pxr" style="align-items:flex-start"><span class="pxl" style="padding-top:8px">Obs.:</span><textarea id="pc-obs"'+ro+' rows="2" style="flex:1;min-width:240px;margin:0">'+esc(p.obs||'')+'</textarea></div>'+
+    '<div class="pxbt">'+PAC_BOTOES.map(b=>'<button type="button" class="bt g mini'+(_pacAba===b[0]?' on':'')+'" onclick="pacAba(\''+b[0]+'\',\''+(id||'')+'\')">'+b[1]+'</button>').join('')+'</div>'+
+    (_pacAba ? '<div class="pxaba">'+(PAC_ABAS[_pacAba] ? PAC_ABAS[_pacAba][1].map(linha).join('') : '<div style="color:var(--fraco);font-size:13.5px">'+PAC_BOTOES.find(b=>b[0]===_pacAba)[1]+' — em construção no Sistema MR.</div>')+'</div>' : '')+
     '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+
       (podeEditar()?'<button class="bt" onclick="idadPacSalvar()">Salvar</button>':'')+
       '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
-  const n = document.getElementById('pc-nascimento'); if(n) n.addEventListener('change', ()=>{ const a = idadeDe(n.value); document.getElementById('pc-idade').textContent = a!=null && n.value ? a+' anos' : ''; });
+  const n = document.getElementById('pc-nascimento'); if(n) n.addEventListener('change', ()=>{ const a = idadeDe(n.value); document.getElementById('pc-idade').value = a!=null && n.value ? a+' anos' : ''; });
 }
+function pacLerTela(){ pacTodosCampos().forEach(([k,rot,t])=>{ const e = document.getElementById('pc-'+k); if(!e) return;
+  if(t==='check') _pacReg[k] = e.checked; else { let v = String(e.value||'').trim(); if(['cpf','tel','cep'].indexOf(t)>=0) v = soDig(v); if(t==='num') v = v ? Number(v.replace(',','.')) : ''; _pacReg[k] = v==='' ? null : v; } });
+  const o = document.getElementById('pc-obs'); if(o) _pacReg.obs = o.value.trim()||null; }
+function pacAba(a, id){ pacLerTela(); _pacAba = _pacAba===a ? null : a; pacDesenhar(id||null); }
+function pacProprio(){ const set=(k,v)=>{ const e=document.getElementById('pc-'+k); if(e) e.value=v; };
+  set('titular', val('pc-nome')); set('titular_cpf', val('pc-cpf')); }
 function mascaraCEP(t){ const d=soDig(t).slice(0,8); return d.length>5 ? d.slice(0,5)+'-'+d.slice(5) : d; }
 async function pacBuscaCEP(c){ c = soDig(c); if(c.length!==8) return;
   try{ const r = await (await fetch('https://viacep.com.br/ws/'+c+'/json/')).json(); if(r.erro) return aviso('CEP não encontrado.','erro');
@@ -3530,16 +3551,15 @@ async function pacBuscaCEP(c){ c = soDig(c); if(c.length!==8) return;
     const ci=document.getElementById('pc-cidade'); if(ci && r.localidade) ci.value = r.localidade;
   }catch(e){} }
 async function idadPacSalvar(){
+  pacLerTela();
   const id = val('pc-id'), reg = {};
-  PAC_FICHA.forEach(sec=>sec[1].forEach(([k,rot,t])=>{ const e = document.getElementById('pc-'+k); if(!e) return;
-    if(t==='check') reg[k] = e.checked;
-    else { let v = String(e.value||'').trim(); if(['cpf','tel','cep'].indexOf(t)>=0) v = soDig(v); if(t==='num') v = v ? Number(v.replace(',','.')) : ''; reg[k] = v==='' ? null : v; } }));
-  reg.obs = val('pc-obs').trim()||null;
+  pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
+  reg.obs = _pacReg.obs||null;
   if(!reg.nome) return aviso('Informe o nome do paciente.','erro');
   if(reg.cpf && !validaCPF(reg.cpf)) return aviso('CPF do paciente inválido — confira os dígitos.','erro');
   if(reg.titular_cpf && !validaCPF(reg.titular_cpf)) return aviso('CPF do titular inválido.','erro');
   if(reg.cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===reg.cpf)) return aviso('Já existe paciente com este CPF.','erro');
-  if(reg.titular_proprio){ reg.titular = reg.titular || reg.nome; reg.titular_cpf = reg.titular_cpf || reg.cpf; }
+  reg.titular_proprio = !reg.titular || (reg.titular===reg.nome);
   reg.atualizado_em = new Date().toISOString();
   const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
                : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
@@ -3547,6 +3567,124 @@ async function idadPacSalvar(){
   if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else S.idad.pac.push(r.data);
   S.idad.pac.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
   S.modal=null; aviso(id?'Paciente atualizado.':'Paciente cadastrado — prontuário nº '+r.data.prontuario+'.','ok');
+}
+
+/* ===== v94 (Renato, 16/11/2026): FARMÁCIA e ALMOXARIFADO do Hospital IDAD — a caixa "Plantões no IDAD" virou Farmácia.
+   Mesmo motor de estoque para os dois (idad_itens.setor = 'farmacia' | 'almox'); saldo = entradas − saídas (idad_movs).
+   Farmácia controla lote e validade; a saída pode ir para um paciente. */
+const EST_NOME = { farmacia:'Farmácia', almox:'Almoxarifado' };
+function icoGrad(id){ return '<defs><linearGradient id="'+id+'" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'; }
+function icoFarmacia(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gFar')+
+  '<rect x="13" y="5" width="22" height="7" rx="2" fill="url(#gFar)"/><rect x="10" y="12" width="28" height="31" rx="5" fill="url(#gFar)" opacity=".35"/>'+
+  '<rect x="10" y="12" width="28" height="31" rx="5" fill="none" stroke="url(#gFar)" stroke-width="2.5"/><rect x="21.5" y="19" width="5" height="16" rx="1.2" fill="url(#gFar)"/><rect x="16" y="24.5" width="16" height="5" rx="1.2" fill="url(#gFar)"/></svg>'; }
+function icoAlmox(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gAlm')+
+  '<path d="M24 5 L42 14 L24 23 L6 14 Z" fill="url(#gAlm)"/><path d="M6 14 L24 23 L24 43 L6 34 Z" fill="url(#gAlm)" opacity=".55"/><path d="M42 14 L24 23 L24 43 L42 34 Z" fill="url(#gAlm)" opacity=".8"/>'+
+  '<path d="M15 9.5 L33 18.5 L33 25" fill="none" stroke="#fff" stroke-width="2" opacity=".85"/></svg>'; }
+function estItens(setor){ return S.idad.itens.filter(x=>x.setor===setor); }
+function estMovs(itemId){ return S.idad.movs.filter(m=>m.item_id===itemId); }
+function estSaldo(itemId){ return estMovs(itemId).reduce((a,m)=>a+(m.tipo==='entrada'?1:-1)*Number(m.qtd||0),0); }
+function estLotes(itemId){ const L = {};
+  estMovs(itemId).forEach(m=>{ const k = m.lote||''; if(!L[k]) L[k] = { lote:k, validade:null, saldo:0 };
+    if(m.tipo==='entrada'){ L[k].saldo += +m.qtd; if(m.validade && (!L[k].validade || m.validade<L[k].validade)) L[k].validade = m.validade; } else L[k].saldo -= +m.qtd; });
+  return Object.values(L).filter(l=>l.saldo>0).sort((a,b)=>String(a.validade||'9999').localeCompare(String(b.validade||'9999'))); }
+function estProxVal(itemId){ const l = estLotes(itemId).find(x=>x.validade); return l ? l.validade : null; }
+function diasAte(d){ return Math.round((new Date(d+'T12:00:00') - new Date(hojeISO()+'T12:00:00'))/864e5); }
+function estSit(it){ const sd = estSaldo(it.id), v = it.setor==='farmacia' ? estProxVal(it.id) : null;
+  if(v && diasAte(v)<0) return ['Vencido','var(--vermelho)'];
+  if(sd<=0) return ['Sem estoque','var(--vermelho)'];
+  if(it.estoque_min && sd<+it.estoque_min) return ['Abaixo do mínimo','#d97706'];
+  if(v && diasAte(v)<=30) return ['Vence em '+diasAte(v)+' dias','#d97706'];
+  return ['OK','var(--verde)']; }
+function estAlertas(setor){ return estItens(setor).filter(it=>it.ativo!==false && estSit(it)[0]!=='OK').length; }
+function estResumo(setor){ if(!S.idad.carregado) return 'carregando…'; const n = estItens(setor).length, a = estAlertas(setor);
+  return n+' ite'+(n===1?'m':'ns')+(a?' · '+a+' alerta'+(a===1?'':'s'):'')+' · entradas, saídas e saldo'; }
+function fmtQ(n){ return Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:2}); }
+function telaIdadEst(setor){
+  if(!S.idad.carregado) idadCarregar();
+  const farm = setor==='farmacia';
+  let h = '<div class="secao"><b>'+EST_NOME[setor].toUpperCase()+'</b><span>Hospital IDAD · '+(farm?'medicamentos, lote e validade':'materiais e insumos')+'</span></div>';
+  if(!S.idad.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const its = estItens(setor);
+  const venc = farm ? its.filter(it=>{ const v=estProxVal(it.id); return v && diasAte(v)<=30; }).length : 0;
+  h += '<div class="card"><div class="kpis">'+kpi('Itens cadastrados', String(its.length))+
+    kpi('Abaixo do mínimo / sem estoque', String(its.filter(it=>{ const t=estSit(it)[0]; return t==='Abaixo do mínimo'||t==='Sem estoque'; }).length))+
+    (farm? kpi('Vencidos ou vencendo (30 dias)', String(venc)) : '')+
+    kpi('Movimentos no mês', String(S.idad.movs.filter(m=>its.some(i=>i.id===m.item_id) && String(m.data).slice(0,7)===mesHoje()).length))+'</div></div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<input placeholder="Buscar item" value="'+esc(S.idad.estBusca)+'" oninput="S.idad.estBusca=this.value;estLista(\''+setor+'\')" style="flex:1;min-width:200px">'+
+    (podeEditar()? '<button class="bt g" onclick="estItemAbrir(\''+setor+'\')">+ Novo item</button><button class="bt" onclick="estMovAbrir(\''+setor+'\',\'entrada\')">↓ Entrada</button><button class="bt" style="background:var(--vermelho)" onclick="estMovAbrir(\''+setor+'\',\'saida\')">↑ Saída</button>' : '')+'</div>';
+  return h+'<div id="est-lista">'+estListaHtml(setor)+'</div>';
+}
+function estLista(setor){ const e=document.getElementById('est-lista'); if(e) e.innerHTML = estListaHtml(setor); }
+function estListaHtml(setor){
+  const farm = setor==='farmacia', b = permNorm(S.idad.estBusca);
+  const its = estItens(setor).filter(it=>!b || permNorm(it.nome).indexOf(b)>=0 || permNorm(it.categoria).indexOf(b)>=0 || permNorm(it.codigo).indexOf(b)>=0);
+  if(!estItens(setor).length) return '<div class="vazio">Nenhum item cadastrado ainda. Toque em <b>+ Novo item</b>.</div>';
+  if(!its.length) return '<div class="vazio">Nenhum item encontrado.</div>';
+  return '<div class="card" style="overflow-x:auto"><table class="tb"><thead><tr><th>Item</th><th>Categoria</th><th>Unid.</th><th style="text-align:right">Saldo</th><th style="text-align:right">Mínimo</th>'+(farm?'<th>Próx. validade</th>':'')+'<th>Situação</th></tr></thead><tbody>'+
+    its.map(it=>{ const st = estSit(it), v = farm ? estProxVal(it.id) : null;
+      return '<tr style="cursor:pointer" onclick="estItemVer(\''+it.id+'\')"><td><b>'+esc(it.nome)+'</b>'+(it.codigo?'<br><small style="color:var(--fraco)">'+esc(it.codigo)+'</small>':'')+'</td><td>'+esc(it.categoria||'—')+'</td><td>'+esc(it.unidade||'—')+'</td>'+
+        '<td style="text-align:right;font-weight:800">'+fmtQ(estSaldo(it.id))+'</td><td style="text-align:right">'+fmtQ(it.estoque_min)+'</td>'+(farm?'<td>'+(v?dataBR(v):'—')+'</td>':'')+
+        '<td><span style="color:'+st[1]+';font-weight:700">'+st[0]+'</span></td></tr>'; }).join('')+'</tbody></table></div>';
+}
+function estItemAbrir(setor, id){
+  const it = id ? S.idad.itens.find(x=>x.id===id) : { setor, unidade: setor==='farmacia'?'UN':'UN', estoque_min:0 };
+  const cats = {}; estItens(setor).forEach(x=>{ if(x.categoria) cats[x.categoria]=1; });
+  abrirModal('<h2>'+(id?'Editar item':'Novo item')+' · '+EST_NOME[it.setor]+'</h2><input type="hidden" id="ei-id" value="'+(id||'')+'"><input type="hidden" id="ei-setor" value="'+it.setor+'">'+
+    '<label>Nome do item *</label><input id="ei-nome" value="'+esc(it.nome||'')+'" placeholder="'+(it.setor==='farmacia'?'Ex.: Dipirona 500mg/ml ampola 2ml':'Ex.: Luva de procedimento M')+'">'+
+    '<div class="lin"><div><label>Categoria</label><input id="ei-cat" list="ei-cats" value="'+esc(it.categoria||'')+'"><datalist id="ei-cats">'+Object.keys(cats).map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></div>'+
+    '<div><label>Unidade</label><input id="ei-un" list="ei-uns" value="'+esc(it.unidade||'')+'"><datalist id="ei-uns">'+['UN','CX','AMP','FR','CP','PCT','ML','G','KG','L','PAR','RL'].map(u=>'<option value="'+u+'">').join('')+'</datalist></div>'+
+    '<div><label>Código</label><input id="ei-cod" value="'+esc(it.codigo||'')+'"></div><div><label>Estoque mínimo</label><input id="ei-min" type="number" step="any" value="'+(it.estoque_min||0)+'"></div></div>'+
+    '<label>Observações</label><textarea id="ei-obs" rows="2">'+esc(it.obs||'')+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="estItemSalvar()">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function estItemSalvar(){
+  const id = val('ei-id'), reg = { setor: val('ei-setor'), nome: val('ei-nome').trim(), categoria: val('ei-cat').trim()||null, unidade: val('ei-un').trim()||null,
+    codigo: val('ei-cod').trim()||null, estoque_min: Number(val('ei-min'))||0, obs: val('ei-obs').trim()||null };
+  if(!reg.nome) return aviso('Informe o nome do item.','erro');
+  const r = id ? await sb.from('idad_itens').update(reg).eq('id',id).select().maybeSingle() : await sb.from('idad_itens').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  if(id){ const i=S.idad.itens.findIndex(x=>x.id===id); S.idad.itens[i]=r.data; } else S.idad.itens.push(r.data);
+  S.idad.itens.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); S.modal=null; aviso('Item salvo.','ok');
+}
+function estItemVer(id){
+  const it = S.idad.itens.find(x=>x.id===id), farm = it.setor==='farmacia', ms = estMovs(id).slice().sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  const lotes = farm ? estLotes(id) : [];
+  abrirModal('<h2>'+esc(it.nome)+'</h2><div style="color:var(--fraco);font-size:13px;margin-bottom:10px">'+EST_NOME[it.setor]+(it.categoria?' · '+esc(it.categoria):'')+(it.unidade?' · '+esc(it.unidade):'')+'</div>'+
+    '<div class="kpis">'+kpi('Saldo', fmtQ(estSaldo(id))+' '+esc(it.unidade||''))+kpi('Mínimo', fmtQ(it.estoque_min))+kpi('Situação', estSit(it)[0])+'</div>'+
+    (farm && lotes.length ? '<h3 style="margin:14px 0 6px">Lotes em estoque</h3><table class="tb"><tr><th>Lote</th><th>Validade</th><th style="text-align:right">Saldo</th></tr>'+lotes.map(l=>'<tr><td>'+esc(l.lote||'sem lote')+'</td><td>'+(l.validade?dataBR(l.validade):'—')+'</td><td style="text-align:right">'+fmtQ(l.saldo)+'</td></tr>').join('')+'</table>' : '')+
+    '<h3 style="margin:14px 0 6px">Movimentos</h3>'+(ms.length? '<div style="max-height:300px;overflow:auto"><table class="tb"><tr><th>Data</th><th>Tipo</th><th style="text-align:right">Qtd</th><th>Detalhe</th></tr>'+ms.map(m=>{ const pac = m.paciente_id ? (S.idad.pac.find(p=>p.id===m.paciente_id)||{}).nome : '';
+      return '<tr><td>'+dataBR(m.data)+'</td><td style="color:'+(m.tipo==='entrada'?'var(--verde)':'var(--vermelho)')+';font-weight:700">'+(m.tipo==='entrada'?'Entrada':'Saída')+'</td><td style="text-align:right">'+fmtQ(m.qtd)+'</td><td style="font-size:12.5px">'+
+        esc([m.lote?'Lote '+m.lote:'', m.validade?'val. '+dataBR(m.validade):'', m.fornecedor, m.nf?'NF '+m.nf:'', m.valor_unit?brl(+m.valor_unit)+'/un':'', m.destino, pac, m.obs].filter(Boolean).join(' · '))+'</td></tr>'; }).join('')+'</table></div>' : '<div class="vazio">Nenhum movimento ainda.</div>')+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt" onclick="estMovAbrir(\''+it.setor+'\',\'entrada\',\''+id+'\')">↓ Entrada</button><button class="bt" style="background:var(--vermelho)" onclick="estMovAbrir(\''+it.setor+'\',\'saida\',\''+id+'\')">↑ Saída</button><button class="bt g" onclick="estItemAbrir(\''+it.setor+'\',\''+id+'\')">Editar item</button>':'')+'<button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+function estMovAbrir(setor, tipo, itemId){
+  const its = estItens(setor).filter(x=>x.ativo!==false), farm = setor==='farmacia', ent = tipo==='entrada';
+  if(!its.length) return aviso('Cadastre um item primeiro.','erro');
+  const lotesSel = it => farm && !ent ? estLotes(it).map(l=>'<option value="'+esc(l.lote)+'">'+esc(l.lote||'sem lote')+(l.validade?' · val. '+dataBR(l.validade):'')+' · saldo '+fmtQ(l.saldo)+'</option>').join('') : '';
+  abrirModal('<h2>'+(ent?'↓ Entrada':'↑ Saída')+' · '+EST_NOME[setor]+'</h2><input type="hidden" id="em-tipo" value="'+tipo+'"><input type="hidden" id="em-setor" value="'+setor+'">'+
+    '<label>Item *</label><select id="em-item" onchange="estMovLotes()">'+its.map(i=>'<option value="'+i.id+'"'+(i.id===itemId?' selected':'')+'>'+esc(i.nome)+' — saldo '+fmtQ(estSaldo(i.id))+' '+esc(i.unidade||'')+'</option>').join('')+'</select>'+
+    '<div class="lin"><div><label>Quantidade *</label><input id="em-qtd" type="number" step="any" min="0"></div><div><label>Data</label><input id="em-data" type="date" value="'+hojeISO()+'"></div>'+
+    (farm ? (ent ? '<div><label>Lote</label><input id="em-lote"></div><div><label>Validade</label><input id="em-val" type="date"></div>'
+                 : '<div><label>Lote</label><select id="em-lote"><option value="">—</option>'+lotesSel(itemId||its[0].id)+'</select></div>') : '')+'</div>'+
+    (ent ? '<div class="lin"><div><label>Fornecedor</label><input id="em-forn"></div><div><label>Nota fiscal</label><input id="em-nf"></div><div><label>Valor unitário (R$)</label><input id="em-vu" type="number" step="0.01"></div></div>'
+         : '<div class="lin"><div><label>Destino / setor</label><input id="em-dest" list="em-dests" placeholder="Ex.: Centro cirúrgico, Enfermaria"><datalist id="em-dests">'+['Centro cirúrgico','Enfermaria','Ambulatório','Consultório','Recepção','Limpeza','Administração'].map(d=>'<option value="'+d+'">').join('')+'</datalist></div>'+
+           (farm ? '<div><label>Paciente (opcional)</label><select id="em-pac"><option value="">—</option>'+S.idad.pac.map(p=>'<option value="'+p.id+'">'+esc(p.nome)+' · Reg. '+p.prontuario+'</option>').join('')+'</select></div>' : '')+'</div>')+
+    '<label>Observação</label><input id="em-obs">'+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt"'+(ent?'':' style="background:var(--vermelho)"')+' onclick="estMovSalvar()">Lançar '+(ent?'entrada':'saída')+'</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+function estMovLotes(){ const s = document.getElementById('em-lote'); if(!s || s.tagName!=='SELECT') return;
+  s.innerHTML = '<option value="">—</option>'+estLotes(val('em-item')).map(l=>'<option value="'+esc(l.lote)+'">'+esc(l.lote||'sem lote')+(l.validade?' · val. '+dataBR(l.validade):'')+' · saldo '+fmtQ(l.saldo)+'</option>').join(''); }
+async function estMovSalvar(){
+  const tipo = val('em-tipo'), item = val('em-item'), qtd = Number(val('em-qtd'));
+  if(!(qtd>0)) return aviso('Informe a quantidade.','erro');
+  if(tipo==='saida' && qtd > estSaldo(item)) return aviso('Saldo insuficiente — o item tem '+fmtQ(estSaldo(item))+' em estoque.','erro');
+  const g = id => { const e=document.getElementById(id); return e ? (String(e.value||'').trim()||null) : null; };
+  const reg = { item_id:item, tipo, qtd, data: g('em-data')||hojeISO(), lote:g('em-lote'), validade:g('em-val'), fornecedor:g('em-forn'), nf:g('em-nf'),
+    valor_unit: g('em-vu') ? Number(g('em-vu')) : null, destino:g('em-dest'), paciente_id:g('em-pac'), obs:g('em-obs') };
+  const r = await sb.from('idad_movs').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  S.idad.movs.push(r.data); S.modal=null; aviso((tipo==='entrada'?'Entrada':'Saída')+' lançada.','ok');
 }
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
