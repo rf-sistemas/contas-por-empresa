@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v89">
+<meta name="rf-versao" content="v90">
 <meta name="rf-data" content="2026-11-16">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v89',
+  versao : 'v90',
   data   : '16/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -399,7 +399,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -443,6 +443,7 @@ function render(){
   else if(S.tela==='inicio')   corpo = telaInicio();
   else if(S.tela==='escalahub') corpo = telaEscalaHub();
   else if(S.tela==='idad')     corpo = telaIdad();
+  else if(S.tela==='idadpac')  corpo = telaIdadPac();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3300,7 +3301,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3370,7 +3371,7 @@ function telaInicio(){
    Tela própria a partir do Início, com o resumo do CNPJ do IDAD (33.231.594/0001-09) e os plantões lançados no local IDAD.
    Permissão: chave 'idad' em perfis.abas. As funções do módulo serão definidas com o Renato a partir daqui. */
 const IDAD_CNPJ = '33231594000109';
-S.idad = { carregado:false, carregando:false, plantoes:[] };
+S.idad = { carregado:false, carregando:false, plantoes:[], pac:[], pacOk:false, pacErro:false, busca:'' };
 function idadEmpresa(){ return S.empresas.find(e=>soDig(e.cnpj)===IDAD_CNPJ) || null; }
 function icoHospital(){
   return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gHos" x1="0" y1="1" x2="1" y2="0">'+
@@ -3397,7 +3398,9 @@ async function idadCarregar(){
       S.idad.plantoes = r.data||[];
     }
   }catch(e){ console.warn('IDAD', e); }
-  S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad') render();
+  try{ const r = await sb.from('idad_pacientes').select('*').order('nome'); if(r.error) S.idad.pacErro = true; else S.idad.pac = r.data||[]; }catch(e){ S.idad.pacErro = true; }
+  S.idad.pacOk = true;
+  S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac') render();
 }
 function idadAbrirFinanceiro(){ const e = idadEmpresa(); if(!e) return aviso('CNPJ do IDAD não está cadastrado em Empresas.','erro'); irPara('painel'); S.aberta = e.id; render(); }
 function telaIdad(){
@@ -3410,15 +3413,88 @@ function telaIdad(){
     '<div><div style="font-size:18px;font-weight:800">Hospital IDAD</div><div style="color:var(--fraco);font-size:13px">CNPJ '+mascaraCNPJ(IDAD_CNPJ)+(e&&e.razao_social&&e.razao_social!=='IDAD'?' · '+esc(e.razao_social):'')+'</div></div></div>'+
     '<div class="kpis" style="margin-top:12px">'+
       kpi('Entradas (total)', brl(tg.ent))+kpi('Saídas (total)', brl(tg.sai))+kpi('Saldo (total)', brl(tg.saldo))+
-      kpi('Saldo · '+escMesNome(mes), brl(tm.saldo))+kpi('Plantões · '+escMesNome(mes), S.idad.carregado ? String(plMes.length) : '…')+
+      kpi('Pacientes', S.idad.pacOk ? String(S.idad.pac.length) : '…')+kpi('Plantões · '+escMesNome(mes), S.idad.carregado ? String(plMes.length) : '…')+
     '</div></div>';
   h += '<div class="bxs">'+
-    '<button type="button" class="bx" onclick="idadAbrirFinanceiro()"><div class="ic">'+icoFinanceiro()+'</div><div><b>Financeiro do IDAD</b><small>'+movs.length+' lançamento'+(movs.length===1?'':'s')+' no CNPJ · entradas, saídas e contas a pagar</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irGrupo(\'NAFS\');irPara(\'escalas\')"><div class="ic">'+icoCalendario()+'</div><div><b>Plantões no IDAD</b><small>'+(S.idad.carregado ? pl.length+(pl.length===1?' plantão lançado':' plantões lançados')+' na escala da NAFS' : 'carregando…')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
     '<div style="color:var(--fraco);font-size:13.5px;line-height:1.5">Este é o espaço do Hospital IDAD dentro do Sistema MR. As próximas funções serão definidas com o Vinicius e entram aqui como novas caixas.</div></div>';
   return h;
+}
+
+/* ===== v90 (Renato, 16/11/2026): CADASTRO DE PACIENTES do Hospital IDAD — substitui a caixa "Financeiro do IDAD".
+   Tabela idad_pacientes (só quem tem a aba 'idad' vê — RLS cpe_ve_idad). Prontuário numerado automático. */
+const IDAD_CONV = ['SUS','Particular','Plano de saúde'];
+function icoPaciente(){
+  return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gPac" x1="0" y1="1" x2="1" y2="0">'+
+    '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
+    '<rect x="6" y="5" width="30" height="38" rx="4" fill="url(#gPac)" opacity=".3"/><circle cx="21" cy="17" r="6.5" fill="url(#gPac)"/>'+
+    '<path d="M9 36c0-7 5.5-11 12-11s12 4 12 11z" fill="url(#gPac)"/><circle cx="37" cy="35" r="8" fill="#fff" stroke="url(#gPac)" stroke-width="2.5"/>'+
+    '<rect x="35.8" y="30.5" width="2.4" height="9" rx="1" fill="#0a6cf0"/><rect x="32.5" y="33.8" width="9" height="2.4" rx="1" fill="#0a6cf0"/></svg>';
+}
+function mascaraCPF(t){ const d=soDig(t).slice(0,11); return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d{1,2})$/,'.$1-$2'); }
+function mascaraTel(t){ const d=soDig(t).slice(0,11); if(d.length<=2) return d; if(d.length<=6) return '('+d.slice(0,2)+') '+d.slice(2); if(d.length<=10) return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6); return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7); }
+function validaCPF(c){ c=soDig(c); if(c.length!==11 || /^(\d)\1+$/.test(c)) return false; let s=0; for(let i=0;i<9;i++) s+=+c[i]*(10-i); let d=(s*10)%11%10; if(d!==+c[9]) return false; s=0; for(let i=0;i<10;i++) s+=+c[i]*(11-i); d=(s*10)%11%10; return d===+c[10]; }
+function idadeDe(n){ if(!n) return null; const h=new Date(), d=new Date(n+'T12:00:00'); let a=h.getFullYear()-d.getFullYear(); if(h.getMonth()<d.getMonth() || (h.getMonth()===d.getMonth() && h.getDate()<d.getDate())) a--; return a; }
+function telaIdadPac(){
+  if(!S.idad.carregado) idadCarregar();
+  let h = '<div class="secao"><b>CADASTRO DE PACIENTES</b><span>Hospital IDAD</span></div>';
+  if(S.idad.pacErro) return h+'<div class="card"><b style="color:var(--vermelho)">O cadastro de pacientes ainda não existe no banco.</b></div>';
+  if(!S.idad.pacOk) return h+'<div class="vazio">Carregando os pacientes…</div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<input id="pac-busca" placeholder="Buscar por nome, CPF, prontuário ou telefone" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacLista()" style="flex:1;min-width:220px">'+
+    (podeEditar()? '<button class="bt" onclick="idadPacAbrir()">+ Novo paciente</button>' : '')+'</div>';
+  return h+'<div id="pac-lista">'+idadPacListaHtml()+'</div>';
+}
+function idadPacLista(){ const e=document.getElementById('pac-lista'); if(e) e.innerHTML = idadPacListaHtml(); }
+function idadPacListaHtml(){
+  const b = permNorm(S.idad.busca), bd = soDig(S.idad.busca);
+  const l = S.idad.pac.filter(p=>!b || permNorm(p.nome).indexOf(b)>=0 || (bd && (soDig(p.cpf).indexOf(bd)>=0 || soDig(p.telefone).indexOf(bd)>=0 || String(p.prontuario||'')===bd)));
+  if(!S.idad.pac.length) return '<div class="vazio">Nenhum paciente cadastrado ainda. Toque em <b>+ Novo paciente</b>.</div>';
+  if(!l.length) return '<div class="vazio">Nenhum paciente encontrado.</div>';
+  return '<div class="bxs">'+l.map(p=>{ const id = idadeDe(p.nascimento);
+    return '<button type="button" class="bx" style="align-items:flex-start" onclick="idadPacAbrir(\''+p.id+'\')"><div class="ic">'+icoPaciente()+'</div><div style="text-align:left">'+
+      '<b>'+esc(p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+'</small>'+
+      '<small>'+[p.cpf?'CPF '+esc(mascaraCPF(p.cpf)):'', p.convenio?esc(p.convenio)+(p.carteirinha?' nº '+esc(p.carteirinha):''):''].filter(Boolean).join(' · ')+'</small>'+
+      (p.telefone?'<small>'+esc(mascaraTel(p.telefone))+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
+}
+function idadPacAbrir(id){
+  const p = id ? S.idad.pac.find(x=>x.id===id) : {};
+  const ro = podeEditar() ? '' : ' disabled';
+  const f = (k, rot, v, extra) => '<div><label>'+rot+'</label><input id="pc-'+k+'"'+ro+' value="'+esc(v==null?'':v)+'"'+(extra||'')+'></div>';
+  const sel = (k, rot, ops, v) => '<div><label>'+rot+'</label><select id="pc-'+k+'"'+ro+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select></div>';
+  abrirModal('<h2>'+(id?'Paciente · prontuário nº '+(p.prontuario||'—'):'Novo paciente')+'</h2>'+
+    '<input type="hidden" id="pc-id" value="'+(id||'')+'">'+
+    f('nome','Nome completo *',p.nome)+
+    '<div class="lin">'+f('cpf','CPF',p.cpf?mascaraCPF(p.cpf):'',' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"')+
+      f('nasc','Data de nascimento',p.nascimento,' type="date"')+sel('sexo','Sexo',['Feminino','Masculino'],p.sexo)+'</div>'+
+    '<div class="lin">'+f('tel','Telefone / WhatsApp',p.telefone?mascaraTel(p.telefone):'',' inputmode="tel" oninput="this.value=mascaraTel(this.value)"')+
+      f('mae','Nome da mãe',p.nome_mae)+'</div>'+
+    '<div class="lin">'+sel('conv','Convênio',IDAD_CONV,p.convenio)+f('plano','Plano (se for plano de saúde)',p.plano)+f('cart','Nº da carteirinha / Cartão SUS',p.carteirinha)+'</div>'+
+    '<div class="lin">'+f('end','Endereço',p.endereco)+f('cid','Cidade',p.cidade||'')+'</div>'+
+    '<div class="lin">'+f('emerg','Contato de emergência',p.contato_emergencia)+f('emtel','Telefone do contato',p.contato_tel?mascaraTel(p.contato_tel):'',' inputmode="tel" oninput="this.value=mascaraTel(this.value)"')+'</div>'+
+    '<label>Observações</label><textarea id="pc-obs"'+ro+' rows="3">'+esc(p.obs||'')+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+
+      (podeEditar()?'<button class="bt" onclick="idadPacSalvar()">Salvar</button>':'')+
+      '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
+}
+async function idadPacSalvar(){
+  const id = val('pc-id'), nome = val('pc-nome').trim(), cpf = soDig(val('pc-cpf'));
+  if(!nome) return aviso('Informe o nome do paciente.','erro');
+  if(cpf && !validaCPF(cpf)) return aviso('CPF inválido — confira os dígitos.','erro');
+  if(cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===cpf)) return aviso('Já existe paciente com este CPF.','erro');
+  const reg = { nome, cpf:cpf||null, nascimento:val('pc-nasc')||null, sexo:val('pc-sexo')||null, telefone:soDig(val('pc-tel'))||null,
+    nome_mae:val('pc-mae').trim()||null, convenio:val('pc-conv')||null, plano:val('pc-plano').trim()||null, carteirinha:val('pc-cart').trim()||null,
+    endereco:val('pc-end').trim()||null, cidade:val('pc-cid').trim()||null, contato_emergencia:val('pc-emerg').trim()||null,
+    contato_tel:soDig(val('pc-emtel'))||null, obs:val('pc-obs').trim()||null };
+  const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
+               : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else S.idad.pac.push(r.data);
+  S.idad.pac.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  S.modal=null; aviso(id?'Paciente atualizado.':'Paciente cadastrado — prontuário nº '+r.data.prontuario+'.','ok');
 }
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
