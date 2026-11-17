@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v96">
+<meta name="rf-versao" content="v97">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v96',
+  versao : 'v97',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -381,8 +381,12 @@ const ABA_PRIVADA = 'pessoais';
    Vê a área: o próprio dono e quem ele liberar (pessoais_acesso). Mestre e dono do sistema NÃO veem automaticamente;
    eles só dão (ou tiram) a área de alguém, em Usuários › Permissões. O banco trava igual (cpe_ve_area). */
 S.pesAreas = []; S.pesAcesso = []; S.pesDono = null; S.pesUsu = null;
+/* v97 (Renato, 17/11/2026): quem vê é SÓ o Renato (login do administrador da RF Sistemas) e o dono da área
+   (+ quem o dono liberar). O Renato vê todas as áreas e cuida do "Quem vê" de qualquer uma. */
+const PES_ADMIN = 'rflogisticadistribuicao@gmail.com';
+function pesAdmin(){ return String((S.perfil&&S.perfil.email)||'').toLowerCase()===PES_ADMIN; }
 function pesMinhas(){ const eu = S.user && S.user.id; if(!eu) return [];
-  return (S.pesAreas||[]).filter(a=>a.dono_id===eu || (S.pesAcesso||[]).some(x=>x.dono_id===a.dono_id && x.usuario_id===eu))
+  return (S.pesAreas||[]).filter(a=>pesAdmin() || a.dono_id===eu || (S.pesAcesso||[]).some(x=>x.dono_id===a.dono_id && x.usuario_id===eu))
     .sort((a,b)=>(a.dono_id===eu?-1:b.dono_id===eu?1:0) || String(a.nome).localeCompare(String(b.nome),'pt-BR')); }
 function pesArea(id){ return (S.pesAreas||[]).find(a=>a.dono_id===id) || null; }
 function pesNome(id){ const a = pesArea(id); return a ? a.nome : '—'; }
@@ -645,10 +649,10 @@ function telaPessoais(){
 
   let h = '<div class="card"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:200px">'+
     '<h3 style="margin:0 0 4px">👤 DESPESAS PESSOAIS · '+esc(area.nome).toUpperCase()+' <span style="font-weight:400;color:var(--fraco);font-size:12px">· '+pfTexto()+'</span></h3>'+
-    '<div style="color:var(--fraco);font-size:12.5px">'+(minha?'Sua área. ':'Área de '+esc(area.nome)+', liberada para você. ')+'Fica fora dos CNPJs e do resumo geral.</div></div>'+
+    '<div style="color:var(--fraco);font-size:12.5px">'+(minha?'Sua área. ':'Área de '+esc(area.nome)+(pesAdmin()?'. ':', liberada para você. '))+'Fica fora dos CNPJs e do resumo geral.</div></div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
       (minhas.length>1? '<button class="bt g mini" onclick="S.pesDono=null;S.pesCat=\'\';render()">⇄ trocar de pessoa</button>' : '')+
-      (minha? '<button class="bt g mini" onclick="pesQuemVe()">🔒 Quem vê'+(quem.length?' · '+quem.length:'')+'</button>' : '')+
+      (minha || pesAdmin()? '<button class="bt g mini" onclick="pesQuemVe()">🔒 Quem vê'+(quem.length?' · '+quem.length:'')+'</button>' : '')+
     '</div></div>'+
     '<div class="kpis">'+
       kpi('Gasto pessoal', brl(tSai))+
@@ -696,33 +700,33 @@ function telaPessoais(){
 function pesHub(minhas){
   const eu = S.user.id;
   return '<div class="card"><h3 style="margin:0 0 4px">👤 DESPESAS PESSOAIS <span style="font-weight:400;color:var(--fraco);font-size:12px">· '+pfTexto()+'</span></h3>'+
-    '<div style="color:var(--fraco);font-size:12.5px">Cada pessoa tem a sua área. Você vê a sua e as que foram liberadas para você.</div></div>'+
+    '<div style="color:var(--fraco);font-size:12.5px">'+(pesAdmin()?'Administrador: você vê a área de todos.':'Cada pessoa tem a sua área. Você vê a sua e as que foram liberadas para você.')+'</div></div>'+
     '<div class="bxs">'+minhas.map(a=>{ const ms = S.movimentos.filter(m=>m.pessoal && m.pessoa_id===a.dono_id && pfOk(m) && m.tipo!=='entrada');
       const t = ms.reduce((s,x)=>s+(Number(x.valor)||0),0);
       return '<button type="button" class="bx" onclick="S.pesDono=\''+a.dono_id+'\';S.pesCat=\'\';render()"><div class="ic">👤</div>'+
-        '<div><b>'+esc(a.nome)+(a.dono_id===eu?' <span class="ptag">sua</span>':'')+'</b><small>'+brl(t)+' em '+pfTexto()+' · '+ms.length+' lançamento'+(ms.length===1?'':'s')+(a.dono_id===eu?'':' · liberada para você')+'</small></div><span class="seta">›</span></button>'; }).join('')+'</div>';
+        '<div><b>'+esc(a.nome)+(a.dono_id===eu?' <span class="ptag">sua</span>':'')+'</b><small>'+brl(t)+' em '+pfTexto()+' · '+ms.length+' lançamento'+(ms.length===1?'':'s')+(a.dono_id===eu||pesAdmin()?'':' · liberada para você')+'</small></div><span class="seta">›</span></button>'; }).join('')+'</div>';
 }
 /* v96: o dono da área escolhe quem vê (e lança) nas despesas pessoais dele */
 async function pesQuemVe(){
   if(!S.pesUsu){ const r = await sb.rpc('cpe_lista_usuarios'); if(r.error) return aviso('Não carregou os logins: '+r.error.message,'erro'); S.pesUsu = r.data||[]; }
-  S._pesSel = (S.pesAcesso||[]).filter(x=>x.dono_id===S.user.id).map(x=>x.usuario_id);
+  S._pesSel = (S.pesAcesso||[]).filter(x=>x.dono_id===S.pesDono).map(x=>x.usuario_id);
   pesQuemDesenhar();
 }
 function pesQuemDesenhar(){
-  const us = (S.pesUsu||[]).filter(u=>u.id!==S.user.id);
-  abrirModal('<h2>🔒 Quem vê as suas despesas pessoais</h2>'+
-    '<div style="color:var(--fraco);font-size:12.5px;margin-bottom:10px">Só você decide. Quem você marcar vê e lança na sua área. Ninguém mais vê — nem o administrador do sistema.</div>'+
+  const us = (S.pesUsu||[]).filter(u=>u.id!==S.pesDono && String(u.email||'').toLowerCase()!==PES_ADMIN), minha = S.pesDono===S.user.id;
+  abrirModal('<h2>🔒 Quem vê '+(minha?'as suas despesas pessoais':'as despesas pessoais de '+esc(pesNome(S.pesDono)))+'</h2>'+
+    '<div style="color:var(--fraco);font-size:12.5px;margin-bottom:10px">Quem for marcado vê e lança nesta área. Além dele, só o dono da área e o administrador (Renato).</div>'+
     '<div class="pgrid">'+us.map(u=>permChk(S._pesSel.indexOf(u.id)>=0, esc(u.nome||u.email), "pesQuemTog('"+u.id+"')", esc(u.email||''))).join('')+'</div>'+
     '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="pesQuemSalvar()">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
 }
 function pesQuemTog(id){ const i = S._pesSel.indexOf(id); if(i>=0) S._pesSel.splice(i,1); else S._pesSel.push(id); pesQuemDesenhar(); }
 async function pesQuemSalvar(){
-  const eu = S.user.id, antes = (S.pesAcesso||[]).filter(x=>x.dono_id===eu).map(x=>x.usuario_id);
+  const eu = S.pesDono, antes = (S.pesAcesso||[]).filter(x=>x.dono_id===eu).map(x=>x.usuario_id);
   const tirar = antes.filter(x=>S._pesSel.indexOf(x)<0), por = S._pesSel.filter(x=>antes.indexOf(x)<0);
   if(tirar.length){ const d = await sb.from('pessoais_acesso').delete().eq('dono_id',eu).in('usuario_id',tirar); if(d.error) return aviso('Não salvou: '+d.error.message,'erro'); }
   if(por.length){ const i = await sb.from('pessoais_acesso').insert(por.map(u=>({ dono_id:eu, usuario_id:u }))); if(i.error) return aviso('Não salvou: '+i.error.message,'erro'); }
   await pesCarregar(); S.modal = null;
-  aviso(S._pesSel.length ? 'Liberado para '+S._pesSel.length+' pessoa'+(S._pesSel.length===1?'':'s')+'.' : 'Agora só você vê as suas despesas pessoais.','ok');
+  aviso(S._pesSel.length ? 'Liberado para '+S._pesSel.length+' pessoa'+(S._pesSel.length===1?'':'s')+'.' : 'Ninguém além do dono e do administrador vê esta área.','ok');
 }
 function pesFiltro(i){ const c = (S._pesCats||[])[i]||''; S.pesCat = S.pesCat===c ? '' : c; render(); }
 async function pesSetCat(id, c){
