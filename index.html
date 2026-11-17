@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v98">
+<meta name="rf-versao" content="v99">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -92,6 +92,8 @@
   .resumo .seta{color:var(--ouro);font-size:12px}
   /* v72: lista de despesas pessoais vira cartão no celular */
   @media (max-width:640px){ .pestab thead{display:none} .pestab tr{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--linha)}
+      .pesacoes{display:flex;gap:8px;flex-wrap:wrap} .pesbt{cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin:0}
+  @media (max-width:640px){ .pesacoes{display:grid;grid-template-columns:1fr 1fr} .pesacoes .pesbt{justify-content:center;padding:12px 8px} }
     .pestab td{border:0!important;padding:0!important} .pestab td:nth-child(1){grid-column:1;color:var(--fraco);font-size:12px} .pestab td:nth-child(5){grid-column:2;grid-row:1/3;align-self:start}
     .pestab td:nth-child(2){grid-column:1} .pestab td:nth-child(3){grid-column:1/3} .pestab td:nth-child(4){display:none} .pestab td:nth-child(6){grid-column:1/3} .pestab select{width:100%} }
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
@@ -198,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v98',
+  versao : 'v99',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -662,8 +664,18 @@ function telaPessoais(){
     '</div></div>';
 
   h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+ pfBarra()+
-    (podeEditar()? '<button class="bt" onclick="abrirLancamento(\'saida\',null,true)">− Lançar despesa pessoal</button>'+
-      '<button class="bt g" onclick="irPara(\'fila\')">📌 Trazer da fila</button>' : '')+'</div>';
+    '</div>'+
+    /* v99 (Renato, 17/11/2026): tirar foto, anexar foto/PDF e importar extrato direto na área da pessoa */
+    '<div class="card"><div style="font-size:12.5px;color:var(--fraco);margin-bottom:8px">Lançar na área de <b>'+esc(area.nome)+'</b> — o sistema lê a nota sozinho e você só confere.</div>'+
+    '<div class="pesacoes">'+
+      '<input type="file" id="pes-foto" accept="image/*" capture="environment" onchange="pesArquivo(this)" hidden>'+
+      '<input type="file" id="pes-arq" accept="image/*,application/pdf" onchange="pesArquivo(this)" hidden>'+
+      '<button type="button" class="bt pesbt" onclick="document.getElementById(\'pes-foto\').click()">📷 Tirar foto</button>'+
+      '<button type="button" class="bt g pesbt" onclick="document.getElementById(\'pes-arq\').click()">📎 Anexar foto ou PDF</button>'+
+      '<button class="bt g pesbt" onclick="abrirExtrato(S.pesDono)">📄 Importar extrato / fatura</button>'+
+      '<button class="bt g pesbt" onclick="abrirLancamento(\'saida\',null,true)">✍️ Lançar à mão</button>'+
+      '<button class="bt g pesbt" onclick="irPara(\'fila\')">📌 Trazer da fila</button>'+
+    '</div></div>';
 
   if(!doPer.length) return h+'<div class="card"><div class="vazio">Nenhuma despesa pessoal em '+pfTexto()+'.<br>Lance à mão ou, na fila "Apontar depois", escolha <b>👤 Despesa pessoal</b>.</div></div>';
 
@@ -727,6 +739,14 @@ async function pesQuemSalvar(){
   if(por.length){ const i = await sb.from('pessoais_acesso').insert(por.map(u=>({ dono_id:eu, usuario_id:u }))); if(i.error) return aviso('Não salvou: '+i.error.message,'erro'); }
   await pesCarregar(); S.modal = null;
   aviso(S._pesSel.length ? 'Liberado para '+S._pesSel.length+' pessoa'+(S._pesSel.length===1?'':'s')+'.' : 'Ninguém além do dono e do administrador vê esta área.','ok');
+}
+function pesArquivo(inp){
+  const f = inp.files && inp.files[0]; if(!f) return;
+  abrirLancamento('saida', null, true);
+  const alvo = document.getElementById('mv-arq');
+  try{ const dt = new DataTransfer(); dt.items.add(f); alvo.files = dt.files; }catch(e){}
+  inp.value = '';
+  if(alvo && alvo.files && alvo.files[0]) lerDocumento(); else lerDocumentoArquivo(f);
 }
 function pesFiltro(i){ const c = (S._pesCats||[])[i]||''; S.pesCat = S.pesCat===c ? '' : c; render(); }
 async function pesSetCat(id, c){
@@ -1061,8 +1081,10 @@ function abrirLancamento(tipo, m, pre){
     '<div style="color:var(--fraco);font-size:12px;margin-bottom:8px">'+
       'Pode ficar sem empresa e ir para a fila "Apontar depois".'+'</div>'+
     '<input type="hidden" id="mv-tipo" value="'+t+'">'+
-    (podeEditar()? '<div class="card" style="background:var(--fundo2);margin-bottom:12px">'+
+    (podeEditar() || _prePessoal || (m && m.pessoal)? '<div class="card" style="background:var(--fundo2);margin-bottom:12px">'+
       '<label>Anexar nota (PDF ou foto) — o sistema tenta ler sozinho</label>'+
+      '<input type="file" id="mv-foto" accept="image/*" capture="environment" hidden onchange="mvFoto(this)">'+
+      '<button type="button" class="bt mini" style="margin:0 0 8px" onclick="document.getElementById(\'mv-foto\').click()">📷 Tirar foto da nota</button>'+
       '<input type="file" id="mv-arq" accept="image/*,application/pdf" onchange="lerDocumento()">'+
       '<div id="mv-leitura" style="font-size:12px;color:var(--fraco);margin-top:6px"></div></div>' : '')+
     '<div class="lin">'+
@@ -1156,9 +1178,14 @@ async function excluirMov(id){
 let _arquivoPendente = null, _lidoPorIA = false;
 function statusLeitura(t){ const e=document.getElementById('mv-leitura'); if(e) e.innerHTML=t; }
 
+function mvFoto(inp){ const f = inp.files && inp.files[0]; if(!f) return; const alvo = document.getElementById('mv-arq');
+  try{ const dt = new DataTransfer(); dt.items.add(f); alvo.files = dt.files; }catch(e){}
+  inp.value = ''; if(alvo && alvo.files && alvo.files[0]) lerDocumento(); else lerDocumentoArquivo(f); }
+function lerDocumentoArquivo(f){ _mvArqForcado = f; lerDocumento(); }
+var _mvArqForcado = null;
 async function lerDocumento(){
   const inp = document.getElementById('mv-arq');
-  const f = inp && inp.files && inp.files[0];
+  const f = (inp && inp.files && inp.files[0]) || _mvArqForcado; _mvArqForcado = null;
   if(!f) return;
   _arquivoPendente = f; _lidoPorIA = false;
   statusLeitura('Lendo o documento…');
@@ -1173,7 +1200,8 @@ async function lerDocumento(){
         _arquivoPendente = null;
         const e = document.getElementById('mv-arq'); if(e) e.value = '';
         statusLeitura('<b>Isso é um extrato</b> ('+linhasExtrato.length+' lançamentos) — não cabe num lançamento só.<br>'+
-          '<button class="bt mini" style="margin-top:8px" onclick="fecharModal();irPara(\'origens\');abrirExtrato()">Abrir a importação de extrato</button>');
+          (_prePessoal || (_edit && _edit.pessoal) ? '<button class="bt mini" style="margin-top:8px" onclick="fecharModal();abrirExtrato(S.pesDono)">Importar este extrato na área pessoal</button>'
+            : '<button class="bt mini" style="margin-top:8px" onclick="fecharModal();irPara(\'origens\');abrirExtrato()">Abrir a importação de extrato</button>'));
         return;
       }
       if(texto && texto.replace(/\s/g,'').length > 40){ dados = extrairDoTexto(texto); statusLeitura('Lido do PDF (sem custo de IA).'); }
@@ -1546,11 +1574,12 @@ async function salvarEmpresa(){
 /* ===================== EXTRATO ===================== */
 let _extrato = null;
 
-function abrirExtrato(){
-  _extrato = null;
-  abrirModal('<h2>Importar extrato ou fatura</h2>'+
+var _exPessoa = null;   // v99: extrato importado direto numa área de Despesas pessoais
+function abrirExtrato(pessoa){
+  _extrato = null; _exPessoa = (typeof pessoa==='string' && pessoa) ? pessoa : null;
+  abrirModal('<h2>Importar extrato ou fatura'+(_exPessoa?' — '+esc(pesNome(_exPessoa)):'')+'</h2>'+
     '<div class="aviso">Anexe o PDF do extrato do banco ou da fatura do cartão. O sistema lê os lançamentos direto do arquivo, '+
-    'sem custo de IA. As saídas entram sem empresa e ficam na fila "Apontar depois".</div>'+
+    'sem custo de IA. '+(_exPessoa ? 'Tudo entra direto nas Despesas pessoais de <b>'+esc(pesNome(_exPessoa))+'</b> — nada vai para os CNPJs nem para a fila.' : 'As saídas entram sem empresa e ficam na fila "Apontar depois".')+'</div>'+
     '<input type="file" id="ex-arq" accept="application/pdf" onchange="lerExtrato()">'+
     '<div id="ex-status" style="font-size:12.5px;color:var(--fraco);margin-top:10px"></div>'+
     '<div id="ex-corpo"></div>'+
@@ -1938,7 +1967,7 @@ function desenharExtrato(conferencia){
         S.origens.map(o=>'<option value="'+o.id+'"'+(origemSel===o.id?' selected':'')+'>'+esc(o.nome)+(o.identificador?' ·'+esc(o.identificador):'')+'</option>').join('')+
       '</select>'+
       (cab.titular? '<div style="color:var(--fraco);font-size:12px;margin-top:4px">titular no extrato: '+esc(cab.titular)+'</div>':'')+
-      (ent.length? '<label>Empresa das entradas (opcional — em branco, vão para a fila)</label>'+
+      (ent.length && !_exPessoa? '<label>Empresa das entradas (opcional — em branco, vão para a fila)</label>'+
         '<select id="ex-empresa"><option value="">— deixar na fila, apontar depois —</option>'+
           S.empresas.map(e=>'<option value="'+e.id+'"'+(empresaSel===e.id?' selected':'')+'>'+esc(e.apelido||e.razao_social)+'</option>').join('')+
         '</select>' : '')+
@@ -1989,6 +2018,7 @@ async function importarExtrato(){
                      descricao:l.descricao, fornecedor:l.contraparte||null,
                      pago: !daFatura, data_pagamento: daFatura ? null : l.data,
                      vencimento: l.vencimento || null, criado_por:S.user.id };
+      if(_exPessoa){ base.pessoal = true; base.pessoa_id = _exPessoa; base.empresa_id = null; return base; }   // v99
       const sug = sugerirEmpresa({ fornecedor:l.contraparte, origem_id:origemId });
       if(l.tipo==='entrada' && empresaEnt) base.empresa_id = empresaEnt;
       else if(sug) base.empresa_id = sug;
@@ -2007,8 +2037,8 @@ async function importarExtrato(){
     gravados += (data||[]).length;
     statusExtrato('Gravando… '+gravados+' de '+novos.length);
   }
-  _extrato = null; S.modal = null;
-  aviso(gravados+' lançamentos importados. O que ficou sem empresa está em "Apontar depois".','ok');
+  const pp = _exPessoa; _extrato = null; _exPessoa = null; S.modal = null;
+  aviso(pp ? gravados+' lançamentos importados nas Despesas pessoais de '+pesNome(pp)+'.' : gravados+' lançamentos importados. O que ficou sem empresa está em "Apontar depois".','ok');
 }
 
 function abrirOrigem(id){
