@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v103">
+<meta name="rf-versao" content="v104">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v103',
+  versao : 'v104',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -283,7 +283,7 @@ async function iniciar(){
   const tokA = new URLSearchParams(location.search).get('a');
   if(tokA){ S.anesTok = tokA; S.av = { mes: hojeISO().slice(0,7), dados:null }; render(); anesCarregar(); return; }
   const { data } = await sb.auth.getSession();
-  if(data && data.session){ S.user = data.session.user; await carregarTudo(); }
+  if(data && data.session){ S.user = data.session.user; await carregarTudo(); syncLigar(); }
   render();
 }
 
@@ -312,10 +312,24 @@ async function entrar(){
   S.user = data.user;
   await carregarTudo();
   render();
+  syncLigar();
 }
-async function sair(){ await sb.auth.signOut(); S.user=null; S.perfil=null; S.movimentos=[]; S.empresas=[]; S.esc.carregado=false; S.tela='inicio'; render(); }
+async function sair(){ syncDesligar(); await sb.auth.signOut(); S.user=null; S.perfil=null; S.movimentos=[]; S.empresas=[]; S.esc.carregado=false; S.tela='inicio'; render(); }
 
 /* ===================== carga ===================== */
+/* v104: o banco entrega no máximo 1000 linhas por consulta — com mais de 1000 movimentos, cada login via só
+   uma parte (e cada um uma parte diferente). Agora a leitura vem em páginas de 1000 até trazer tudo. */
+async function lerTudo(consulta){
+  let todos = [], de = 0;
+  for(;;){
+    const r = await consulta().range(de, de + 999);
+    if(r.error) return r;
+    todos = todos.concat(r.data || []);
+    if(!r.data || r.data.length < 1000) break;
+    de += 1000;
+  }
+  return { data: todos, error: null };
+}
 async function carregarTudo(){
   S.carregando = true; render();
   try{
@@ -328,7 +342,7 @@ async function carregarTudo(){
     const [emp, ori, mov, reg] = await Promise.all([
       sb.from('empresas').select('*').order('razao_social'),
       sb.from('origens').select('*').order('nome'),
-      sb.from('movimentos').select('*').order('data_movimento',{ascending:false}).limit(4000),
+      lerTudo(()=>sb.from('movimentos').select('*').order('data_movimento',{ascending:false}).order('id')),
       sb.from('regras_fornecedor').select('*')
     ]);
     S.empresas   = emp.data || [];
@@ -897,9 +911,17 @@ async function apontarIds(ids, sufixo){
   const pid = pesDestino(empresa), ehP = !!pid;
   const upd = ehP ? { pessoal:true, empresa_id:null, pessoa_id:pid } : { empresa_id:empresa };
   if(cat) upd.categoria = cat;
-  const { error } = await sb.from('movimentos').update(upd).in('id', ids);
+  // v104: só aponta o que AINDA está na fila — se outra pessoa apontou antes, não sobrescreve
+  const { data:feitos, error } = await sb.from('movimentos').update(upd).in('id', ids).is('empresa_id', null).or('pessoal.is.null,pessoal.eq.false').select('id');
   if(error) return aviso('Não gravou: '+error.message,'erro');
-  movs.forEach(m=>{ Object.assign(m, upd); if(ehP && !cat) m.categoria = pesCatDe(m); });
+  const ok = new Set((feitos||[]).map(r=>r.id));
+  movs.forEach(m=>{ if(ok.has(m.id)){ Object.assign(m, upd); if(ehP && !cat) m.categoria = pesCatDe(m); } });
+  if(ok.size < ids.length){
+    S.filaAberto = '';
+    aviso((ids.length-ok.size)+' lançamento(s) já tinham sido apontados por outra pessoa — não mexi neles. Atualizando a tela…','erro');
+    await atualizarSilencioso(true);
+    if(!ok.size) return;
+  }
   if(!ehP && chk('regra-'+sufixo)){
     const m = movs[0];
     const chave = soDig(m.cnpj_fornecedor) || m.fornecedor || m.origem_id;
@@ -1050,7 +1072,7 @@ async function definirNome(chave, nome){
   let movidos = 0;
   if(pendentes.length){
     const ids = pendentes.map(m=>m.id);
-    const { error:e2 } = await sb.from('movimentos').update({ empresa_id:empresa }).in('id', ids);
+    const { error:e2 } = await sb.from('movimentos').update({ empresa_id:empresa }).in('id', ids).is('empresa_id', null).or('pessoal.is.null,pessoal.eq.false');
     if(e2) return aviso('Regra salva, mas não movi a fila: '+e2.message,'erro');
     pendentes.forEach(m=>{ m.empresa_id = empresa; movidos++; });
   }
@@ -2408,7 +2430,7 @@ async function escCarregar(){
   const [l,a,d] = await Promise.all([
     sb.from('esc_locais').select('*').order('unidade'),
     sb.from('esc_anestesistas').select('*').eq('grupo', escGrupo()).order('nome'),
-    sb.from('esc_dias').select('*').eq('grupo', escGrupo()).order('data').limit(5000)
+    lerTudo(()=>sb.from('esc_dias').select('*').eq('grupo', escGrupo()).order('data').order('id'))
   ]);
   if(l.error) throw l.error;
   S.esc.locais = (l.data||[]).filter(x=>veHosp(escHospNome(x)));   // v69: só os hospitais liberados para este login
@@ -3570,7 +3592,7 @@ async function atualizarSilencioso(forcar){
       const [emp, ori, mov, reg] = await Promise.all([
         sb.from('empresas').select('*').order('razao_social'),
         sb.from('origens').select('*').order('nome'),
-        sb.from('movimentos').select('*').order('data_movimento',{ascending:false}).limit(4000),
+        lerTudo(()=>sb.from('movimentos').select('*').order('data_movimento',{ascending:false}).order('id')),
         sb.from('regras_fornecedor').select('*')
       ]);
       if(!emp.error) S.empresas = emp.data||[]; if(!ori.error) S.origens = ori.data||[];
@@ -3582,8 +3604,25 @@ async function atualizarSilencioso(forcar){
     if(S.saldo) S.saldo.carregado = false;
   }catch(e){}
   _atuRodando = false;
-  if(forcar || !cpeOcupado()) render();
+  if(_syncDeNovo){ _syncDeNovo = false; return atualizarSilencioso(true); }
+  if(!cpeOcupado()) render(); else _renderPend = true;
 }
+/* v104 (Renato, 17/11/2026: "vão mexer juntas e atualizar juntas e não pode dar divergência"):
+   TEMPO REAL — qualquer gravação em movimentos/regras/escala/procedimentos/empresas/origens dispara um gatilho no banco
+   que mexe na tabela cpe_sinal; todas as telas abertas escutam essa tabela e recarregam os dados na hora.
+   Se a pessoa estiver digitando ou com uma janela aberta, os dados já chegam e a tela redesenha assim que ela terminar. */
+var _syncDeNovo = false, _renderPend = false, _syncTimer = null, _syncCanal = null;
+function syncLigar(){
+  if(_syncCanal || !S.user || S.anesTok) return;
+  _syncCanal = sb.channel('cpe-sinal').on('postgres_changes', { event:'UPDATE', schema:'public', table:'cpe_sinal' }, ()=>{
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(()=>{ if(_atuRodando) _syncDeNovo = true; else atualizarSilencioso(true); }, 700);
+  }).subscribe(st=>{ if(st==='CHANNEL_ERROR' || st==='TIMED_OUT'){ try{ sb.removeChannel(_syncCanal); }catch(e){} _syncCanal = null; setTimeout(syncLigar, 5000); }
+                     if(st==='SUBSCRIBED') atualizarSilencioso(true); });
+}
+function syncDesligar(){ if(_syncCanal){ try{ sb.removeChannel(_syncCanal); }catch(e){} _syncCanal = null; } }
+setInterval(()=>{ if(_renderPend && !cpeOcupado()){ _renderPend = false; render(); } }, 1200);
+setInterval(()=>{ if(S.user && !S.anesTok && !_syncCanal) syncLigar(); }, 10000);
 async function atualizarAgora(){ aviso('Atualizando…','ok'); await checarVersao(); await atualizarSilencioso(true); aviso('Atualizado.','ok'); }
 setInterval(()=>{ if(document.visibilityState!=='visible') return; checarVersao(); if(Date.now()-_atuUlt > 120000) atualizarSilencioso(); }, 60000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ checarVersao(); if(Date.now()-_atuUlt > 20000) atualizarSilencioso(); } });
