@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v101">
+<meta name="rf-versao" content="v103">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v101',
+  versao : 'v103',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3028,7 +3028,8 @@ function escAbrirData(iso, localId){
       '<div style="width:120px"><select title="Turno"'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'turno\',this.value||null)">'+['','M','T','N','MT','TN','MN','MTN'].map(t=>'<option value="'+t+'"'+(escTurnoNorm(x.turno)===t?' selected':'')+'>'+(t?escTurnoLongo(t).replace(/ \d.*?h(?= \+|$)/g,''):'Dia todo')+'</option>').join('')+'</select></div>'+
       '<div style="width:105px"><input type="number" step="0.01" inputmode="decimal" placeholder="R$"'+(ed?'':' disabled')+' value="'+(x.valor!=null?x.valor:'')+'" style="text-align:right" onchange="escDataSet(\''+x.id+'\',\'valor\',this.value===\'\'?null:Number(this.value))"></div>'+
       '<div style="width:140px"><select'+(ed?'':' disabled')+' onchange="escDataSet(\''+x.id+'\',\'empresa_id\',this.value||null)">'+escOptsEmp(x.empresa_id)+'</select></div>'+
-      (escValidado(x)?'<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>':'<span style="font-size:12px;color:var(--fraco)">'+(x.validacao==='nao_fiz'?'✖ cancelou':'⏳ falta confirmar')+'</span>')+'</div>';
+      (escValidado(x)?'<label style="display:flex;gap:5px;align-items:center;text-transform:none;margin:0"><input type="checkbox" style="width:20px;height:20px"'+(ed?'':' disabled')+(x.pago?' checked':'')+' onchange="escDataPago(\''+x.id+'\',this.checked)"> pago</label>':'<span style="font-size:12px;color:var(--fraco)">'+(x.validacao==='nao_fiz'?'✖ cancelou':'⏳ falta confirmar')+'</span>')+
+      '<div style="flex-basis:100%">'+procBotao(x, ed)+'</div></div>';
   }).join('');
 
   abrirModal('<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><button class="bt g mini" onclick="escDataMover(-1)">‹</button>'+
@@ -3036,6 +3037,7 @@ function escAbrirData(iso, localId){
     '<div style="display:flex;gap:12px;padding:8px 0;border-bottom:2px solid var(--texto);margin-top:10px;font-size:12px;font-weight:800;color:var(--fraco)"><div style="width:150px">ANESTESISTA</div><div>LOCAIS NESTA DATA</div></div>'+
     (escala || '<div class="vazio">Ninguém escalado nesta data ainda.</div>')+
     montar+
+    (det && _escDet ? procPrecarregar(ds) : '')+
     (det ? '<div style="margin-top:14px"><a href="#" onclick="_escDet=!_escDet;escAbrirData(\''+iso+'\');return false" style="font-size:13px">'+(_escDet?'▾':'▸')+' Valores e pagamento</a>'+(_escDet?'<div style="margin-top:6px">'+det+'</div>':'')+'</div>' : '')+
     '<div style="margin-top:14px"><button class="bt g" onclick="_escDataAberta=null;fecharModal()">Fechar</button></div>');
 }
@@ -3068,6 +3070,147 @@ function escDataMover(n){ const d = new Date(_escDataAberta+'T12:00:00'); d.setD
 async function escDataSet(id, campo, valor){ const c={}; c[campo]=valor; if(await escSalvarDia(id, c)) escAbrirData(_escDataAberta); }
 async function escAprovar(id){ if(await escSalvarDia(id, { aprovado: true })) escAbrirData(_escDataAberta); }
 async function escDataPago(id, on){ const dd = S.esc.dias.find(x=>x.id===id); if(on && !escValidado(dd)){ aviso('Só pode marcar pago depois que o anestesista validar o plantão.','erro'); escAbrirData(_escDataAberta); return; } if(await escSalvarDia(id, { pago: !!on, pago_em: on ? hojeISO() : null })) escAbrirData(_escDataAberta); }
+/* ===== v103 (Renato, 17/11/2026): PROCEDIMENTOS DO PLANTÃO — "preciso dizer o procedimento para fazer o pagamento".
+   Cada plantão pode ter a lista de pacientes/procedimentos (tabela esc_procedimentos). O valor do procedimento sai
+   da tabela de preços do hospital (Hospitais › serviços com nome + sigla, ex.: Colecistectomia videolaparoscópica · CVL · 500);
+   quando o hospital não tem preço para aquele procedimento, digita-se o valor. O valor do plantão vira a SOMA dos realizados.
+   A lista pode ser lida pela FOTO do mapa cirúrgico / relatório do hospital (Edge Function ler-procedimentos). */
+S.esc.proc = S.esc.proc || {};
+var _procCarregando = false, _proc = null;
+function procPrecarregar(ds){
+  S.esc.proc = S.esc.proc || {};
+  const falta = ds.filter(x=>x.id && x.anestesista_id && !S.esc.proc[x.id]).map(x=>x.id);
+  if(!falta.length || _procCarregando) return '';
+  _procCarregando = true;
+  sb.from('esc_procedimentos').select('*').in('dia_id', falta).order('ordem').then(r=>{
+    _procCarregando = false; if(r.error) return;
+    falta.forEach(id=>{ S.esc.proc[id] = []; }); (r.data||[]).forEach(p=>S.esc.proc[p.dia_id].push(p));
+    if(_escDataAberta && !_proc) escAbrirData(_escDataAberta);
+  });
+  return '';
+}
+function procBotao(x, ed){
+  S.esc.proc = S.esc.proc || {};
+  const l = S.esc.proc[x.id], h = hospDoLocal(x.local_id);
+  if(!l) return '';
+  const real = l.filter(p=>p.situacao!=='cancelado'), soma = real.reduce((t,p)=>t+(+p.valor||0),0);
+  if(!l.length && !ed) return '';
+  return '<button type="button" class="bt g mini" onclick="procAbrir(\''+x.id+'\')">'+
+    (l.length ? 'Procedimentos: '+real.length+' realizado'+(real.length===1?'':'s')+' · '+brl(soma) : '+ Procedimentos'+(h && h.forma_pagamento==='procedimento' ? ' (paga por procedimento)' : ''))+'</button>';
+}
+function procNorm(t){ return norm(t).replace(/\bVIDEO\s*LAPAROSCOPICA\b/g,'VIDEOLAPAROSCOPICA'); }
+/* acha o serviço do hospital que corresponde ao texto da lista: pela sigla ou pelas palavras do nome */
+function procServico(h, texto){
+  const t = procNorm(texto), tw = t.split(' '), sv = hospServicos(h);
+  let melhor = null, nota = 0;
+  sv.forEach(s=>{
+    let n = 0;
+    const sig = String(s.sigla||'').toUpperCase().trim();
+    if(sig && (tw.indexOf(sig)>=0 || t===sig)) n += 10;
+    procNorm(s.nome).split(' ').filter(w=>w.length>=5).forEach(w=>{ const r = w.slice(0,7); if(tw.some(x=>x.slice(0,7)===r)) n += 1; });
+    if(n > nota){ nota = n; melhor = s; }
+  });
+  return nota > 0 ? melhor : null;
+}
+function procAbrir(diaId){
+  const d = S.esc.dias.find(x=>x.id===diaId); if(!d) return;
+  _proc = { diaId, itens: (S.esc.proc[diaId]||[]).map(p=>Object.assign({}, p)), st:'' };
+  procDesenhar();
+}
+function procGuardar(){
+  if(!_proc) return;
+  _proc.itens.forEach((p,i)=>{ const g = k=>document.getElementById('pr-'+k+'-'+i); if(!g('pr')) return;
+    p.paciente = g('pa').value.trim(); p.idade = g('id').value==='' ? null : Number(g('id').value);
+    p.procedimento = g('pr').value.trim(); p.valor = g('vl').value==='' ? null : Number(g('vl').value); p.situacao = g('si').value; });
+}
+function procDesenhar(){
+  const d = S.esc.dias.find(x=>x.id===_proc.diaId), h = hospDoLocal(d.local_id), ed = podeEditar(), ro = ed ? '' : ' disabled';
+  const a = escAnes(d.anestesista_id)||{nome:'?'}, sv = hospServicos(h).filter(s=>s.valor!=null);
+  const real = _proc.itens.filter(p=>p.situacao!=='cancelado'), soma = real.reduce((t,p)=>t+(+p.valor||0),0);
+  const semPreco = real.filter(p=>p.valor==null).length;
+  const linha = (p,i)=>'<tr style="'+(p.situacao==='cancelado'?'opacity:.5;':'')+'">'+
+    '<td style="width:28px;color:var(--fraco)">'+(i+1)+'</td>'+
+    '<td><input id="pr-pa-'+i+'"'+ro+' value="'+esc(p.paciente||'')+'" placeholder="Paciente" style="margin:0;min-width:170px"></td>'+
+    '<td style="width:62px"><input id="pr-id-'+i+'"'+ro+' type="number" value="'+(p.idade==null?'':p.idade)+'" placeholder="idade" style="margin:0"></td>'+
+    '<td><input id="pr-pr-'+i+'"'+ro+' list="pr-servs" value="'+esc(p.procedimento||'')+'" onchange="procTrocaProc('+i+')" style="margin:0;min-width:200px"></td>'+
+    '<td style="width:105px"><input id="pr-vl-'+i+'"'+ro+' type="number" step="0.01" inputmode="decimal" value="'+(p.valor==null?'':p.valor)+'" placeholder="R$" style="margin:0;text-align:right'+(p.valor==null&&p.situacao!=='cancelado'?';border-color:var(--vermelho)':'')+'"></td>'+
+    '<td style="width:118px"><select id="pr-si-'+i+'"'+ro+' onchange="procGuardar();procDesenhar()" style="margin:0"><option value="realizado"'+(p.situacao!=='cancelado'?' selected':'')+'>Realizado</option><option value="cancelado"'+(p.situacao==='cancelado'?' selected':'')+'>Cancelado</option></select></td>'+
+    (ed?'<td style="width:34px"><button class="bt g mini" onclick="procDel('+i+')">×</button></td>':'')+'</tr>'+
+    (p.obs?'<tr><td></td><td colspan="5" style="font-size:11.5px;color:var(--fraco);padding-top:0">obs. da lista: '+esc(p.obs)+'</td></tr>':'');
+  abrirModal('<style>.modal{max-width:980px}.prt{width:100%;border-collapse:collapse}.prt td{padding:4px 3px;vertical-align:middle}.prt input,.prt select{padding:7px 8px;width:100%}</style>'+
+    '<h2 style="margin:0">Procedimentos</h2>'+
+    '<div style="color:var(--fraco);font-size:13.5px;margin:4px 0 10px"><b style="color:var(--texto)">'+esc(a.nome)+'</b> · '+esc(escLocal(d.local_id).unidade||'')+' · '+dataBR(d.data)+esc(escTurno(d))+'</div>'+
+    '<div style="font-size:12.5px;margin-bottom:10px;padding:8px 10px;border-radius:9px;background:var(--campo)">'+
+      (sv.length ? 'Tabela de preços de <b>'+esc(h.nome)+'</b>: '+sv.map(s=>esc(s.sigla?s.sigla:s.nome)+' '+brl(+s.valor)).join(' · ')
+                 : '<b>'+esc(h?h.nome:'Este hospital')+'</b> não tem tabela de preços — digite o valor de cada procedimento (ou cadastre os preços em 🏥 Hospitais).')+'</div>'+
+    (ed?'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+
+      '<button type="button" class="bt mini" onclick="document.getElementById(\'pr-foto\').click()">'+icoCamDoc()+'Ler foto da lista</button>'+
+      '<button type="button" class="bt g mini" onclick="document.getElementById(\'pr-arq\').click()">Galeria / PDF</button>'+
+      '<button type="button" class="bt g mini" onclick="procAdd()">+ procedimento</button>'+
+      '<input type="file" id="pr-foto" accept="image/*" capture="environment" hidden onchange="procLerFoto(this)">'+
+      '<input type="file" id="pr-arq" accept="image/*,application/pdf" multiple hidden onchange="procLerFoto(this)">'+
+      '<span id="pr-st" style="font-size:12.5px;color:var(--fraco)">'+(_proc.st||'Mapa cirúrgico, lista de atendimentos ou relatório do hospital — pode ser mais de uma foto.')+'</span></div>':'')+
+    '<datalist id="pr-servs">'+hospServicos(h).map(s=>'<option value="'+esc(s.nome)+'">').join('')+'</datalist>'+
+    (_proc.itens.length ? '<div style="max-height:52vh;overflow:auto"><table class="prt">'+_proc.itens.map(linha).join('')+'</table></div>'
+                        : '<div class="vazio">Nenhum procedimento ainda. Leia a foto da lista ou toque em <b>+ procedimento</b>.</div>')+
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:2px solid var(--texto)">'+
+      '<div><b>'+real.length+'</b> realizado'+(real.length===1?'':'s')+(_proc.itens.length-real.length?' · '+(_proc.itens.length-real.length)+' cancelado(s)':'')+'</div>'+
+      '<div style="font-size:18px"><b>Total do plantão: '+brl(soma)+'</b></div>'+
+      (semPreco?'<div style="color:var(--vermelho);font-size:12.5px">'+semPreco+' sem valor (em vermelho)</div>':'')+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">'+
+      (ed?'<button class="bt" onclick="procSalvar()">Salvar e lançar '+brl(soma)+' no plantão</button>':'')+
+      '<button class="bt g" onclick="_proc=null;escAbrirData(_escDataAberta)">Voltar</button></div>');
+}
+function procTrocaProc(i){
+  procGuardar(); const d = S.esc.dias.find(x=>x.id===_proc.diaId), p = _proc.itens[i], s = procServico(hospDoLocal(d.local_id), p.procedimento);
+  if(s && s.valor!=null) p.valor = +s.valor; procDesenhar();
+}
+function procAdd(){ procGuardar(); _proc.itens.push({ paciente:'', idade:null, procedimento:'', valor:null, situacao:'realizado', obs:'' }); procDesenhar(); }
+function procDel(i){ procGuardar(); _proc.itens.splice(i,1); procDesenhar(); }
+async function procLerFoto(inp){
+  const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
+  const st = t=>{ const e = document.getElementById('pr-st'); if(e) e.innerHTML = t; };
+  try{
+    procGuardar(); st('Preparando a foto…');
+    const imagens = [];
+    for(const f of arqs.slice(0,6)){
+      const buf = await f.arrayBuffer(); if(!buf.byteLength) throw new Error('a foto veio vazia do seletor — tente pela Galeria');
+      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).forEach(x=>imagens.push(x));
+      else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' });
+    }
+    st('Lendo a lista… (uns 15 a 40 segundos)');
+    const { data, error } = await sb.functions.invoke('ler-procedimentos', { body: { imagens: imagens.slice(0,6) } });
+    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
+    if(data && data.error) throw new Error(data.error);
+    const d = S.esc.dias.find(x=>x.id===_proc.diaId), h = hospDoLocal(d.local_id);
+    const itens = (data && data.itens) || []; if(!itens.length) throw new Error('não achei nenhum procedimento na foto');
+    let semP = 0;
+    itens.forEach(x=>{ const s = procServico(h, x.procedimento); const v = s && s.valor!=null ? +s.valor : null; if(v==null && x.situacao!=='cancelado') semP++;
+      _proc.itens.push({ paciente:x.paciente, idade:x.idade, procedimento: s ? s.nome : x.procedimento, valor:v, situacao:x.situacao, obs:x.obs||'' }); });
+    const aviso2 = data.data && data.data!==String(d.data).slice(0,10) ? ' <b style="color:var(--vermelho)">Atenção: a lista é de '+dataBR(data.data)+'.</b>' : '';
+    _proc.st = '<span style="color:var(--verde,#0f9d58)">✔ '+itens.length+' procedimento(s) lido(s)'+(semP?' — '+semP+' sem preço na tabela, digite o valor':'')+'. Confira e salve.</span>'+aviso2;
+    procDesenhar();
+  }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value = ''; }
+}
+async function procSalvar(){
+  procGuardar();
+  const id = _proc.diaId, itens = _proc.itens.filter(p=>p.procedimento);
+  const r1 = await sb.from('esc_procedimentos').delete().eq('dia_id', id);
+  if(r1.error) return aviso('Não gravou: '+r1.error.message,'erro');
+  let novos = [];
+  if(itens.length){
+    const r2 = await sb.from('esc_procedimentos').insert(itens.map((p,i)=>({ dia_id:id, ordem:i+1, paciente:p.paciente||null, idade:p.idade, procedimento:p.procedimento,
+      valor:p.valor, situacao:p.situacao==='cancelado'?'cancelado':'realizado', obs:p.obs||null }))).select();
+    if(r2.error) return aviso('Não gravou: '+r2.error.message,'erro');
+    novos = r2.data||[];
+  }
+  S.esc.proc[id] = novos.sort((a,b)=>a.ordem-b.ordem);
+  const soma = itens.filter(p=>p.situacao!=='cancelado').reduce((t,p)=>t+(+p.valor||0),0);
+  if(itens.length) await escSalvarDia(id, { valor: Math.round(soma*100)/100 });
+  aviso(itens.length ? itens.length+' procedimento(s) gravado(s) — plantão em '+brl(soma)+'.' : 'Procedimentos apagados.','ok');
+  _proc = null; escAbrirData(_escDataAberta);
+}
 async function escDataAnes(id, anesId){
   const d = S.esc.dias.find(x=>x.id===id); if(!d) return;
   const c = { anestesista_id: anesId || null };
@@ -3700,6 +3843,7 @@ function pacDesenhar(id){
     '.pxbt button.on{background:var(--ouro);color:#fff;border-color:var(--ouro)}.pxaba{border:1px solid var(--linha);border-radius:10px;padding:12px;margin-top:10px}'+
     '@media(max-width:620px){.pxf{flex-wrap:wrap}.pxf input,.pxf select{width:100%!important}}</style>'+
     '<h2>Atendimento ao Paciente'+(id?' · Reg. '+(p.prontuario||''):' · novo')+'</h2>'+
+    (podeEditar() ? pacBarraDoc() : '')+
     '<input type="hidden" id="pc-id" value="'+(id||'')+'"><datalist id="pc-convs">'+pacConvenios().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
     PAC_LINHAS.map(linha).join('')+
     '<div class="pxr" style="align-items:flex-start"><span class="pxl" style="padding-top:8px">Obs.:</span><textarea id="pc-obs"'+ro+' rows="2" style="flex:1;min-width:240px;margin:0">'+esc(p.obs||'')+'</textarea></div>'+
@@ -3709,6 +3853,69 @@ function pacDesenhar(id){
       (podeEditar()?'<button class="bt" onclick="idadPacSalvar()">Salvar</button>':'')+
       '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
   const n = document.getElementById('pc-nascimento'); if(n) n.addEventListener('change', ()=>{ const a = idadeDe(n.value); document.getElementById('pc-idade').value = a!=null && n.value ? a+' anos' : ''; });
+}
+/* v102 (Renato, 17/11/2026): botão para TIRAR FOTO DO DOCUMENTO e preencher a ficha sozinho.
+   Lê RG / CNH / CPF / carteirinha do convênio / cartão SUS / comprovante de endereço (Edge Function ler-documento-paciente).
+   Só preenche campo VAZIO — o que já foi digitado não é trocado. Nada é gravado até apertar Salvar. */
+function icoCamDoc(){
+  return '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-4px;margin-right:6px"><defs><linearGradient id="gCamD" x1="0" y1="1" x2="1" y2="0">'+
+    '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
+    '<path d="M8.5 4.5h7l1.4 2.2H20a2 2 0 0 1 2 2v9.8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.7a2 2 0 0 1 2-2h3.1z" fill="url(#gCamD)"/>'+
+    '<circle cx="12" cy="13.3" r="4.2" fill="#fff"/><circle cx="12" cy="13.3" r="2.4" fill="url(#gCamD)"/></svg>';
+}
+function pacBarraDoc(){
+  return '<div class="pxdoc" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 14px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px">'+
+    '<button type="button" class="bt mini" onclick="document.getElementById(\'pc-docfoto\').click()">'+icoCamDoc()+'Tirar foto do documento</button>'+
+    '<button type="button" class="bt g mini" onclick="document.getElementById(\'pc-docarq\').click()">Galeria / PDF</button>'+
+    '<input type="file" id="pc-docfoto" accept="image/*" capture="environment" hidden onchange="pacLerDocumento(this)">'+
+    '<input type="file" id="pc-docarq" accept="image/*,application/pdf" multiple hidden onchange="pacLerDocumento(this)">'+
+    '<span id="pc-docst" style="font-size:12.5px;color:var(--fraco);flex:1;min-width:200px">RG, CNH, CPF, carteirinha do convênio, cartão SUS ou comprovante de endereço — frente e verso, uma foto de cada vez. Preenche só os campos vazios.</span></div>';
+}
+async function pacLerDocumento(inp){
+  const st = document.getElementById('pc-docst'), arqs = Array.from((inp && inp.files) || []);
+  if(!arqs.length) return;
+  const msg = h=>{ if(st) st.innerHTML = h; };
+  try{
+    msg('Preparando a foto…');
+    const imagens = [];
+    for(const f of arqs.slice(0,4)){
+      const buf = await f.arrayBuffer();
+      if(!buf.byteLength) throw new Error('a foto veio vazia do seletor — tente pela Galeria');
+      const ehPdf = (f.type==='application/pdf') || /\.pdf$/i.test(f.name||'');
+      if(ehPdf) (await saldoPdfImagens(buf.slice(0))).slice(0,2).forEach(x=>imagens.push(x));
+      else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' });
+    }
+    msg('Lendo o documento… (uns 10 a 20 segundos)');
+    const { data, error } = await sb.functions.invoke('ler-documento-paciente', { body: { imagens: imagens.slice(0,4) } });
+    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
+    if(data && data.error) throw new Error(data.error);
+    const c = (data && data.campos) || {};
+    pacLerTela();                                   // guarda o que já está digitado na tela
+    const preenchidos = [], diferentes = [];
+    const dataOk = v=> /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : (v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/) ? v.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/,'$3-$2-$1') : '');
+    pacTodosCampos().forEach(([k,rot,t,ops])=>{
+      let v = c[k]; if(v==null || v==='') return;
+      v = String(v).trim();
+      if(t==='date'){ v = dataOk(v); if(!v) return; }
+      if(t==='cpf' || t==='cep' || k==='cns'){ v = soDig(v); if(t==='cpf' && !validaCPF(v)) return; }
+      if(t==='select'){ const o = (ops||[]).find(x=>norm(x)===norm(v)); if(!o) return; v = o; }
+      const atual = _pacReg[k];
+      if(atual!=null && String(atual).trim()!==''){ if(norm(String(atual))!==norm(v)) diferentes.push((rot||k)+': '+v); return; }
+      _pacReg[k] = v; preenchidos.push(k);
+    });
+    const id = val('pc-id') || null;
+    pacDesenhar(id);
+    preenchidos.forEach(k=>{ const e=document.getElementById('pc-'+k); if(e) e.style.background='#e6f8f1'; });
+    const docs = (data.documentos||[]).join(', ');
+    const st2 = document.getElementById('pc-docst');
+    if(st2) st2.innerHTML = (preenchidos.length
+        ? '<span style="color:var(--verde,#0f9d58)">✔ Lido'+(docs?' ('+esc(docs)+')':'')+': '+preenchidos.length+' campo'+(preenchidos.length>1?'s':'')+' preenchido'+(preenchidos.length>1?'s':'')+' (em verde). Confira e toque em Salvar.</span>'
+        : '<span style="color:var(--fraco)">Lido'+(docs?' ('+esc(docs)+')':'')+', mas não havia campo vazio para preencher.</span>')+
+      (diferentes.length ? '<br><span style="color:var(--vermelho)">No documento está diferente do que já foi digitado (não troquei): '+esc(diferentes.join(' · '))+'</span>' : '');
+    const n = document.getElementById('pc-nascimento'); if(n && n.value){ const a = idadeDe(n.value); const ie=document.getElementById('pc-idade'); if(ie) ie.value = a!=null ? a+' anos' : ''; }
+    if(c.cep && !c.endereco) pacBuscaCEP(c.cep);
+  }catch(e){ msg('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value = ''; }
 }
 function pacLerTela(){ pacTodosCampos().forEach(([k,rot,t])=>{ const e = document.getElementById('pc-'+k); if(!e) return;
   if(t==='check') _pacReg[k] = e.checked; else { let v = String(e.value||'').trim(); if(['cpf','tel','cep'].indexOf(t)>=0) v = soDig(v); if(t==='num') v = v ? Number(v.replace(',','.')) : ''; _pacReg[k] = v==='' ? null : v; } });
@@ -4343,7 +4550,7 @@ let _hospEd = null, _hospServ = [];
 function hospAbrir(id){
   _hospEd = id ? (S.esc.hospCad||[]).find(x=>x.id===id) : null;
   const x = _hospEd || { forma_pagamento:'dia', prazo_tipo:'dias', ativo:true };
-  _hospServ = hospServicos(x).map(s=>({ nome:s.nome, valor:s.valor }));
+  _hospServ = hospServicos(x).map(s=>({ nome:s.nome, sigla:s.sigla||'', valor:s.valor }));
   const ro = podeEditar() ? '' : ' disabled';
   const inp = (id, rot, v, tipo, ph) => '<div><label>'+rot+'</label><input id="hc-'+id+'"'+ro+(tipo?' type="'+tipo+'" step="0.01" inputmode="decimal"':'')+' value="'+esc(v==null?'':v)+'"'+(ph?' placeholder="'+ph+'"':'')+'></div>';
   abrirModal('<h2>🏥 '+(_hospEd?esc(x.nome):'Novo hospital')+'</h2>'+
@@ -4369,16 +4576,17 @@ function hospAbrir(id){
   hospFormaTroca();
 }
 function hospForma(){ const r = document.querySelector('input[name="hc-forma"]:checked'); return r ? r.value : 'dia'; }
-function hospServGuardar(){ if(!document.getElementById('hcs-n-0')) return; _hospServ = _hospServ.map((s,i)=>({ nome: val('hcs-n-'+i), valor: val('hcs-v-'+i) })); }
+function hospServGuardar(){ if(!document.getElementById('hcs-n-0')) return; _hospServ = _hospServ.map((s,i)=>({ nome: val('hcs-n-'+i), sigla: val('hcs-s-'+i), valor: val('hcs-v-'+i) })); }
 function hospServDesenhar(){
   const box = document.getElementById('hc-serv'); if(!box) return; const proc = hospForma()==='procedimento', ro = podeEditar() ? '' : ' disabled';
-  const aj = document.getElementById('hc-serv-ajuda'); if(aj) aj.innerHTML = proc ? 'Cada serviço tem o seu preço — no atendimento a equipe escolhe o serviço e o valor entra sozinho.' : 'O que a equipe faz neste hospital (o preço só é usado quando a forma é <b>por procedimento</b>).';
+  const aj = document.getElementById('hc-serv-ajuda'); if(aj) aj.innerHTML = proc ? 'Cada procedimento tem o seu preço. Escreva o nome completo (ex.: Colecistectomia videolaparoscópica) e a sigla (CVL) — é assim que o sistema reconhece o procedimento na lista do hospital e põe o valor sozinho.' : 'O que a equipe faz neste hospital (o preço só é usado quando a forma é <b>por procedimento</b>).';
   box.innerHTML = _hospServ.length ? _hospServ.map((s,i)=>'<div class="lin" style="align-items:flex-end"><div><label>Serviço</label><input id="hcs-n-'+i+'"'+ro+' value="'+esc(s.nome||'')+'" placeholder="Anestesia geral"></div>'+
+      '<div style="max-width:110px"><label>Sigla</label><input id="hcs-s-'+i+'"'+ro+' value="'+esc(s.sigla||'')+'" placeholder="CVL"></div>'+
       '<div style="max-width:170px"><label>Preço (R$)'+(proc?'':' — opcional')+'</label><input id="hcs-v-'+i+'"'+ro+' type="number" step="0.01" inputmode="decimal" value="'+esc(s.valor==null?'':s.valor)+'"></div>'+
       (podeEditar()?'<div style="max-width:60px"><button class="bt g mini" onclick="hospServDel('+i+')">×</button></div>':'')+'</div>').join('')
     : '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:6px">Nenhum serviço ainda.</div>';
 }
-function hospServAdd(){ hospServGuardar(); _hospServ.push({ nome:'', valor:'' }); hospServDesenhar(); }
+function hospServAdd(){ hospServGuardar(); _hospServ.push({ nome:'', sigla:'', valor:'' }); hospServDesenhar(); }
 function hospServDel(i){ hospServGuardar(); _hospServ.splice(i,1); hospServDesenhar(); }
 function hospFormaTroca(){
   const f = hospForma(), mostra = (id, on) => { const e = document.getElementById(id); if(e) e.style.display = on ? '' : 'none'; };
@@ -4389,7 +4597,7 @@ async function hospSalvar(){
   hospServGuardar();
   const num = id => { const v = val(id); return v==='' ? null : Number(v); }, f = hospForma();
   const nome = val('hc-nome').trim(); if(!nome) return aviso('Informe o nome do hospital.','erro');
-  const serv = _hospServ.filter(s=>String(s.nome||'').trim()).map(s=>({ nome:String(s.nome).trim(), valor: s.valor===''||s.valor==null ? null : Number(s.valor) }));
+  const serv = _hospServ.filter(s=>String(s.nome||'').trim()).map(s=>({ nome:String(s.nome).trim(), sigla: String(s.sigla||'').trim().toUpperCase()||undefined, valor: s.valor===''||s.valor==null ? null : Number(s.valor) }));
   if(f==='procedimento' && !serv.some(s=>s.valor!=null)) return aviso('Por procedimento: cadastre pelo menos um serviço com preço.','erro');
   const reg = { nome, cnpj: val('hc-cnpj').trim()||null, razao_social: val('hc-razao').trim()||null, contato_nome: val('hc-cnome').trim()||null,
     contato_tel: val('hc-ctel').trim()||null, contato_email: val('hc-cmail').trim()||null, forma_pagamento: f,
