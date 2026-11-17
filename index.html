@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v97">
+<meta name="rf-versao" content="v98">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -198,7 +198,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v97',
+  versao : 'v98',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3429,7 +3429,7 @@ function telaInicio(){
     (veAba('fila')? cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||''):'')+
     (veAba('origens')? cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura'):'')+
     (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'')+
-    (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais', pesMinhas().length>1 ? pesMinhas().length+' áreas: '+pesMinhas().map(a=>esc(pesPrimeiro(a.nome))).join(', ') : 'Seus gastos pessoais, por categoria — fora dos CNPJs'):'');
+    (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais',''):'');
   let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
   if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>'+grupoResumo('nafs')+'</small></div><span class="seta">›</span></button>'+
