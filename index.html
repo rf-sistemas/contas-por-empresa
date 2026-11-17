@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v100">
+<meta name="rf-versao" content="v101">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v100',
+  versao : 'v101',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1658,6 +1658,65 @@ function faturaDosItens(itens, txt){
   return { lancamentos: out, meta };
 }
 
+/* v101: fatura do cartão Ourocard (Banco do Brasil) — layout novo do BB:
+   "dd/mm  DESCRIÇÃO  CIDADE  BR  R$ 0,00", agrupado por categoria,
+   sem o ano na data (vem do "Fatura fechada em dd/mm/aaaa"). */
+function ehFaturaBB(txt){
+  const t = String(txt||'');
+  return /OUROCARD/i.test(t) && /Lan[çc]amentos nesta fatura/i.test(t) && /Total da Fatura/i.test(t);
+}
+function faturaBB(itens, txt){
+  const plano = String(txt||'').replace(/\s+/g,' ');
+  const num = re=>{ const m = plano.match(re); return m ? extratoValor(m[1]) : null; };
+  const meta = {};
+  const mFech = plano.match(/Fatura fechada em\s*(\d{2})\/(\d{2})\/(\d{4})/i);
+  if(mFech){ meta.refMes = Number(mFech[2]); meta.refAno = Number(mFech[3]); }
+  const mVenc = plano.match(/Vencimento[\s\S]{0,200}?(\d{2})\/(\d{2})\/(\d{4})/i);
+  if(mVenc) meta.vencimento = mVenc[3]+'-'+mVenc[2]+'-'+mVenc[1];
+  if(!meta.refAno && mVenc){ meta.refAno = Number(mVenc[3]); meta.refMes = Number(mVenc[2]); }
+  meta.total = num(/Total da Fatura\s*R\$\s*([\d.]+,\d{2})/i);
+  const cn = num(/Compras nacionais\s*R\$\s*([\d.]+,\d{2})/i);
+  const ci = num(/Compras internacionais\s*R\$\s*([\d.]+,\d{2})/i);
+  const tx = num(/Tarifas, encargos e multas\s*R\$\s*([\d.]+,\d{2})/i);
+  if(cn != null) meta.despesas = Math.round(((cn||0)+(ci||0)+(tx||0))*100)/100;
+  const mCart = plano.match(/(OUROCARD[A-Za-zÀ-ÿ ]{0,40}?)\s*Final\s*(\d{4})/i);
+  if(mCart){ meta.bandeira = mCart[1].trim().toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); meta.final = mCart[2]; }
+  const mTit = plano.match(/([A-ZÀ-Ÿ][A-Za-zÀ-ÿ .'-]{3,60}?)\s*\(Cart[ãa]o\s*\d{4}\)/);
+  if(mTit) meta.titular = mTit[1].trim();
+
+  const grupos = [];
+  itens.forEach(it=>{
+    let g = grupos.find(gg=> gg.pag===it.pag && Math.abs(gg.y - it.y) <= 3);
+    if(!g){ g = { pag:it.pag, y:it.y, partes:[] }; grupos.push(g); }
+    g.partes.push(it);
+  });
+  grupos.sort((a,b)=> a.pag-b.pag || b.y-a.y);
+
+  const out = [];
+  const reLinha = /^(\d{2})\/(\d{2})\s+(.+?)\s+(?:[A-Z]{2}\s+)?R\$\s*(-?)\s*([\d.]+,\d{2})$/;
+  grupos.forEach(g=>{
+    g.partes.sort((a,b)=>a.x-b.x);
+    const l = g.partes.map(x=>x.str).join(' ').replace(/R\s*\$/g,'R$').replace(/\s+/g,' ').trim();
+    const m = l.match(reLinha);
+    if(!m) return;
+    const dia = m[1], mes = Number(m[2]);
+    if(mes < 1 || mes > 12) return;
+    const desc = m[3].replace(/\s+/g,' ').trim();
+    const valor = extratoValor(m[5]);
+    if(!valor || desc.length < 2) return;
+    // pagamento da fatura anterior não é lançamento desta fatura
+    if(m[4] && /^PGTO|PAGAMENTO/i.test(desc)) return;
+    let ano = meta.refAno || new Date().getFullYear();
+    if(meta.refMes && mes > meta.refMes) ano--;          // compra do ano anterior (parcelas)
+    const primeiro = (g.partes.find(p=>p.x > 70 && !/^\d{2}\/\d{2}$/.test(p.str))||{}).str || desc;
+    out.push({ data: ano+'-'+String(mes).padStart(2,'0')+'-'+dia,
+               descricao: desc.slice(0,140),
+               contraparte: primeiro.replace(/\s+PARC\s*\d+\/\d+.*$/i,'').replace(/\s+/g,' ').trim().slice(0,80),
+               valor, tipo: m[4] ? 'entrada' : 'saida', saldo:null, vencimento: meta.vencimento || null });
+  });
+  return { lancamentos: out, meta };
+}
+
 function extratoCabecalho(t){
   const plano = String(t||'').replace(/\s+/g,' ');
   const banco = (plano.match(/\b(UNICRED|BRADESCO|ITA[UÚ]|SANTANDER|BANCO DO BRASIL|CAIXA|NUBANK|INTER|SICOOB|SICREDI|C6|BTG|SAFRA)\b/i)||[])[1] || '';
@@ -1861,7 +1920,12 @@ async function lerExtrato(){
     if(linhas.length < 2 && ehExtratoBB(texto)) linhas = extratoBB(itens);   // v71: Banco do Brasil
     const confBB = linhas.conferenciaBB || null;
     let fat = null;
-    if(linhas.length < 2 && ehFatura(texto)){
+    if(linhas.length < 2 && ehFaturaBB(texto)){          // v101: fatura Ourocard (BB)
+      const r = faturaBB(itens, texto);
+      linhas = r.lancamentos; fat = r.meta;
+      cab = { banco: (fat.bandeira||'Ourocard'), conta: fat.final||'', titular: fat.titular || cab.titular || '' };
+    }
+    if(linhas.length < 2 && !fat && ehFatura(texto)){
       const r = faturaDosItens(itens, texto);
       linhas = r.lancamentos; fat = r.meta;
       cab = { banco: (fat.bandeira||'Cartão'), conta: fat.final||'', titular: cab.titular||'' };
@@ -1880,7 +1944,7 @@ async function lerExtrato(){
     const sal = extratoSaldos(texto);
     let conferencia = '';
     if(fat){
-      const soma = linhas.reduce((s,x)=>s+x.valor,0);
+      const soma = linhas.filter(x=>x.tipo!=='entrada').reduce((s,x)=>s+x.valor,0);   // estornos ficam fora da conta das compras
       const alvo = fat.despesas != null ? fat.despesas : fat.total;
       const dif = alvo != null ? Math.round((soma-alvo)*100)/100 : null;
       conferencia = (dif != null && Math.abs(dif) < 0.01)
