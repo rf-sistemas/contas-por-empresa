@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v99">
+<meta name="rf-versao" content="v100">
 <meta name="rf-data" content="2026-11-17">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v99',
+  versao : 'v100',
   data   : '17/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -507,6 +507,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
 function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+  if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
 function telaLogin(){
@@ -3418,6 +3419,10 @@ function cpeTrilha(){
   if(ehAnes()){
     if(S.tela==='escala') return '<div style="height:8px"></div>';
     return '<div class="trilha"><button class="bt g" onclick="irPara(\'escala\')">‹ Voltar</button><span class="cam"><a href="#" onclick="irPara(\'escala\');return false">'+escGrupo()+'</a> › <b>Minha escala</b></span></div>';
+  }
+  if(S.tela==='pessoais' && S.pesDono && pesMinhas().length>1){   // v100: dentro de uma área, Voltar leva para a lista de pessoas
+    return '<div class="trilha"><button class="bt g" onclick="S.pesDono=null;S.pesCat=\'\';render()">‹ Voltar</button>'+
+      '<span class="cam"><a href="#" onclick="irPara(\'inicio\');return false">Início</a> › <a href="#" onclick="S.pesDono=null;S.pesCat=\'\';render();return false">Despesas pessoais</a> › <b>'+esc(pesNome(S.pesDono))+'</b></span></div>';
   }
   const cam = []; let t = S.tela, g = 0;
   while(t && t!=='inicio' && CPE_TELAS[t] && g++<5){ cam.unshift(t); t = CPE_TELAS[t].pai; }
