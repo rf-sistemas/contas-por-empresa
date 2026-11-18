@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v111">
+<meta name="rf-versao" content="v112">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v111',
+  versao : 'v112',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4256,9 +4256,12 @@ function fichFiltradas(){
   const b = permNorm(S.fich.busca), bd = soDig(S.fich.busca);
   return S.fich.lista.filter(f=>!b || permNorm(f.nome).indexOf(b)>=0 || permNorm(f.mae).indexOf(b)>=0 || permNorm(f.medico_nome).indexOf(b)>=0 || (bd && soDig(f.medico_crm).indexOf(bd)>=0) || (bd && (soDig(f.cpf).indexOf(bd)>=0 || soDig(f.cns).indexOf(bd)>=0 || soDig(f.telefone).indexOf(bd)>=0)));
 }
+/* v112 (Renato, 18/11/2026): a Amparo (ADM_Nivel 1) tira as fotos — quem tem a aba Fichário e é mestre, dono, operador ou ADM_Nivel 1
+   lança, corrige e exclui fichas (no banco: cpe_edita_fichario). */
+function fichEdita(){ return veAba('fichario') && (podeEditar() || ehAdm1()); }
 function telaFichario(){
   if(!S.fich.carregado) fichCarregar();
-  const ed = podeEditar();
+  const ed = fichEdita();
   let h = '<div class="secao"><b>FICHÁRIO</b><span>Fichas de consulta lidas por foto</span></div>';
   if(S.fich.erro && !S.fich.lista.length) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou o Fichário: '+esc(S.fich.erro)+'</b></div>';
   if(!S.fich.carregado) return h+'<div class="vazio">Carregando as fichas…</div>';
@@ -4282,7 +4285,7 @@ function fichContagem(){ const e = document.getElementById('fi-cont'); if(!e) re
   e.textContent = n+' ficha'+(n===1?'':'s')+(m?' · '+m+' marcada'+(m===1?'':'s'):''); }
 function fichLista(){ const e = document.getElementById('fi-lista'); if(e) e.innerHTML = fichListaHtml(); fichContagem(); }
 function fichListaHtml(){
-  const ed = podeEditar(), l = fichFiltradas();
+  const ed = fichEdita(), l = fichFiltradas();
   if(!S.fich.lista.length) return '<div class="vazio">Nenhuma ficha ainda. '+(ed?'Toque em <b>Tirar foto da ficha</b>.':'')+'</div>';
   if(!l.length) return '<div class="vazio">Nenhuma ficha encontrada.</div>';
   const campo = (r,v,duv)=>'<div><span style="font-size:11px;color:var(--fraco);text-transform:uppercase;letter-spacing:.04em">'+r+'</span>'+
