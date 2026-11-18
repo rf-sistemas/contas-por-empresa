@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v105">
+<meta name="rf-versao" content="v106">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v105',
+  versao : 'v106',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3118,8 +3118,56 @@ function procBotao(x, ed){
   const real = l.filter(p=>p.situacao!=='cancelado'), soma = real.reduce((t,p)=>t+(+p.valor||0),0);
   if(!l.length && !ed) return '';
   return '<button type="button" class="bt g mini" onclick="procAbrir(\''+x.id+'\')">'+
-    (l.length ? 'Procedimentos: '+real.length+' realizado'+(real.length===1?'':'s')+' · '+brl(soma) : '+ Procedimentos'+(h && h.forma_pagamento==='procedimento' ? ' (paga por procedimento)' : ''))+'</button>';
+    (l.length ? 'Procedimentos: '+real.length+' realizado'+(real.length===1?'':'s')+' · '+brl(soma) : '+ Procedimentos'+(h && h.forma_pagamento==='procedimento' ? ' (paga por procedimento)' : ''))+'</button>'+procBotaoProva(x, ed, l.length);
 }
+/* v106 (Renato, 18/11/2026: "a leitura foi precisa, mas tem que ter a prova física"):
+   a foto/PDF do mapa cirúrgico fica guardada no plantão (esc_dias.proc_docs, bucket notas/procedimentos/<dia>/)
+   e aparece ao lado do botão de Procedimentos para qualquer login que veja o plantão abrir. */
+function procDocs(x){ return Array.isArray(x && x.proc_docs) ? x.proc_docs : []; }
+function icoProva(){
+  return '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-4px;margin-right:6px">'+icoGrad('gProv')+
+    '<path d="M6 2.5h8.2L19 7.3V20a1.5 1.5 0 0 1-1.5 1.5h-11.5A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5z" fill="url(#gProv)"/>'+
+    '<path d="M14 2.6V7.5h4.9" fill="#fff" opacity=".55"/><path d="M8 12h8M8 15h8M8 18h5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>';
+}
+function procBotaoProva(x, ed, temProc){
+  const docs = procDocs(x);
+  if(docs.length) return ' <button type="button" class="bt g mini" onclick="procVerProva(\''+x.id+'\',0)">'+icoProva()+'Prova física'+(docs.length>1?' ('+docs.length+')':'')+'</button>';
+  if(temProc && ed) return ' <button type="button" class="bt g mini" style="color:var(--vermelho)" onclick="procAbrir(\''+x.id+'\')">'+icoProva()+'Sem prova física — anexar</button>';
+  return '';
+}
+async function procVerProva(diaId, i){
+  const d = S.esc.dias.find(x=>x.id===diaId); const docs = procDocs(d); if(!docs.length) return;
+  i = Math.max(0, Math.min(i, docs.length-1)); const doc = docs[i];
+  const { data, error } = await sb.storage.from('notas').createSignedUrl(doc.path, 1800);
+  if(error || !data) return aviso('Não abriu a prova: '+(error?error.message:''),'erro');
+  const url = data.signedUrl, pdf = /\.pdf$/i.test(doc.path), a = escAnes(d.anestesista_id)||{nome:''};
+  abrirModal('<style>.modal{max-width:980px}</style><h2 style="margin:0">'+icoProva()+'Prova física dos procedimentos</h2>'+
+    '<div style="color:var(--fraco);font-size:13.5px;margin:4px 0 10px"><b style="color:var(--texto)">'+esc(a.nome)+'</b> · '+esc(escLocal(d.local_id).unidade||'')+' · '+dataBR(d.data)+
+      (docs.length>1?' · arquivo '+(i+1)+' de '+docs.length:'')+(doc.em?' · anexado em '+esc(String(doc.em).slice(0,10).split('-').reverse().join('/')):'')+'</div>'+
+    (pdf ? '<iframe src="'+url+'" style="width:100%;height:70vh;border:1px solid var(--linha);border-radius:9px"></iframe>'
+         : '<div style="max-height:70vh;overflow:auto;border:1px solid var(--linha);border-radius:9px"><img src="'+url+'" style="width:100%;display:block"></div>')+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+
+      (docs.length>1?'<button class="bt g" onclick="procVerProva(\''+diaId+'\','+(i-1)+')"'+(i?'':' disabled')+'>‹ anterior</button><button class="bt g" onclick="procVerProva(\''+diaId+'\','+(i+1)+')"'+(i<docs.length-1?'':' disabled')+'>próxima ›</button>':'')+
+      '<a class="bt g" href="'+url+'" target="_blank" rel="noopener" style="text-decoration:none">Abrir em tela cheia</a>'+
+      '<button class="bt g" onclick="escAbrirData(_escDataAberta)">Voltar</button></div>');
+}
+async function procSubirProva(f){
+  const buf = await f.arrayBuffer(); const pdf = f.type==='application/pdf' || /\.pdf$/i.test(f.name||'');
+  const nome = (f.name||('mapa.'+(pdf?'pdf':'jpg'))).replace(/[^\w.\-]/g,'_');
+  const path = 'procedimentos/'+_proc.diaId+'/'+Date.now()+'-'+nome;
+  const { error } = await sb.storage.from('notas').upload(path, new Blob([buf],{type:f.type||(pdf?'application/pdf':'image/jpeg')}), { upsert:false });
+  if(error) throw new Error('a prova física não subiu: '+error.message);
+  return { path, nome, em: new Date().toISOString() };
+}
+async function procAnexarProva(inp){
+  const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
+  const st = t=>{ const e = document.getElementById('pr-st'); if(e) e.innerHTML = t; };
+  try{ procGuardar(); st('Anexando a prova física…'); for(const f of arqs.slice(0,6)) _proc.docs.push(await procSubirProva(f));
+       _proc.st = '<span style="color:var(--verde,#0f9d58)">✔ Prova física anexada — salve para gravar.</span>'; procDesenhar(); }
+  catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value=''; }
+}
+function procTiraProva(i){ procGuardar(); _proc.docs.splice(i,1); procDesenhar(); }
 function procNorm(t){ return norm(t).replace(/\bVIDEO\s*LAPAROSCOPICA\b/g,'VIDEOLAPAROSCOPICA'); }
 /* acha o serviço do hospital que corresponde ao texto da lista: pela sigla ou pelas palavras do nome */
 function procServico(h, texto){
@@ -3136,7 +3184,7 @@ function procServico(h, texto){
 }
 function procAbrir(diaId){
   const d = S.esc.dias.find(x=>x.id===diaId); if(!d) return;
-  _proc = { diaId, itens: (S.esc.proc[diaId]||[]).map(p=>Object.assign({}, p)), st:'' };
+  _proc = { diaId, itens: (S.esc.proc[diaId]||[]).map(p=>Object.assign({}, p)), st:'', docs: procDocs(d).slice() };
   procDesenhar();
 }
 function procGuardar(){
@@ -3172,6 +3220,10 @@ function procDesenhar(){
       '<input type="file" id="pr-foto" accept="image/*" capture="environment" hidden onchange="procLerFoto(this)">'+
       '<input type="file" id="pr-arq" accept="image/*,application/pdf" multiple hidden onchange="procLerFoto(this)">'+
       '<span id="pr-st" style="font-size:12.5px;color:var(--fraco)">'+(_proc.st||'Mapa cirúrgico, lista de atendimentos ou relatório do hospital — pode ser mais de uma foto.')+'</span></div>':'')+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12.5px">'+
+      '<b>Prova física:</b> '+(_proc.docs.length ? _proc.docs.map((x,i)=>'<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:8px;background:var(--campo)">'+icoProva()+esc(x.nome)+(ed?' <a href="#" onclick="procTiraProva('+i+');return false" style="color:var(--vermelho)">×</a>':'')+'</span>').join(' ')
+        : '<span style="color:var(--vermelho)">nenhuma anexada</span>')+
+      (ed?' <button type="button" class="bt g mini" onclick="document.getElementById(\'pr-prova\').click()">'+icoProva()+'Anexar foto/PDF da lista</button><input type="file" id="pr-prova" accept="image/*,application/pdf" multiple hidden onchange="procAnexarProva(this)">':'')+'</div>'+
     '<datalist id="pr-servs">'+hospServicos(h).map(s=>'<option value="'+esc(s.nome)+'">').join('')+'</datalist>'+
     (_proc.itens.length ? '<div style="max-height:52vh;overflow:auto"><table class="prt">'+_proc.itens.map(linha).join('')+'</table></div>'
                         : '<div class="vazio">Nenhum procedimento ainda. Leia a foto da lista ou toque em <b>+ procedimento</b>.</div>')+
@@ -3200,6 +3252,8 @@ async function procLerFoto(inp){
       if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).forEach(x=>imagens.push(x));
       else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' });
     }
+    st('Guardando a prova física…');
+    for(const f of arqs.slice(0,6)) _proc.docs.push(await procSubirProva(f));   // v106: a foto lida fica como prova
     st('Lendo a lista… (uns 15 a 40 segundos)');
     const { data, error } = await sb.functions.invoke('ler-procedimentos', { body: { imagens: imagens.slice(0,6) } });
     if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
@@ -3229,7 +3283,8 @@ async function procSalvar(){
   }
   S.esc.proc[id] = novos.sort((a,b)=>a.ordem-b.ordem);
   const soma = itens.filter(p=>p.situacao!=='cancelado').reduce((t,p)=>t+(+p.valor||0),0);
-  if(itens.length) await escSalvarDia(id, { valor: Math.round(soma*100)/100 });
+  const campos = { proc_docs: _proc.docs||[] }; if(itens.length) campos.valor = Math.round(soma*100)/100;
+  await escSalvarDia(id, campos);
   aviso(itens.length ? itens.length+' procedimento(s) gravado(s) — plantão em '+brl(soma)+'.' : 'Procedimentos apagados.','ok');
   _proc = null; escAbrirData(_escDataAberta);
 }
