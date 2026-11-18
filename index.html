@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v110">
+<meta name="rf-versao" content="v111">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v110',
+  versao : 'v111',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4300,11 +4300,11 @@ function fichListaHtml(){
         '<button class="bt mini" onclick="fichBaixar(\''+f.id+'\')">⬇ Baixar esta</button>'+
         (ed?'<button class="bt g mini" style="color:var(--vermelho)" onclick="fichExcluir(\''+f.id+'\')" title="Excluir">🗑</button>':'')+'</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 14px;margin-top:10px">'+
-        campo('Médico', fichMedTxt(f.medico_nome, f.medico_crm), dv('medico_nome')||dv('medico_crm')||!f.medico_crm)+
         campo('Nascimento', (f.nascimento?dataBR(f.nascimento):'')+(f.idade!=null?' · '+f.idade+' anos':'')+(f.sexo?' · '+f.sexo:''), dv('nascimento')||dv('idade'))+
         campo('CPF', f.cpf, dv('cpf'))+campo('CNS', f.cns, dv('cns'))+campo('Telefone', f.telefone, dv('telefone'))+
         campo('Nome da mãe', f.mae, dv('mae'))+campo('Endereço', f.endereco, dv('endereco'))+campo('Queixa principal', f.queixa, dv('queixa'))+
         (dv('data_consulta')?campo('Data da consulta', dataBR(f.data_consulta), true):'')+
+        campo('Médico', fichMedTxt(f.medico_nome, f.medico_crm), dv('medico_nome')||dv('medico_crm')||!f.medico_crm)+
       '</div></div>'; }).join('');
 }
 async function fichFotos(inp){
@@ -4388,11 +4388,11 @@ async function fichBaixar(qual){
   if(!l.length) return aviso('Nenhuma ficha para baixar.','erro');
   try{ await fichXlsxLib(); }catch(e){ return aviso(e.message,'erro'); }
   const dt = d=>{ if(!d) return null; const p = String(d).slice(0,10).split('-').map(Number); return (Date.UTC(p[0],p[1]-1,p[2]) - Date.UTC(1899,11,30))/86400000; };   // número de série do Excel (sem fuso)
-  const rows = [['Nº da ficha','Nome completo','Data da consulta','Médico','CRM do médico','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal']]
-    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), f.medico_nome||'', f.medico_crm||'', dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'']));
+  const rows = [['Nº da ficha','Nome completo','Data da consulta','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal','Médico','CRM do médico']]
+    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'', f.medico_nome||'', f.medico_crm||'']));
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  for(let r=1; r<rows.length; r++) ['C','F'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
-  ws['!cols'] = [11,32,16,32,14,18,7,6,17,21,17,28,48,40].map(w=>({ wch:w }));
+  for(let r=1; r<rows.length; r++) ['C','D'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
+  ws['!cols'] = [11,32,16,18,7,6,17,21,17,28,48,40,32,14].map(w=>({ wch:w }));
   ws['!autofilter'] = { ref: 'A1:N'+rows.length };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichas');
   const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' ficha'+(l.length===1?'':'s')+' - '+hojeISO().split('-').reverse().join('-');
@@ -4401,11 +4401,12 @@ async function fichBaixar(qual){
   aviso('Preparando o Excel…','ok');
   try{
     const bin = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+    const nomeDl = nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'')+'.xlsx';
     const arq = nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\- ]/g,'').replace(/\s+/g,'_')+'.xlsx';
     const path = 'fichario/exportacoes/'+Date.now()+'-'+arq;
     const up = await sb.storage.from('notas').upload(path, new Blob([bin],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), { upsert:false });
     if(up.error) throw new Error(up.error.message);
-    const { data, error } = await sb.storage.from('notas').createSignedUrl(path, 3600, { download: nome+'.xlsx' });
+    const { data, error } = await sb.storage.from('notas').createSignedUrl(path, 3600, { download: nomeDl });
     if(error || !data) throw new Error(error ? error.message : 'sem link');
     S.msg = null; _fichLink = data.signedUrl;
     abrirModal('<h2 style="margin:0 0 6px">⬇ Excel pronto</h2><div style="color:var(--fraco);font-size:13.5px;margin-bottom:12px">'+esc(nome)+'.xlsx · '+l.length+' ficha'+(l.length===1?'':'s')+'</div>'+
