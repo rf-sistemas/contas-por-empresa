@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v109">
+<meta name="rf-versao" content="v110">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v109',
+  versao : 'v110',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4378,6 +4378,8 @@ function fichXlsxLib(){
   return new Promise((ok,nok)=>{ const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
     s.onload = ()=>ok(); s.onerror = ()=>nok(new Error('não carregou o gerador de Excel — verifique a internet')); document.head.appendChild(s); });
 }
+var _fichLink = '';
+function fichAbrirLink(){ const u = _fichLink; if(!u) return; const w = window.open(u, '_blank'); if(!w) location.href = u; setTimeout(fecharModal, 500); }
 async function fichBaixar(qual){
   let l;
   if(qual==='todas') l = fichFiltradas();
@@ -4393,8 +4395,26 @@ async function fichBaixar(qual){
   ws['!cols'] = [11,32,16,32,14,18,7,6,17,21,17,28,48,40].map(w=>({ wch:w }));
   ws['!autofilter'] = { ref: 'A1:N'+rows.length };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichas');
-  const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' fichas - '+hojeISO().split('-').reverse().join('-');
-  XLSX.writeFile(wb, nome+'.xlsx');
+  const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' ficha'+(l.length===1?'':'s')+' - '+hojeISO().split('-').reverse().join('-');
+  /* v110 (Renato, 18/11/2026: "não está baixando o Excel"): no app Android e no iPhone o download direto (blob) não funciona.
+     Agora o Excel sobe para o armazenamento e abre por um link de download normal — funciona no app, no celular e no computador. */
+  aviso('Preparando o Excel…','ok');
+  try{
+    const bin = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+    const arq = nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\- ]/g,'').replace(/\s+/g,'_')+'.xlsx';
+    const path = 'fichario/exportacoes/'+Date.now()+'-'+arq;
+    const up = await sb.storage.from('notas').upload(path, new Blob([bin],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), { upsert:false });
+    if(up.error) throw new Error(up.error.message);
+    const { data, error } = await sb.storage.from('notas').createSignedUrl(path, 3600, { download: nome+'.xlsx' });
+    if(error || !data) throw new Error(error ? error.message : 'sem link');
+    S.msg = null; _fichLink = data.signedUrl;
+    abrirModal('<h2 style="margin:0 0 6px">⬇ Excel pronto</h2><div style="color:var(--fraco);font-size:13.5px;margin-bottom:12px">'+esc(nome)+'.xlsx · '+l.length+' ficha'+(l.length===1?'':'s')+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt" onclick="fichAbrirLink()">⬇ Baixar o Excel</button>'+
+      '<button class="bt g" onclick="fecharModal()">Fechar</button></div>'+
+      '<div style="font-size:12px;color:var(--fraco);margin-top:10px">O arquivo vai para a pasta Downloads do aparelho. O link vale por 1 hora.</div>');
+  }catch(e){
+    try{ XLSX.writeFile(wb, nome+'.xlsx'); S.msg = null; render(); }catch(e2){ aviso('Não gerou o Excel: '+(e.message||e),'erro'); }
+  }
 }
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
