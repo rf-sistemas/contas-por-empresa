@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v104">
-<meta name="rf-data" content="2026-11-17">
+<meta name="rf-versao" content="v105">
+<meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -200,8 +200,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v104',
-  data   : '17/11/2026',
+  versao : 'v105',
+  data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -3600,7 +3600,7 @@ async function atualizarSilencioso(forcar){
       await pesCarregar();
       if(podeUsuarios()){ const { data:ps } = await sb.from('perfis').select('*').order('papel'); if(ps) S.perfis = ps; }
     }
-    if(S.esc && S.esc.carregado){ S.esc.carregado = false; await escCarregar(); }
+    if(S.esc && S.esc.carregado){ S.esc.carregado = false; S.esc.proc = {}; await escCarregar(); } /* v105: procedimentos também recarregam (antes ficavam presos na 1ª leitura) */
     if(S.saldo) S.saldo.carregado = false;
   }catch(e){}
   _atuRodando = false;
