@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v107">
+<meta name="rf-versao" content="v108">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v107',
+  versao : 'v108',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4231,7 +4231,11 @@ async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) retu
    Tira foto (ou escolhe várias na galeria / PDF) da ficha de consulta → Edge Function ler-ficha lê os campos →
    grava em public.fichas com a foto guardada (notas/fichario/). Lista uma ficha embaixo da outra; baixa uma,
    as marcadas ou todas em Excel. Permissão: aba 'fichario' em Usuários (cpe_ve_fichario no banco). */
-S.fich = S.fich || { lista:[], carregado:false, carregando:false, sel:{}, busca:'', st:'' };
+S.fich = S.fich || { lista:[], medicos:[], carregado:false, carregando:false, sel:{}, busca:'', st:'' };
+/* v108 (Renato, 18/11/2026): toda ficha leva o MÉDICO (nome e CRM). O médico é cadastrado pela foto da carteira do CRM
+   (ou da certidão de inscrição) e escolhido antes de ler as fichas; se a própria ficha trouxer médico/CRM, vale o da ficha. */
+function fichMedSel(){ let id = S.fich.medSel; if(!id) try{ id = localStorage.getItem('cpe_fich_med')||''; }catch(e){} return S.fich.medicos.find(m=>m.id===id) || null; }
+function fichMedTxt(nome, crm){ return (nome||'')+(crm?' · CRM '+crm:''); }
 function icoFichario(sz){ sz = sz||46;
   return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gFich')+
     '<rect x="6" y="14" width="36" height="26" rx="4" fill="url(#gFich)"/><path d="M12 9h18l4 5H12z" fill="url(#gFich)" opacity=".55"/>'+
@@ -4239,6 +4243,7 @@ function icoFichario(sz){ sz = sz||46;
 }
 async function fichCarregar(){
   if(S.fich.carregando) return; S.fich.carregando = true;
+  try{ const m = await sb.from('fich_medicos').select('*').order('nome'); if(!m.error) S.fich.medicos = m.data||[]; }catch(e){}
   try{ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false});
        if(r.error) S.fich.erro = r.error.message; else { S.fich.lista = r.data||[]; S.fich.erro = null; } }
   catch(e){ S.fich.erro = e.message; }
@@ -4246,7 +4251,7 @@ async function fichCarregar(){
 }
 function fichFiltradas(){
   const b = permNorm(S.fich.busca), bd = soDig(S.fich.busca);
-  return S.fich.lista.filter(f=>!b || permNorm(f.nome).indexOf(b)>=0 || permNorm(f.mae).indexOf(b)>=0 || (bd && (soDig(f.cpf).indexOf(bd)>=0 || soDig(f.cns).indexOf(bd)>=0 || soDig(f.telefone).indexOf(bd)>=0)));
+  return S.fich.lista.filter(f=>!b || permNorm(f.nome).indexOf(b)>=0 || permNorm(f.mae).indexOf(b)>=0 || permNorm(f.medico_nome).indexOf(b)>=0 || (bd && soDig(f.medico_crm).indexOf(bd)>=0) || (bd && (soDig(f.cpf).indexOf(bd)>=0 || soDig(f.cns).indexOf(bd)>=0 || soDig(f.telefone).indexOf(bd)>=0)));
 }
 function telaFichario(){
   if(!S.fich.carregado) fichCarregar();
@@ -4254,6 +4259,16 @@ function telaFichario(){
   let h = '<div class="secao"><b>FICHÁRIO</b><span>Fichas de consulta lidas por foto</span></div>';
   if(S.fich.erro && !S.fich.lista.length) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou o Fichário: '+esc(S.fich.erro)+'</b></div>';
   if(!S.fich.carregado) return h+'<div class="vazio">Carregando as fichas…</div>';
+  if(ed){ const ms = fichMedSel();
+    h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-left:4px solid var(--ouro)">'+
+      '<b style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--fraco)">Médico das fichas</b>'+
+      (S.fich.medicos.length
+        ? '<select id="fi-med" onchange="S.fich.medSel=this.value;try{localStorage.setItem(\'cpe_fich_med\',this.value)}catch(e){}" style="margin:0;max-width:420px">'+
+            (ms?'':'<option value="">— escolha o médico —</option>')+S.fich.medicos.map(m=>'<option value="'+m.id+'"'+(ms&&ms.id===m.id?' selected':'')+'>'+esc(fichMedTxt(m.nome, m.crm))+'</option>').join('')+'</select>'
+        : '<span style="color:var(--vermelho);font-size:13px">Nenhum médico cadastrado</span>')+
+      '<button class="bt g mini" onclick="document.getElementById(\'fi-crm\').click()">'+icoCamDoc()+'Cadastrar médico (foto do CRM)</button>'+
+      '<input type="file" id="fi-crm" accept="image/*,application/pdf" multiple hidden onchange="fichLerCrm(this)">'+
+      '<span id="fi-crm-st" style="font-size:12.5px;color:var(--fraco)">Carteira do CRM ou certidão de inscrição. Se a ficha trouxer o médico escrito, vale o da ficha.</span></div>'; }
   if(ed) h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
       '<button class="bt" onclick="document.getElementById(\'fi-cam\').click()">'+icoCamDoc()+'Tirar foto da ficha</button>'+
       '<button class="bt g" onclick="document.getElementById(\'fi-gal\').click()">Galeria (várias fotos) / PDF</button>'+
@@ -4261,7 +4276,7 @@ function telaFichario(){
       '<input type="file" id="fi-gal" accept="image/*,application/pdf" multiple hidden onchange="fichFotos(this)">'+
       '<span id="fi-st" style="font-size:13px;color:var(--fraco)">'+(S.fich.st||'O sistema lê cada foto e coloca a ficha na lista. Só entra informação por foto.')+'</span></div>';
   h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
-      '<input id="fi-busca" placeholder="Buscar por nome, CPF, CNS ou telefone" value="'+esc(S.fich.busca)+'" oninput="S.fich.busca=this.value;fichLista()" style="max-width:320px;margin:0;flex:1;min-width:200px">'+
+      '<input id="fi-busca" placeholder="Buscar por paciente, médico, CRM, CPF, CNS ou telefone" value="'+esc(S.fich.busca)+'" oninput="S.fich.busca=this.value;fichLista()" style="max-width:320px;margin:0;flex:1;min-width:200px">'+
       '<span id="fi-cont" style="font-size:13px;color:var(--fraco)"></span><div style="flex:1"></div>'+
       '<button class="bt g" onclick="fichBaixar(\'marcadas\')">⬇ Baixar marcadas</button>'+
       '<button class="bt" onclick="fichBaixar(\'todas\')">⬇ Baixar todas (Excel)</button></div>'+
@@ -4292,6 +4307,7 @@ function fichListaHtml(){
         '<button class="bt mini" onclick="fichBaixar(\''+f.id+'\')">⬇ Baixar esta</button>'+
         (ed?'<button class="bt g mini" style="color:var(--vermelho)" onclick="fichExcluir(\''+f.id+'\')" title="Excluir">🗑</button>':'')+'</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 14px;margin-top:10px">'+
+        campo('Médico', fichMedTxt(f.medico_nome, f.medico_crm), dv('medico_nome')||dv('medico_crm')||!f.medico_crm)+
         campo('Nascimento', (f.nascimento?dataBR(f.nascimento):'')+(f.idade!=null?' · '+f.idade+' anos':'')+(f.sexo?' · '+f.sexo:''), dv('nascimento')||dv('idade'))+
         campo('CPF', f.cpf, dv('cpf'))+campo('CNS', f.cns, dv('cns'))+campo('Telefone', f.telefone, dv('telefone'))+
         campo('Nome da mãe', f.mae, dv('mae'))+campo('Endereço', f.endereco, dv('endereco'))+campo('Queixa principal', f.queixa, dv('queixa'))+
@@ -4301,7 +4317,8 @@ function fichListaHtml(){
 async function fichFotos(inp){
   const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
   const st = t=>{ S.fich.st = t; const e = document.getElementById('fi-st'); if(e) e.innerHTML = t; };
-  const paginas = [];
+  const paginas = [], med = fichMedSel();
+  if(!med && S.fich.medicos.length){ st('<span style="color:var(--vermelho)">✖ Escolha o médico das fichas antes de ler.</span>'); if(inp) inp.value=''; return; }
   try{
     st('Preparando as fotos…');
     for(const f of arqs.slice(0,30)){
@@ -4321,6 +4338,7 @@ async function fichFotos(inp){
         const up = await sb.storage.from('notas').upload(path, new Blob([u8],{type:'image/jpeg'}), { contentType:'image/jpeg', upsert:false });
         if(up.error) throw new Error('a foto não subiu: '+up.error.message);
         const reg = Object.assign({}, data.ficha, { foto_path: path, duvidas: data.duvidas||[] });
+        if(!reg.medico_crm && med){ reg.medico_nome = med.nome; reg.medico_crm = med.crm; reg.medico_id = med.id; }
         const r = await sb.from('fichas').insert(reg).select().maybeSingle();
         if(r.error) throw new Error(r.error.message);
         S.fich.lista.unshift(r.data); ok++; fichLista();
@@ -4331,6 +4349,29 @@ async function fichFotos(inp){
   }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
   finally{ if(inp) inp.value = ''; }
 }
+async function fichLerCrm(inp){
+  const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
+  const st = t=>{ const e = document.getElementById('fi-crm-st'); if(e) e.innerHTML = t; };
+  try{
+    st('Lendo o documento do médico…'); const imagens = [];
+    for(const f of arqs.slice(0,4)){ const buf = await f.arrayBuffer();
+      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).forEach(x=>imagens.push(x));
+      else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }); }
+    const { data, error } = await sb.functions.invoke('ler-ficha', { body: { tipo:'crm', imagens: imagens.slice(0,4) } });
+    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || m; }catch(e){} throw new Error(m); }
+    if(data && data.error) throw new Error(data.error);
+    const m = data.medico || {}; if(!m.nome || !m.crm) throw new Error('não achei o nome e o CRM no documento');
+    const ja = S.fich.medicos.find(x=>soDig(x.crm)===soDig(m.crm) && String(x.uf||'')===String(m.uf||''));
+    let reg = ja;
+    if(!ja){ const bin = atob(imagens[0].b64), u8 = new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) u8[k] = bin.charCodeAt(k);
+      const path = 'fichario/medicos/'+Date.now()+'.jpg'; await sb.storage.from('notas').upload(path, new Blob([u8],{type:'image/jpeg'}), { contentType:'image/jpeg' });
+      const r = await sb.from('fich_medicos').insert({ nome:m.nome, crm:m.crm+(m.uf?'/'+m.uf:''), uf:m.uf||null, foto_path:path }).select().maybeSingle();
+      if(r.error) throw new Error(r.error.message); reg = r.data; S.fich.medicos.push(reg); S.fich.medicos.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')); }
+    S.fich.medSel = reg.id; try{ localStorage.setItem('cpe_fich_med', reg.id); }catch(e){}
+    render(); setTimeout(()=>{ const e = document.getElementById('fi-crm-st'); if(e) e.innerHTML = '<span style="color:var(--verde,#0f9d58)">✔ '+esc(fichMedTxt(reg.nome, reg.crm))+(ja?' (já estava cadastrado)':' cadastrado')+' e escolhido para as próximas fichas.</span>'; }, 0);
+  }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value=''; }
+}
 async function fichVerFoto(id){
   const f = S.fich.lista.find(x=>x.id===id); if(!f || !f.foto_path) return;
   const { data, error } = await sb.storage.from('notas').createSignedUrl(f.foto_path, 1800);
@@ -4340,7 +4381,7 @@ async function fichVerFoto(id){
     '<div style="max-height:72vh;overflow:auto;border:1px solid var(--linha);border-radius:9px"><img src="'+data.signedUrl+'" style="width:100%;display:block"></div>'+
     '<div style="display:flex;gap:8px;margin-top:12px"><a class="bt g" href="'+data.signedUrl+'" target="_blank" rel="noopener" style="text-decoration:none">Abrir em tela cheia</a><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
 }
-const FICH_CAMPOS = [['ficha_num','Nº da ficha','text'],['nome','Nome completo','text'],['data_consulta','Data da consulta','date'],['nascimento','Data de nascimento','date'],
+const FICH_CAMPOS = [['ficha_num','Nº da ficha','text'],['nome','Nome completo','text'],['data_consulta','Data da consulta','date'],['medico_nome','Médico','text'],['medico_crm','CRM do médico','text'],['nascimento','Data de nascimento','date'],
   ['idade','Idade','number'],['sexo','Sexo','text'],['cpf','CPF','text'],['cns','CNS','text'],['telefone','Telefone','text'],['mae','Nome da mãe','text'],['endereco','Endereço','text'],['queixa','Queixa principal','text']];
 function fichEditar(id){
   const f = S.fich.lista.find(x=>x.id===id); if(!f) return;
@@ -4376,12 +4417,12 @@ async function fichBaixar(qual){
   if(!l.length) return aviso('Nenhuma ficha para baixar.','erro');
   try{ await fichXlsxLib(); }catch(e){ return aviso(e.message,'erro'); }
   const dt = d=>{ if(!d) return null; const p = String(d).slice(0,10).split('-').map(Number); return (Date.UTC(p[0],p[1]-1,p[2]) - Date.UTC(1899,11,30))/86400000; };   // número de série do Excel (sem fuso)
-  const rows = [['Nº da ficha','Nome completo','Data da consulta','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal']]
-    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'']));
+  const rows = [['Nº da ficha','Nome completo','Data da consulta','Médico','CRM do médico','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal']]
+    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), f.medico_nome||'', f.medico_crm||'', dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'']));
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  for(let r=1; r<rows.length; r++) ['C','D'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
-  ws['!cols'] = [11,32,16,18,7,6,17,21,17,28,48,40].map(w=>({ wch:w }));
-  ws['!autofilter'] = { ref: 'A1:L'+rows.length };
+  for(let r=1; r<rows.length; r++) ['C','F'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
+  ws['!cols'] = [11,32,16,32,14,18,7,6,17,21,17,28,48,40].map(w=>({ wch:w }));
+  ws['!autofilter'] = { ref: 'A1:N'+rows.length };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichas');
   const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' fichas - '+hojeISO().split('-').reverse().join('-');
   XLSX.writeFile(wb, nome+'.xlsx');
