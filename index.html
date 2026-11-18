@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v106">
+<meta name="rf-versao" content="v107">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v106',
+  versao : 'v107',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -375,6 +375,7 @@ function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
 const CPE_ABAS = [
   ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
   ['HOSPITAL IDAD', [['idad','🏥','Hospital IDAD']]],
+  ['FICHÁRIO', [['fichario','🗂️','Fichário']]],
   ['CADASTROS',  [['empresas','🏛️','Empresas']]]
 ];
 /* v82 (Renato, 12/11/2026): permissão por GRUPO e por TELA — "dou acesso à NAFS só a duas telas, à ANESTESIA só a uma".
@@ -478,6 +479,7 @@ function render(){
   else if(S.tela==='inicio')   corpo = telaInicio();
   else if(S.tela==='escalahub') corpo = telaEscalaHub();
   else if(S.tela==='idad')     corpo = telaIdad();
+  else if(S.tela==='fichario') corpo = telaFichario();
   else if(S.tela==='idadpac')  corpo = telaIdadPac();
   else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
@@ -3657,6 +3659,7 @@ async function atualizarSilencioso(forcar){
     }
     if(S.esc && S.esc.carregado){ S.esc.carregado = false; S.esc.proc = {}; await escCarregar(); } /* v105: procedimentos também recarregam (antes ficavam presos na 1ª leitura) */
     if(S.saldo) S.saldo.carregado = false;
+    if(S.fich && S.fich.carregado && !S.fich.carregando){ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false}); if(!r.error) S.fich.lista = r.data||[]; }
   }catch(e){}
   _atuRodando = false;
   if(_syncDeNovo){ _syncDeNovo = false; return atualizarSilencioso(true); }
@@ -3712,7 +3715,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3775,6 +3778,8 @@ function telaInicio(){
   '</div>';
   if(veAba('idad')) h += '<div class="secao"><b>HOSPITAL IDAD</b><span>Módulo do hospital — financeiro, plantões e o que vier</span></div><div class="bxs">'+
     cpeCaixa('idad', icoHospital(), 'Hospital IDAD', 'CNPJ '+mascaraCNPJ(IDAD_CNPJ)+' · financeiro e plantões do hospital')+'</div>';
+  if(veAba('fichario')) h += '<div class="secao"><b>FICHÁRIO</b><span>Fichas de consulta lidas por foto</span></div><div class="bxs">'+
+    cpeCaixa('fichario', icoFichario(), 'Fichário', 'Tire foto da ficha: o sistema lê e lista uma embaixo da outra para baixar em Excel')+'</div>';
   const cad = (veAba('empresas')? cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs') : '')+
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
@@ -4222,6 +4227,165 @@ async function obraSalvar(){
 async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) return;
   const r = await sb.from('idad_obra').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
   S.idad.obra = S.idad.obra.filter(o=>o.id!==id); S.modal=null; aviso('Gasto excluído.','ok'); }
+/* ===== v107 (Renato, 18/11/2026): FICHÁRIO — "toda informação que vai para o sistema será através de fotos".
+   Tira foto (ou escolhe várias na galeria / PDF) da ficha de consulta → Edge Function ler-ficha lê os campos →
+   grava em public.fichas com a foto guardada (notas/fichario/). Lista uma ficha embaixo da outra; baixa uma,
+   as marcadas ou todas em Excel. Permissão: aba 'fichario' em Usuários (cpe_ve_fichario no banco). */
+S.fich = S.fich || { lista:[], carregado:false, carregando:false, sel:{}, busca:'', st:'' };
+function icoFichario(sz){ sz = sz||46;
+  return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gFich')+
+    '<rect x="6" y="14" width="36" height="26" rx="4" fill="url(#gFich)"/><path d="M12 9h18l4 5H12z" fill="url(#gFich)" opacity=".55"/>'+
+    '<rect x="11" y="19" width="26" height="4" rx="2" fill="#fff" opacity=".9"/><rect x="11" y="26" width="18" height="3" rx="1.5" fill="#fff" opacity=".75"/><rect x="11" y="32" width="22" height="3" rx="1.5" fill="#fff" opacity=".75"/></svg>';
+}
+async function fichCarregar(){
+  if(S.fich.carregando) return; S.fich.carregando = true;
+  try{ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false});
+       if(r.error) S.fich.erro = r.error.message; else { S.fich.lista = r.data||[]; S.fich.erro = null; } }
+  catch(e){ S.fich.erro = e.message; }
+  S.fich.carregando = false; S.fich.carregado = true; if(!cpeOcupado()) render();
+}
+function fichFiltradas(){
+  const b = permNorm(S.fich.busca), bd = soDig(S.fich.busca);
+  return S.fich.lista.filter(f=>!b || permNorm(f.nome).indexOf(b)>=0 || permNorm(f.mae).indexOf(b)>=0 || (bd && (soDig(f.cpf).indexOf(bd)>=0 || soDig(f.cns).indexOf(bd)>=0 || soDig(f.telefone).indexOf(bd)>=0)));
+}
+function telaFichario(){
+  if(!S.fich.carregado) fichCarregar();
+  const ed = podeEditar();
+  let h = '<div class="secao"><b>FICHÁRIO</b><span>Fichas de consulta lidas por foto</span></div>';
+  if(S.fich.erro && !S.fich.lista.length) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou o Fichário: '+esc(S.fich.erro)+'</b></div>';
+  if(!S.fich.carregado) return h+'<div class="vazio">Carregando as fichas…</div>';
+  if(ed) h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
+      '<button class="bt" onclick="document.getElementById(\'fi-cam\').click()">'+icoCamDoc()+'Tirar foto da ficha</button>'+
+      '<button class="bt g" onclick="document.getElementById(\'fi-gal\').click()">Galeria (várias fotos) / PDF</button>'+
+      '<input type="file" id="fi-cam" accept="image/*" capture="environment" hidden onchange="fichFotos(this)">'+
+      '<input type="file" id="fi-gal" accept="image/*,application/pdf" multiple hidden onchange="fichFotos(this)">'+
+      '<span id="fi-st" style="font-size:13px;color:var(--fraco)">'+(S.fich.st||'O sistema lê cada foto e coloca a ficha na lista. Só entra informação por foto.')+'</span></div>';
+  h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
+      '<input id="fi-busca" placeholder="Buscar por nome, CPF, CNS ou telefone" value="'+esc(S.fich.busca)+'" oninput="S.fich.busca=this.value;fichLista()" style="max-width:320px;margin:0;flex:1;min-width:200px">'+
+      '<span id="fi-cont" style="font-size:13px;color:var(--fraco)"></span><div style="flex:1"></div>'+
+      '<button class="bt g" onclick="fichBaixar(\'marcadas\')">⬇ Baixar marcadas</button>'+
+      '<button class="bt" onclick="fichBaixar(\'todas\')">⬇ Baixar todas (Excel)</button></div>'+
+    '<div id="fi-lista">'+fichListaHtml()+'</div>';
+  setTimeout(fichContagem, 0);
+  return h;
+}
+function fichContagem(){ const e = document.getElementById('fi-cont'); if(!e) return;
+  const n = fichFiltradas().length, m = Object.keys(S.fich.sel).filter(k=>S.fich.sel[k] && S.fich.lista.some(f=>f.id===k)).length;
+  e.textContent = n+' ficha'+(n===1?'':'s')+(m?' · '+m+' marcada'+(m===1?'':'s'):''); }
+function fichLista(){ const e = document.getElementById('fi-lista'); if(e) e.innerHTML = fichListaHtml(); fichContagem(); }
+function fichListaHtml(){
+  const ed = podeEditar(), l = fichFiltradas();
+  if(!S.fich.lista.length) return '<div class="vazio">Nenhuma ficha ainda. '+(ed?'Toque em <b>Tirar foto da ficha</b>.':'')+'</div>';
+  if(!l.length) return '<div class="vazio">Nenhuma ficha encontrada.</div>';
+  const campo = (r,v,duv)=>'<div><span style="font-size:11px;color:var(--fraco);text-transform:uppercase;letter-spacing:.04em">'+r+'</span>'+
+    '<div style="font-size:14px'+(duv?';background:#FFF4CC;border-radius:5px;padding:0 4px;color:#7a5a00':'')+'"'+(duv?' title="Leitura incerta — confira na foto"':'')+'>'+(v?esc(v):'—')+'</div></div>';
+  return l.map(f=>{ const d = f.duvidas||[], dv = k=>d.indexOf(k)>=0;
+    return '<div class="card" style="padding:14px 16px;margin-bottom:10px">'+
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+        '<input type="checkbox" '+(S.fich.sel[f.id]?'checked':'')+' onchange="S.fich.sel[\''+f.id+'\']=this.checked;fichContagem()" style="width:20px;height:20px;margin:0">'+
+        '<b style="font-size:16px'+(dv('nome')?';background:#FFF4CC;border-radius:5px;padding:0 4px':'')+'">'+esc(f.nome||'(sem nome)')+'</b>'+
+        '<span style="color:var(--fraco);font-size:13px">'+(f.ficha_num?'ficha nº '+esc(f.ficha_num)+' · ':'')+'consulta '+dataBR(f.data_consulta)+'</span>'+
+        (d.length?'<span style="font-size:12px;color:#7a5a00;background:#FFF4CC;border-radius:6px;padding:2px 8px">conferir na foto</span>':'')+
+        '<div style="flex:1"></div>'+
+        (f.foto_path?'<button class="bt g mini" onclick="fichVerFoto(\''+f.id+'\')">'+icoProva()+'Ver foto</button>':'')+
+        (ed?'<button class="bt g mini" onclick="fichEditar(\''+f.id+'\')">✎ Corrigir</button>':'')+
+        '<button class="bt mini" onclick="fichBaixar(\''+f.id+'\')">⬇ Baixar esta</button>'+
+        (ed?'<button class="bt g mini" style="color:var(--vermelho)" onclick="fichExcluir(\''+f.id+'\')" title="Excluir">🗑</button>':'')+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 14px;margin-top:10px">'+
+        campo('Nascimento', (f.nascimento?dataBR(f.nascimento):'')+(f.idade!=null?' · '+f.idade+' anos':'')+(f.sexo?' · '+f.sexo:''), dv('nascimento')||dv('idade'))+
+        campo('CPF', f.cpf, dv('cpf'))+campo('CNS', f.cns, dv('cns'))+campo('Telefone', f.telefone, dv('telefone'))+
+        campo('Nome da mãe', f.mae, dv('mae'))+campo('Endereço', f.endereco, dv('endereco'))+campo('Queixa principal', f.queixa, dv('queixa'))+
+        (dv('data_consulta')?campo('Data da consulta', dataBR(f.data_consulta), true):'')+
+      '</div></div>'; }).join('');
+}
+async function fichFotos(inp){
+  const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
+  const st = t=>{ S.fich.st = t; const e = document.getElementById('fi-st'); if(e) e.innerHTML = t; };
+  const paginas = [];
+  try{
+    st('Preparando as fotos…');
+    for(const f of arqs.slice(0,30)){
+      const buf = await f.arrayBuffer(); if(!buf.byteLength) throw new Error('a foto veio vazia do seletor — tente pela Galeria');
+      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).forEach(x=>paginas.push(x));
+      else paginas.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' });
+    }
+    let ok = 0, falhas = [];
+    for(let i=0; i<paginas.length; i++){
+      st('Lendo a ficha '+(i+1)+' de '+paginas.length+'… (uns 10 a 30 segundos cada)');
+      try{
+        const { data, error } = await sb.functions.invoke('ler-ficha', { body: { imagem: paginas[i] } });
+        if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || m; }catch(e){} throw new Error(m); }
+        if(data && data.error) throw new Error(data.error);
+        const bin = atob(paginas[i].b64), u8 = new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) u8[k] = bin.charCodeAt(k);
+        const path = 'fichario/'+Date.now()+'-'+i+'.jpg';
+        const up = await sb.storage.from('notas').upload(path, new Blob([u8],{type:'image/jpeg'}), { contentType:'image/jpeg', upsert:false });
+        if(up.error) throw new Error('a foto não subiu: '+up.error.message);
+        const reg = Object.assign({}, data.ficha, { foto_path: path, duvidas: data.duvidas||[] });
+        const r = await sb.from('fichas').insert(reg).select().maybeSingle();
+        if(r.error) throw new Error(r.error.message);
+        S.fich.lista.unshift(r.data); ok++; fichLista();
+      }catch(e){ falhas.push('foto '+(i+1)+': '+(e.message||e)); }
+    }
+    st(ok ? '<span style="color:var(--verde,#0f9d58)">✔ '+ok+' ficha'+(ok===1?'':'s')+' lida'+(ok===1?'':'s')+' e guardada'+(ok===1?'':'s')+'. Confira os campos marcados em amarelo.</span>'+(falhas.length?' <span style="color:var(--vermelho)">✖ '+esc(falhas.join(' · '))+'</span>':'')
+             : '<span style="color:var(--vermelho)">✖ '+esc(falhas.join(' · '))+'</span>');
+  }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value = ''; }
+}
+async function fichVerFoto(id){
+  const f = S.fich.lista.find(x=>x.id===id); if(!f || !f.foto_path) return;
+  const { data, error } = await sb.storage.from('notas').createSignedUrl(f.foto_path, 1800);
+  if(error || !data) return aviso('Não abriu a foto: '+(error?error.message:''),'erro');
+  abrirModal('<style>.modal{max-width:900px}</style><h2 style="margin:0">'+icoProva()+'Foto da ficha</h2>'+
+    '<div style="color:var(--fraco);font-size:13.5px;margin:4px 0 10px"><b style="color:var(--texto)">'+esc(f.nome||'')+'</b>'+(f.ficha_num?' · ficha nº '+esc(f.ficha_num):'')+' · consulta '+dataBR(f.data_consulta)+'</div>'+
+    '<div style="max-height:72vh;overflow:auto;border:1px solid var(--linha);border-radius:9px"><img src="'+data.signedUrl+'" style="width:100%;display:block"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px"><a class="bt g" href="'+data.signedUrl+'" target="_blank" rel="noopener" style="text-decoration:none">Abrir em tela cheia</a><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+const FICH_CAMPOS = [['ficha_num','Nº da ficha','text'],['nome','Nome completo','text'],['data_consulta','Data da consulta','date'],['nascimento','Data de nascimento','date'],
+  ['idade','Idade','number'],['sexo','Sexo','text'],['cpf','CPF','text'],['cns','CNS','text'],['telefone','Telefone','text'],['mae','Nome da mãe','text'],['endereco','Endereço','text'],['queixa','Queixa principal','text']];
+function fichEditar(id){
+  const f = S.fich.lista.find(x=>x.id===id); if(!f) return;
+  abrirModal('<h2 style="margin:0 0 4px">✎ Corrigir a leitura</h2><div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">Só para ajustar o que a foto mostra e o sistema leu errado.'+(f.foto_path?' <a href="#" onclick="fichVerFoto(\''+id+'\');return false">Ver foto</a>':'')+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 12px">'+
+    FICH_CAMPOS.map(c=>'<label style="margin:0">'+c[1]+'<input id="fe-'+c[0]+'" type="'+c[2]+'" value="'+esc(f[c[0]]==null?'':String(f[c[0]]).slice(0, c[2]==='date'?10:9999))+'"></label>').join('')+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="fichSalvar(\''+id+'\')">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function fichSalvar(id){
+  const c = {}; FICH_CAMPOS.forEach(x=>{ const v = (document.getElementById('fe-'+x[0])||{}).value; c[x[0]] = v==='' || v==null ? null : (x[2]==='number' ? Math.round(Number(v)) : v.trim()); });
+  c.duvidas = []; c.atualizado_em = new Date().toISOString();
+  const r = await sb.from('fichas').update(c).eq('id', id).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  const i = S.fich.lista.findIndex(x=>x.id===id); if(i>=0) S.fich.lista[i] = r.data;
+  S.modal = null; aviso('Ficha corrigida.','ok');
+}
+async function fichExcluir(id){
+  const f = S.fich.lista.find(x=>x.id===id); if(!f || !confirm('Excluir a ficha de '+(f.nome||'(sem nome)')+'?')) return;
+  const r = await sb.from('fichas').delete().eq('id', id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  if(f.foto_path) try{ await sb.storage.from('notas').remove([f.foto_path]); }catch(e){}
+  S.fich.lista = S.fich.lista.filter(x=>x.id!==id); delete S.fich.sel[id]; aviso('Ficha excluída.','ok');
+}
+function fichXlsxLib(){
+  if(window.XLSX) return Promise.resolve();
+  return new Promise((ok,nok)=>{ const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = ()=>ok(); s.onerror = ()=>nok(new Error('não carregou o gerador de Excel — verifique a internet')); document.head.appendChild(s); });
+}
+async function fichBaixar(qual){
+  let l;
+  if(qual==='todas') l = fichFiltradas();
+  else if(qual==='marcadas'){ l = S.fich.lista.filter(f=>S.fich.sel[f.id]); if(!l.length) return aviso('Marque as fichas que quer baixar.','erro'); }
+  else l = S.fich.lista.filter(f=>f.id===qual);
+  if(!l.length) return aviso('Nenhuma ficha para baixar.','erro');
+  try{ await fichXlsxLib(); }catch(e){ return aviso(e.message,'erro'); }
+  const dt = d=>{ if(!d) return null; const p = String(d).slice(0,10).split('-').map(Number); return (Date.UTC(p[0],p[1]-1,p[2]) - Date.UTC(1899,11,30))/86400000; };   // número de série do Excel (sem fuso)
+  const rows = [['Nº da ficha','Nome completo','Data da consulta','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal']]
+    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'']));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  for(let r=1; r<rows.length; r++) ['C','D'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
+  ws['!cols'] = [11,32,16,18,7,6,17,21,17,28,48,40].map(w=>({ wch:w }));
+  ws['!autofilter'] = { ref: 'A1:L'+rows.length };
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichas');
+  const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' fichas - '+hojeISO().split('-').reverse().join('-');
+  XLSX.writeFile(wb, nome+'.xlsx');
+}
 function telaEscalaHub(){
   return '<div class="secao"><b>'+escGrupo()+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (ehAnes() || veAba('escala') ? cpeCaixa('escala','💉', ehAnes() ? escGrupo() : 'Adicionar paciente', ehAnes() ? 'Calendário do mês: toque no dia para ver quem está em cada local' : 'Toque no dia, escolha o hospital e o anestesista') : '')+
