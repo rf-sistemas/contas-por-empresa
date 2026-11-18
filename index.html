@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v108">
+<meta name="rf-versao" content="v109">
 <meta name="rf-data" content="2026-11-18">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v108',
+  versao : 'v109',
   data   : '18/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4234,7 +4234,10 @@ async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) retu
 S.fich = S.fich || { lista:[], medicos:[], carregado:false, carregando:false, sel:{}, busca:'', st:'' };
 /* v108 (Renato, 18/11/2026): toda ficha leva o MÉDICO (nome e CRM). O médico é cadastrado pela foto da carteira do CRM
    (ou da certidão de inscrição) e escolhido antes de ler as fichas; se a própria ficha trouxer médico/CRM, vale o da ficha. */
-function fichMedSel(){ let id = S.fich.medSel; if(!id) try{ id = localStorage.getItem('cpe_fich_med')||''; }catch(e){} return S.fich.medicos.find(m=>m.id===id) || null; }
+/* v109 (Renato, 18/11/2026): "não é cadastrar médico" — o médico vem de PADRÃO em toda ficha lida (sem escolher nem cadastrar).
+   Se a própria ficha trouxer outro médico/CRM escrito, vale o da ficha. */
+const FICH_MEDICO_PADRAO = { nome:'Marcus Adriano Nogueira Neves', crm:'36770/BA' };
+function fichMedSel(){ return FICH_MEDICO_PADRAO; }
 function fichMedTxt(nome, crm){ return (nome||'')+(crm?' · CRM '+crm:''); }
 function icoFichario(sz){ sz = sz||46;
   return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gFich')+
@@ -4259,22 +4262,12 @@ function telaFichario(){
   let h = '<div class="secao"><b>FICHÁRIO</b><span>Fichas de consulta lidas por foto</span></div>';
   if(S.fich.erro && !S.fich.lista.length) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou o Fichário: '+esc(S.fich.erro)+'</b></div>';
   if(!S.fich.carregado) return h+'<div class="vazio">Carregando as fichas…</div>';
-  if(ed){ const ms = fichMedSel();
-    h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-left:4px solid var(--ouro)">'+
-      '<b style="font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--fraco)">Médico das fichas</b>'+
-      (S.fich.medicos.length
-        ? '<select id="fi-med" onchange="S.fich.medSel=this.value;try{localStorage.setItem(\'cpe_fich_med\',this.value)}catch(e){}" style="margin:0;max-width:420px">'+
-            (ms?'':'<option value="">— escolha o médico —</option>')+S.fich.medicos.map(m=>'<option value="'+m.id+'"'+(ms&&ms.id===m.id?' selected':'')+'>'+esc(fichMedTxt(m.nome, m.crm))+'</option>').join('')+'</select>'
-        : '<span style="color:var(--vermelho);font-size:13px">Nenhum médico cadastrado</span>')+
-      '<button class="bt g mini" onclick="document.getElementById(\'fi-crm\').click()">'+icoCamDoc()+'Cadastrar médico (foto do CRM)</button>'+
-      '<input type="file" id="fi-crm" accept="image/*,application/pdf" multiple hidden onchange="fichLerCrm(this)">'+
-      '<span id="fi-crm-st" style="font-size:12.5px;color:var(--fraco)">Carteira do CRM ou certidão de inscrição. Se a ficha trouxer o médico escrito, vale o da ficha.</span></div>'; }
   if(ed) h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
       '<button class="bt" onclick="document.getElementById(\'fi-cam\').click()">'+icoCamDoc()+'Tirar foto da ficha</button>'+
       '<button class="bt g" onclick="document.getElementById(\'fi-gal\').click()">Galeria (várias fotos) / PDF</button>'+
       '<input type="file" id="fi-cam" accept="image/*" capture="environment" hidden onchange="fichFotos(this)">'+
       '<input type="file" id="fi-gal" accept="image/*,application/pdf" multiple hidden onchange="fichFotos(this)">'+
-      '<span id="fi-st" style="font-size:13px;color:var(--fraco)">'+(S.fich.st||'O sistema lê cada foto e coloca a ficha na lista. Só entra informação por foto.')+'</span></div>';
+      '<span id="fi-st" style="font-size:13px;color:var(--fraco)">'+(S.fich.st||'O sistema lê cada foto e coloca a ficha na lista, já com o médico <b>'+esc(fichMedTxt(FICH_MEDICO_PADRAO.nome, FICH_MEDICO_PADRAO.crm))+'</b>. Só entra informação por foto.')+'</span></div>';
   h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
       '<input id="fi-busca" placeholder="Buscar por paciente, médico, CRM, CPF, CNS ou telefone" value="'+esc(S.fich.busca)+'" oninput="S.fich.busca=this.value;fichLista()" style="max-width:320px;margin:0;flex:1;min-width:200px">'+
       '<span id="fi-cont" style="font-size:13px;color:var(--fraco)"></span><div style="flex:1"></div>'+
@@ -4318,7 +4311,6 @@ async function fichFotos(inp){
   const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
   const st = t=>{ S.fich.st = t; const e = document.getElementById('fi-st'); if(e) e.innerHTML = t; };
   const paginas = [], med = fichMedSel();
-  if(!med && S.fich.medicos.length){ st('<span style="color:var(--vermelho)">✖ Escolha o médico das fichas antes de ler.</span>'); if(inp) inp.value=''; return; }
   try{
     st('Preparando as fotos…');
     for(const f of arqs.slice(0,30)){
@@ -4338,7 +4330,7 @@ async function fichFotos(inp){
         const up = await sb.storage.from('notas').upload(path, new Blob([u8],{type:'image/jpeg'}), { contentType:'image/jpeg', upsert:false });
         if(up.error) throw new Error('a foto não subiu: '+up.error.message);
         const reg = Object.assign({}, data.ficha, { foto_path: path, duvidas: data.duvidas||[] });
-        if(!reg.medico_crm && med){ reg.medico_nome = med.nome; reg.medico_crm = med.crm; reg.medico_id = med.id; }
+        if(!reg.medico_crm){ reg.medico_nome = med.nome; reg.medico_crm = med.crm; }
         const r = await sb.from('fichas').insert(reg).select().maybeSingle();
         if(r.error) throw new Error(r.error.message);
         S.fich.lista.unshift(r.data); ok++; fichLista();
@@ -4348,29 +4340,6 @@ async function fichFotos(inp){
              : '<span style="color:var(--vermelho)">✖ '+esc(falhas.join(' · '))+'</span>');
   }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
   finally{ if(inp) inp.value = ''; }
-}
-async function fichLerCrm(inp){
-  const arqs = Array.from((inp && inp.files) || []); if(!arqs.length) return;
-  const st = t=>{ const e = document.getElementById('fi-crm-st'); if(e) e.innerHTML = t; };
-  try{
-    st('Lendo o documento do médico…'); const imagens = [];
-    for(const f of arqs.slice(0,4)){ const buf = await f.arrayBuffer();
-      if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).forEach(x=>imagens.push(x));
-      else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }); }
-    const { data, error } = await sb.functions.invoke('ler-ficha', { body: { tipo:'crm', imagens: imagens.slice(0,4) } });
-    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || m; }catch(e){} throw new Error(m); }
-    if(data && data.error) throw new Error(data.error);
-    const m = data.medico || {}; if(!m.nome || !m.crm) throw new Error('não achei o nome e o CRM no documento');
-    const ja = S.fich.medicos.find(x=>soDig(x.crm)===soDig(m.crm) && String(x.uf||'')===String(m.uf||''));
-    let reg = ja;
-    if(!ja){ const bin = atob(imagens[0].b64), u8 = new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) u8[k] = bin.charCodeAt(k);
-      const path = 'fichario/medicos/'+Date.now()+'.jpg'; await sb.storage.from('notas').upload(path, new Blob([u8],{type:'image/jpeg'}), { contentType:'image/jpeg' });
-      const r = await sb.from('fich_medicos').insert({ nome:m.nome, crm:m.crm+(m.uf?'/'+m.uf:''), uf:m.uf||null, foto_path:path }).select().maybeSingle();
-      if(r.error) throw new Error(r.error.message); reg = r.data; S.fich.medicos.push(reg); S.fich.medicos.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')); }
-    S.fich.medSel = reg.id; try{ localStorage.setItem('cpe_fich_med', reg.id); }catch(e){}
-    render(); setTimeout(()=>{ const e = document.getElementById('fi-crm-st'); if(e) e.innerHTML = '<span style="color:var(--verde,#0f9d58)">✔ '+esc(fichMedTxt(reg.nome, reg.crm))+(ja?' (já estava cadastrado)':' cadastrado')+' e escolhido para as próximas fichas.</span>'; }, 0);
-  }catch(e){ st('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
-  finally{ if(inp) inp.value=''; }
 }
 async function fichVerFoto(id){
   const f = S.fich.lista.find(x=>x.id===id); if(!f || !f.foto_path) return;
