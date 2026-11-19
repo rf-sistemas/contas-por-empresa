@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v116">
+<meta name="rf-versao" content="v117">
 <meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -184,6 +184,14 @@
   .mv .v{text-align:right;white-space:nowrap} .mv .v small{display:block;color:var(--fraco);font-size:11px}
   .acoes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 0 12px}
   .acoes button{padding:12px 8px}
+.cc-fontes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.cc-fonte{display:flex;gap:10px;border:1px solid var(--linha);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.35}
+.cc-fonte b{font-size:13.5px;display:block}.cc-fonte small{color:var(--fraco);display:block;margin-bottom:3px}.cc-meta{color:var(--fraco);font-size:11.5px;margin-top:2px}
+.cc-fi{font-size:18px;font-weight:800;width:22px;text-align:center}.cc-fonte.ok{background:#effaf3;border-color:#bfe8cd}.cc-fonte.ok .cc-fi{color:var(--verde)}
+.cc-fonte.parc{background:#fff8e6;border-color:#f3dc9c}.cc-fonte.parc .cc-fi{color:#d97706}.cc-fonte.falta{background:#fff1f1;border-color:#f5c2c2}.cc-fonte.falta .cc-fi{color:var(--vermelho)}
+.cc-tab th,.cc-tab td{text-align:right;white-space:nowrap;font-size:12.5px}.cc-tab th:first-child,.cc-tab td:first-child,.cc-tab td:last-child,.cc-tab th:last-child{text-align:left}
+.cc-tab th.cc-g1{background:#eef7f4}.cc-tab th.cc-g2{background:#eef3fb}.cc-tab thead th{text-align:center}
+.cc-pend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--linha);padding:10px 0}.cc-pend.just{opacity:.6}
 </style>
 </head>
 <body>
@@ -200,7 +208,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v116',
+  versao : 'v117',
   data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -435,7 +443,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -486,6 +494,7 @@ function render(){
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
   else if(S.tela==='idadfin')   corpo = telaIdadFin();
+  else if(S.tela==='idadconc')  corpo = telaIdadConc();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3718,7 +3727,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3838,6 +3847,7 @@ function telaIdad(){
   let h = '';   // v95: quadro de resumo do topo retirado a pedido do Renato
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadfin\')"><div class="ic">'+icoFinIdad()+'</div><div><b>Financeiro do IDAD</b><small>'+ifinResumo()+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadconc\')"><div class="ic">'+icoConc()+'</div><div><b>Conciliação do IDAD</b><small>'+iconcResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
@@ -4283,7 +4293,7 @@ function telaIdadFin(){
     '<label style="display:flex;gap:6px;align-items:center;margin:0;text-transform:none;font-size:14px;cursor:pointer"><input type="checkbox" style="width:auto" '+(S.ifin.tudo?'checked':'')+' onchange="S.ifin.tudo=this.checked;render()"> Todos os meses</label>'+
     '<div style="flex:1"></div>'+
     (podeEditar()?'<button class="bt" onclick="ifinAbrir(null,\'entrada\')">+ Entrada</button><button class="bt" onclick="ifinAbrir(null,\'saida\')">+ Saída</button>':'')+
-    '<button class="bt g" onclick="ifinAuditoria()">🛡 Auditoria</button></div>';
+    '<button class="bt g" onclick="irPara(\'idadconc\')">⚖ Conciliação</button><button class="bt g" onclick="ifinAuditoria()">🛡 Auditoria</button></div>';
   h += '<div class="card"><div class="kpis">'+
     kpi('Recebido', '<span style="color:var(--verde)">'+brl(rec)+'</span>')+kpi('Pago', '<span style="color:var(--vermelho)">'+brl(pag)+'</span>')+
     kpi('Resultado do caixa', brl(rec-pag))+kpi('A receber', brl(arec))+kpi('A pagar', brl(apag))+'</div>'+
@@ -4412,6 +4422,287 @@ async function ifinRestaurar(audId){
   const reg = Object.assign({}, r.data.antes); ['criado_em','atualizado_em'].forEach(k=>delete reg[k]);
   const ins = await sb.from('movimentos').insert(reg).select().maybeSingle(); if(ins.error) return aviso('Não restaurou: '+ins.error.message,'erro');
   S.movimentos.unshift(ins.data); S.modal = null; aviso('Lançamento restaurado.','ok');
+}
+/* ===== v117 (Renato, 19/11/2026): CONCILIAÇÃO DO IDAD — base organizada para o confronto de contas (e para o robô auditor depois).
+   Regra: os DOCUMENTOS-FONTE ficam guardados como vieram e não se mexe neles (lote imutável, com nome do arquivo, quem importou e quando):
+     • Relatório de caixa da recepção (Pixeon) — cada atendimento com profissional, convênio, forma, PARTE DO MÉDICO e PARTE DO IDAD
+     • Vendas no cartão (Stone) — bruto, taxa e líquido de cada venda
+     • Extrato do Banco do Brasil — já está nos lançamentos (Pix e depósitos)
+   O sistema CONFRONTA dia a dia: parte do IDAD paga no balcão × caixa lançado + Pix no banco; cartão da recepção × Stone × lançado.
+   Cada diferença vira uma PENDÊNCIA: ou se lança o que falta, ou se justifica (com texto, quem e quando — fica na auditoria).
+   Tabelas: idad_conc_lotes, idad_conc_linhas, idad_conc_justificativas (todas com gatilho de auditoria). */
+S.iconc = { mes:(()=>{ const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); })(), lotes:null, linhas:null, just:null, carregando:false, aba:'dia' };
+function icoConc(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gCon')+
+  '<rect x="22.5" y="8" width="3" height="30" rx="1.5" fill="url(#gCon)"/><rect x="10" y="12" width="28" height="3" rx="1.5" fill="url(#gCon)"/>'+
+  '<path d="M6 27l7-13 7 13a7 4 0 0 1-14 0z" fill="url(#gCon)" opacity=".55"/><path d="M28 27l7-13 7 13a7 4 0 0 1-14 0z" fill="url(#gCon)" opacity=".55"/>'+
+  '<rect x="15" y="37" width="18" height="4" rx="2" fill="url(#gCon)"/></svg>'; }
+const ICONC_FONTE = { pixeon:['Relatório de caixa da recepção','Pixeon · PDF'], stone:['Vendas no cartão','Stone · Excel/PDF'], bb:['Extrato bancário','Banco do Brasil'] };
+async function iconcCarregar(){
+  const e = idadEmpresa(); if(!e || S.iconc.carregando) return; S.iconc.carregando = true;
+  const mes = S.iconc.mes, ini = mes+'-01', fim = mes+'-31';
+  const [l, j] = await Promise.all([
+    sb.from('idad_conc_lotes').select('*').eq('empresa_id', e.id).order('importado_em',{ascending:false}),
+    sb.from('idad_conc_justificativas').select('*').eq('empresa_id', e.id) ]);
+  const li = { data:[] };
+  for(let i=0; i<20; i++){ const q = await sb.from('idad_conc_linhas').select('*').eq('empresa_id', e.id).gte('data', ini).lte('data', fim).order('data').order('id').range(i*1000, i*1000+999);
+    if(q.error){ aviso('Não carregou a conciliação: '+q.error.message,'erro'); break; } li.data = li.data.concat(q.data||[]); if((q.data||[]).length<1000) break; }
+  S.iconc.mesCarregado = mes;
+  S.iconc.lotes = (l.data||[]).filter(x=>x.ativo!==false); const ativos = new Set(S.iconc.lotes.map(x=>x.id)); S.iconc.linhas = (li.data||[]).filter(x=>ativos.has(x.lote_id)); S.iconc.just = j.data||[]; S.iconc.carregando = false; render();
+}
+function iconcResumo(){ return 'confronto do caixa, cartão e banco com o relatório da recepção'; }
+const r2 = v => Math.round((+v||0)*100)/100;
+function iconcDias(){
+  const e = idadEmpresa(), mes = S.iconc.mes, cx = S.origens.find(o=>o.nome==='Caixa recepção IDAD');
+  const D = {}, dia = d => D[d] || (D[d] = { data:d, rec:0, cartRec:0, stone:0, stoneLiq:0, caixa:0, pix:0, cartLanc:0, n:0 });
+  S.iconc.linhas.filter(x=>String(x.data).slice(0,7)===mes).forEach(x=>{ const d = dia(x.data);
+    if(x.fonte==='pixeon'){ d.n++; if(x.forma==='cartao') d.cartRec += (+x.parte_medico||0)+(+x.parte_idad||0); else d.rec += (+x.parte_idad||0); }
+    if(x.fonte==='stone'){ d.stone += +x.valor_bruto||0; d.stoneLiq += +x.valor_liquido||0; } });
+  S.movimentos.filter(m=>m.empresa_id===e.id && !m.pessoal && m.tipo==='entrada' && String(ifinData(m)).slice(0,7)===mes).forEach(m=>{
+    const d = dia(String(ifinData(m)).slice(0,10));
+    if(cx && m.origem_id===cx.id && m.categoria==='Receita – Caixa') d.caixa += +m.valor||0;
+    else if(!m.origem_id && /PIX/i.test(m.descricao||'') && !ifinTransf(m)) d.pix += +m.valor||0;
+    else if(m.categoria==='Receita – Cartão') d.cartLanc += +m.valor||0; });
+  return Object.values(D).filter(d=>d.n||d.stone||d.caixa||d.cartLanc).sort((a,b)=>a.data.localeCompare(b.data)).map(d=>{
+    d.difCx = r2(d.caixa + d.pix - d.rec); d.difSt = r2(d.stone - d.cartRec); d.difLc = r2(d.cartLanc - d.stone); return d; });
+}
+function iconcJust(data, tipo){ return (S.iconc.just||[]).find(j=>j.data===data && j.tipo===tipo); }
+function iconcPend(dias){
+  const p = [];
+  dias.forEach(d=>{
+    if(d.rec && !d.caixa && !d.pix) p.push({ data:d.data, tipo:'caixa_falta', valor:d.rec, txt:'Recepção recebeu '+brl(d.rec)+' (parte do IDAD) e nada foi lançado no caixa nem caiu Pix' });
+    else if(Math.abs(d.difCx)>=0.01) p.push({ data:d.data, tipo:'caixa_dif', valor:d.difCx, txt:'Caixa + Pix = '+brl(d.caixa+d.pix)+' · recepção diz '+brl(d.rec)+' → '+(d.difCx<0?'faltam ':'sobram ')+brl(Math.abs(d.difCx)) });
+    if(Math.abs(d.difSt)>=0.01) p.push({ data:d.data, tipo:'stone_dif', valor:d.difSt, txt:'Stone cobrou '+brl(d.stone)+' · recepção registrou '+brl(d.cartRec)+' no cartão → diferença de '+brl(Math.abs(d.difSt)) });
+    if(d.stone && Math.abs(d.difLc)>=0.01) p.push({ data:d.data, tipo:'cartao_falta', valor:-d.difLc, txt:'Vendas Stone de '+brl(d.stone)+(d.cartLanc?' · lançado só '+brl(d.cartLanc):' não lançadas no financeiro') });
+  });
+  return p.map(x=>Object.assign(x,{ just: iconcJust(x.data, x.tipo) }));
+}
+function iconcSt(ok, txt){ return '<span style="font-weight:700;color:'+(ok===true?'var(--verde)':ok===null?'var(--fraco)':ok==='falta'?'var(--vermelho)':'#d97706')+'">'+txt+'</span>'; }
+function telaIdadConc(){
+  const e = idadEmpresa();
+  let h = '<div class="secao"><b>CONCILIAÇÃO DO IDAD</b><span>documentos-fonte × lançamentos · cada diferença vira pendência</span></div>';
+  if(!e) return h+'<div class="vazio">O CNPJ do IDAD não está cadastrado (ou este login não tem acesso a ele).</div>';
+  if(S.iconc.linhas===null){ iconcCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
+  const mes = S.iconc.mes, lotesMes = S.iconc.lotes.filter(l=>String(l.periodo_ini).slice(0,7)<=mes && String(l.periodo_fim).slice(0,7)>=mes);
+  const lin = S.iconc.linhas.filter(x=>String(x.data).slice(0,7)===mes), px = lin.filter(x=>x.fonte==='pixeon'), st = lin.filter(x=>x.fonte==='stone');
+  const dias = iconcDias(), pend = iconcPend(dias), abertas = pend.filter(p=>!p.just);
+  const fat = px.reduce((a,x)=>a+(+x.parte_medico||0)+(+x.parte_idad||0),0), med = px.reduce((a,x)=>a+(+x.parte_medico||0),0), idd = px.reduce((a,x)=>a+(+x.parte_idad||0),0);
+  const dias2 = dias.filter(d=>d.rec||d.cartRec||d.stone||d.caixa||d.cartLanc), okDias = dias2.filter(d=>!pend.some(p=>p.data===d.data && !p.just)).length;
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<input type="month" value="'+mes+'" onchange="S.iconc.mes=this.value;S.iconc.linhas=null;render()" style="width:auto;margin:0"><div style="flex:1"></div>'+
+    (podeEditar()?'<button class="bt" onclick="iconcImportar()">⬆ Importar documento</button>':'')+
+    '<button class="bt g" onclick="ifinAuditoria()">🛡 Auditoria</button></div>';
+  // documentos-fonte
+  h += '<div class="card"><b style="font-size:14px">Documentos-fonte do mês</b><div style="font-size:12px;color:var(--fraco);margin:2px 0 8px">Ficam guardados exatamente como vieram. Ninguém altera — só importa de novo.</div><div class="cc-fontes">'+
+    ['pixeon','stone','bb'].map(f=>{ const l = lotesMes.find(x=>x.fonte===f), r = ICONC_FONTE[f];
+      const ok = !!l, parcial = l && l.cobertura && l.cobertura!=='completo';
+      return '<div class="cc-fonte '+(ok?(parcial?'parc':'ok'):'falta')+'"><div class="cc-fi">'+(ok?(parcial?'!':'✔'):'✖')+'</div><div><b>'+r[0]+'</b><small>'+r[1]+'</small>'+
+        (ok?'<div>'+esc(l.descricao||'')+'</div><div class="cc-meta">'+esc(l.arquivo_nome||'')+' · importado '+dataBR(String(l.importado_em).slice(0,10))+'</div>':'<div>Não enviado</div>')+'</div></div>'; }).join('')+
+    '</div></div>';
+  // números do mês
+  h += '<div class="card"><div class="kpis">'+
+    kpi('Atendido na recepção', brl(fat))+kpi('Parte dos médicos', '<span style="color:#0a6cf0">'+brl(med)+'</span>')+kpi('Parte do IDAD', '<span style="color:var(--verde)">'+brl(idd)+'</span>')+
+    kpi('Dias conciliados', okDias+' de '+dias2.length)+kpi('Pendências abertas', '<span style="color:'+(abertas.length?'var(--vermelho)':'var(--verde)')+'">'+abertas.length+'</span>')+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">A parte dos médicos não é receita do IDAD: é repasse. Só a parte do IDAD entra no resultado.</div></div>';
+  // abas
+  const AB = [['dia','Confronto dia a dia'],['pend','Pendências ('+abertas.length+')'],['cartao','Cartão Stone ('+st.length+')'],['med','Repasse aos médicos']];
+  h += '<div class="card" style="display:flex;gap:6px;flex-wrap:wrap">'+AB.map(a=>'<button class="bt '+(S.iconc.aba===a[0]?'':'g ')+'mini" onclick="S.iconc.aba=\''+a[0]+'\';render()">'+a[1]+'</button>').join('')+'</div>';
+  if(S.iconc.aba==='dia') h += iconcTabDia(dias, pend);
+  else if(S.iconc.aba==='pend') h += iconcTabPend(pend);
+  else if(S.iconc.aba==='cartao') h += iconcTabCartao(st, px);
+  else h += iconcTabMed(px);
+  return h;
+}
+function iconcTabDia(dias, pend){
+  const cel = (v, z) => v ? brl(v) : '<span style="color:var(--fraco)">'+(z||'—')+'</span>';
+  const dif = v => Math.abs(v)<0.01 ? '<span style="color:var(--verde)">0,00</span>' : '<b style="color:'+(v<0?'var(--vermelho)':'#d97706')+'">'+(v>0?'+':'−')+brl(Math.abs(v)).replace('R$','').trim()+'</b>';
+  return '<div class="card" style="overflow-x:auto;padding:6px 10px"><table class="cc-tab"><thead>'+
+    '<tr><th rowspan="2">Dia</th><th colspan="4" class="cc-g1">Balcão (dinheiro / Pix) — parte do IDAD</th><th colspan="4" class="cc-g2">Cartão</th><th rowspan="2">Situação</th></tr>'+
+    '<tr><th class="cc-g1">Recepção</th><th class="cc-g1">Caixa lançado</th><th class="cc-g1">Pix no banco</th><th class="cc-g1">Diferença</th><th class="cc-g2">Recepção</th><th class="cc-g2">Stone</th><th class="cc-g2">Lançado</th><th class="cc-g2">Diferença</th></tr></thead><tbody>'+
+    dias.map(d=>{ const p = pend.filter(x=>x.data===d.data), ab = p.filter(x=>!x.just);
+      const s = !p.length && !d.rec && !d.cartRec && !d.stone ? iconcSt(null,'Só parte médica') : !p.length ? iconcSt(true,'✔ Conciliado') : !ab.length ? iconcSt(null,'✔ Justificado') : ab.some(x=>/falta/.test(x.tipo)) ? iconcSt('falta','✖ Falta lançar') : iconcSt(false,'⚠ Diverge');
+      const difC = d.stone||d.cartRec ? r2((d.cartLanc - d.cartRec)) : 0;
+      return '<tr'+(ab.length?' style="background:'+(ab.some(x=>/falta/.test(x.tipo))?'#fff1f1':'#fff8e6')+'"':'')+'><td style="white-space:nowrap"><b>'+dataBR(d.data).slice(0,5)+'</b></td>'+
+        '<td>'+cel(d.rec)+'</td><td>'+cel(d.caixa, d.rec?'não lançado':'—')+'</td><td>'+cel(d.pix)+'</td><td>'+(d.rec||d.caixa||d.pix?dif(d.difCx):'—')+'</td>'+
+        '<td>'+cel(d.cartRec)+'</td><td>'+cel(d.stone)+'</td><td>'+cel(d.cartLanc, d.stone?'não lançado':'—')+'</td><td>'+(d.stone||d.cartRec?dif(Math.abs(d.difSt)>=0.01?d.difSt:difC):'—')+'</td>'+
+        '<td style="white-space:nowrap">'+s+'</td></tr>'; }).join('')+
+    '</tbody></table><div style="font-size:11.5px;color:var(--fraco);padding:8px 4px">Balcão: o que a recepção registrou como parte do IDAD tem que aparecer no caixa lançado ou como Pix no extrato. Cartão: o que a recepção registrou tem que bater com a Stone, e a venda Stone tem que estar lançada no financeiro.</div></div>';
+}
+function iconcTabPend(pend){
+  if(!pend.length) return '<div class="vazio">Nenhuma diferença neste mês. ✔</div>';
+  const NOME = { caixa_falta:'Caixa não lançado', caixa_dif:'Caixa diferente da recepção', stone_dif:'Stone diferente da recepção', cartao_falta:'Venda no cartão não lançada' };
+  return '<div class="card" style="padding:6px 12px">'+pend.map(p=>
+    '<div class="cc-pend'+(p.just?' just':'')+'"><div style="flex:1;min-width:220px"><div><b>'+dataBR(p.data)+'</b> · <b style="color:'+(p.just?'var(--fraco)':/falta/.test(p.tipo)?'var(--vermelho)':'#b45309')+'">'+NOME[p.tipo]+'</b></div>'+
+      '<div style="font-size:13px;margin-top:2px">'+esc(p.txt)+'</div>'+
+      (p.just?'<div style="font-size:12px;color:var(--fraco);margin-top:3px">✔ Justificado por '+esc(p.just.usuario_email||'')+' em '+dataBR(String(p.just.em).slice(0,10))+': “'+esc(p.just.texto)+'”</div>':'')+'</div>'+
+      (p.just||!podeEditar()?'':'<div style="display:flex;gap:6px;flex-wrap:wrap">'+(/falta/.test(p.tipo)?'<button class="bt mini" onclick="iconcLancar(\''+p.data+'\',\''+p.tipo+'\')">+ Lançar</button>':'')+
+        '<button class="bt g mini" onclick="iconcJustificar(\''+p.data+'\',\''+p.tipo+'\')">Justificar</button></div>')+'</div>').join('')+
+    '<div style="font-size:11.5px;color:var(--fraco);padding:8px 0">Pendência só sai da lista lançando o que falta ou com justificativa escrita. Tudo fica na auditoria.</div></div>';
+}
+function iconcTabCartao(st, px){
+  if(!st.length) return '<div class="vazio">Nenhuma venda da Stone importada neste mês.</div>';
+  const G = []; px.filter(x=>x.forma==='cartao').forEach(x=>{ let g = G.find(y=>y.data===x.data && y.paciente===x.paciente);
+    if(!g) G.push(g = { data:x.data, paciente:x.paciente||'—', os:[], valor:0, usado:false }); g.valor = r2(g.valor+(+x.parte_medico||0)+(+x.parte_idad||0)); if(x.ref_externa && g.os.indexOf(x.ref_externa)<0) g.os.push(x.ref_externa); });
+  st.forEach(x=>{ let g = G.find(y=>!y.usado && y.data===x.data && Math.abs(y.valor-(+x.valor_bruto))<0.01) || G.find(y=>!y.usado && y.data===x.data);
+    if(g){ g.usado = true; x.casa_com = { paciente:g.paciente, os:g.os.join(', '), valor:g.valor }; } else x.casa_com = null; });
+  const b = st.reduce((a,x)=>a+(+x.valor_bruto||0),0), l = st.reduce((a,x)=>a+(+x.valor_liquido||0),0);
+  return '<div class="card"><div class="kpis">'+kpi('Vendido no cartão', brl(b))+kpi('Cai na conta', '<span style="color:var(--verde)">'+brl(l)+'</span>')+kpi('Custo da Stone', '<span style="color:var(--vermelho)">'+brl(b-l)+'</span> · '+(b?(((b-l)/b)*100).toFixed(1).replace('.',','):0)+'%')+'</div></div>'+
+    '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Venda</th><th>Bandeira</th><th>Parc.</th><th style="text-align:right">Bruto</th><th style="text-align:right">Taxa</th><th style="text-align:right">Líquido</th><th>Paciente na recepção</th><th>Situação</th></tr></thead><tbody>'+
+    st.map(x=>{ const m = x.casa_com, ok = m && Math.abs((+m.valor)-(+x.valor_bruto))<0.01;
+      return '<tr><td style="white-space:nowrap">'+dataBR(x.data)+'<br><small style="color:var(--fraco)">ID '+esc(x.ref_externa||'')+'</small></td><td>'+esc(x.bandeira||'')+'</td><td>'+(x.parcelas||1)+'x</td>'+
+        '<td style="text-align:right">'+brl(+x.valor_bruto)+'</td><td style="text-align:right;color:var(--vermelho)">'+brl((+x.valor_bruto)-(+x.valor_liquido))+'</td><td style="text-align:right;font-weight:800">'+brl(+x.valor_liquido)+'</td>'+
+        '<td style="font-size:12.5px">'+(m?esc(m.paciente)+'<br><small style="color:var(--fraco)">Reg. '+esc(m.os)+' · '+brl(+m.valor)+'</small>':'<span style="color:var(--vermelho)">sem atendimento no relatório</span>')+'</td>'+
+        '<td>'+(ok?iconcSt(true,'✔ Confere'):iconcSt(false,'⚠ Recepção '+(m?brl(+m.valor):'—')))+'</td></tr>'; }).join('')+'</tbody></table></div>';
+}
+function iconcTabMed(px){
+  const P = {}; px.forEach(x=>{ const k = x.profissional||'(sem profissional)', p = P[k] || (P[k] = { n:0, med:0, idad:0, cart:0 });
+    p.n++; p.med += +x.parte_medico||0; p.idad += +x.parte_idad||0; if(x.forma==='cartao') p.cart += +x.parte_medico||0; });
+  const L = Object.entries(P).sort((a,b)=>b[1].med-a[1].med), tm = L.reduce((a,x)=>a+x[1].med,0), tc = L.reduce((a,x)=>a+x[1].cart,0);
+  return '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Profissional (relatório da recepção)</th><th style="text-align:right">Itens</th><th style="text-align:right">Parte do médico</th><th style="text-align:right">Parte do IDAD</th><th style="text-align:right">Recebido pelo IDAD no cartão<br><small>(IDAD deve repassar)</small></th></tr></thead><tbody>'+
+    L.map(([k,p])=>'<tr><td><b>'+esc(k)+'</b></td><td style="text-align:right">'+p.n+'</td><td style="text-align:right;color:#0a6cf0;font-weight:700">'+brl(p.med)+'</td><td style="text-align:right">'+brl(p.idad)+'</td><td style="text-align:right;font-weight:800;color:'+(p.cart?'var(--vermelho)':'var(--fraco)')+'">'+(p.cart?brl(p.cart):'—')+'</td></tr>').join('')+
+    '<tr style="border-top:2px solid var(--linha)"><td><b>Total</b></td><td></td><td style="text-align:right;font-weight:800">'+brl(tm)+'</td><td></td><td style="text-align:right;font-weight:800;color:var(--vermelho)">'+brl(tc)+'</td></tr></tbody></table>'+
+    '<div style="font-size:11.5px;color:var(--fraco);padding:8px 4px">No dinheiro, o médico recebe direto na recepção. No cartão, a Stone deposita tudo na conta do IDAD — por isso o IDAD fica devendo a parte do médico.</div></div>';
+}
+/* ---- Leitores dos documentos-fonte (v117) ---- */
+async function iconcPdfLinhas(buf){
+  const pdf = await pdfjsLib.getDocument({ data:buf }).promise, out = [];
+  for(let p=1; p<=pdf.numPages; p++){
+    const tc = await (await pdf.getPage(p)).getTextContent(), L = [];
+    tc.items.forEach(it=>{ if(!it.str || !it.str.trim()) return; const y = it.transform[5], x = it.transform[4];
+      let l = L.find(z=>Math.abs(z.y-y)<2.5); if(!l) L.push(l = { y, it:[] }); l.it.push({ x, s:it.str }); });
+    L.sort((a,b)=>b.y-a.y).forEach(l=>out.push(l.it.sort((a,b)=>a.x-b.x).map(i=>i.s).join(' ')));
+  }
+  return out;
+}
+function iconcNum(s){ const neg = /^\(/.test(s); const v = Number(String(s).replace(/[()]/g,'').replace(/\./g,'').replace(',','.')); return neg ? -v : v; }
+/* Relatório Pixeon "GER - Repasse de Caixa Geral": devolve {linhas, totalMed, totalIdad, totMedRel, totIdadRel, ini, fim} */
+function iconcPixeon(linhasTxt){
+  const recs = []; let forma = null, aux = null, cur = null, totRel = null, per = null;
+  linhasTxt.forEach(ln=>{
+    let m;
+    if((m = ln.match(/OS - Data\/Hora:\s*(\d\d)\/(\d\d)\/(\d{4})\s*a\s*(\d\d)\/(\d\d)\/(\d{4})/))) per = [m[3]+'-'+m[2]+'-'+m[1], m[6]+'-'+m[5]+'-'+m[4]];
+    if((m = ln.match(/Forma_Pag:\s*(\S+)/))){ forma = /cart/i.test(m[1]) ? 'cartao' : 'especie'; return; }
+    if((m = ln.match(/Auxiliar:\s*(.+?)\s+Setor/))){ if(cur){ recs.push(cur); cur = null; } aux = m[1].trim(); return; }
+    if(/^\s*Total:/.test(ln)){ const n = ln.match(/-?[\d\.]+,\d\d/g); if(n && n.length>=3) totRel = n.map(iconcNum); return; }
+    if(/^\s*(Pixeon|CLINICA|GER -|OS -|Dt\. OS|Valor_Cart|SubTotal|Movimento de Caixa)/.test(ln) || !ln.trim()) return;
+    if((m = ln.match(/^\s*(\d\d)\/(\d\d)\/(\d{4})/))){ if(cur) recs.push(cur); cur = { forma, data:m[3]+'-'+m[2]+'-'+m[1], aux, txt:ln }; }
+    else if(cur) cur.txt += ' '+ln;
+  });
+  if(cur) recs.push(cur);
+  const num = '\\(?-?[\\d\\.]+,\\d\\d\\)?', pat = new RegExp('(0,00)\\s+('+num+')\\s+('+num+')\\s+([A-Z][A-Z \\.]+?)\\s*('+num+')','g');
+  const out = [], falhas = [];
+  recs.forEach(r=>{
+    const t = r.txt.replace(/\s+/g,' '), ms = [...t.matchAll(pat)];
+    if(!ms.length){ falhas.push(t); return; }
+    const pm = t.match(/^\d\d\/\d\d\/\d{4}\s*(\d+)\s+([A-ZÇÃÕÉÍÓÚÂÊÔ ]+?)\s*126/);
+    ms.forEach(m=>{ let c = m[4].trim(), b = null; if(/^PARTICULAR./.test(c)){ b = c.slice(10).trim(); c = 'PARTICULAR'; }
+      const med = iconcNum(m[2]), idd = iconcNum(m[3]);
+      out.push({ data:r.data, forma:r.forma, profissional:r.aux, convenio:c, bandeira:b, parte_medico:med, parte_idad:idd, valor_bruto:Math.round((med+idd)*100)/100,
+        ref_externa:pm?pm[1]:null, paciente:pm?pm[2].trim():null }); });
+  });
+  // linha que o padrão não pega (convênio colado no valor, ex.: "DR SAUDE CENT MEDICO0,00")
+  falhas.slice().forEach((t,i)=>{ const m = t.match(/0,00\s+([\d\.]+,\d\d)\s+([\d\.]+,\d\d)\s+([A-Z][A-Z \.]+?)(-?[\d\.]+,\d\d)\s*$/);
+    if(m){ const r = recs.find(x=>x.txt.replace(/\s+/g,' ')===t), med = iconcNum(m[1]), idd = iconcNum(m[2]);
+      out.push({ data:r.data, forma:r.forma, profissional:r.aux, convenio:m[3].trim(), bandeira:null, parte_medico:med, parte_idad:idd, valor_bruto:Math.round((med+idd)*100)/100, ref_externa:null, paciente:null });
+      falhas[i] = null; } });
+  const r2 = v=>Math.round(v*100)/100;
+  return { linhas:out, falhas:falhas.filter(Boolean), ini:per&&per[0], fim:per&&per[1],
+    totalMed:r2(out.reduce((a,x)=>a+x.parte_medico,0)), totalIdad:r2(out.reduce((a,x)=>a+x.parte_idad,0)),
+    totMedRel: totRel ? totRel[1] : null, totIdadRel: totRel ? totRel[2] : null };
+}
+/* Vendas Stone (Excel/CSV): cabeçalho com STONE ID, DATA DA VENDA, BANDEIRA, N (parcelas), VALOR BRUTO, VALOR LIQUIDO, DOCUMENTO */
+function iconcStone(aoa){
+  const norm = s => String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
+  const hi = aoa.findIndex(r=>r.some(c=>/STONE ?ID/.test(norm(c))) && r.some(c=>/VALOR BRUTO/.test(norm(c))));
+  if(hi<0) return { erro:'Não achei o cabeçalho da Stone (colunas STONE ID e VALOR BRUTO).' };
+  const H = aoa[hi].map(norm), col = re => H.findIndex(h=>re.test(h));
+  const c = { doc:col(/^DOCUMENTO/), data:col(/^DATA DA V/), band:col(/^BANDEIRA/), prod:col(/^PRODUTO/), id:col(/^STONE ?ID/), parc:col(/^N(\.|º|O)?$|PARCELA/), bruto:col(/^VALOR BRUTO/), liq:col(/^VALOR LIQ/) };
+  const dt = v => { if(v instanceof Date) return v.toISOString().slice(0,10); if(typeof v==='number'){ const d = new Date(Math.round((v-25569)*864e5)); return d.toISOString().slice(0,10); }
+    const m = String(v).match(/(\d\d)\/(\d\d)\/(\d{4})/); return m ? m[3]+'-'+m[2]+'-'+m[1] : null; };
+  const nv = v => typeof v==='number' ? v : iconcNum(String(v).trim());
+  const out = []; let docs = {};
+  aoa.slice(hi+1).forEach(r=>{ if(!r || r[c.id]==null || r[c.id]==='') return; const d = dt(r[c.data]); if(!d) return;
+    if(c.doc>=0) docs[String(r[c.doc]).replace(/\D/g,'')] = 1;
+    out.push({ data:d, ref_externa:String(r[c.id]).trim(), bandeira:c.band>=0?String(r[c.band]).trim():null, forma:'cartao', item:c.prod>=0?String(r[c.prod]).trim():null,
+      parcelas:c.parc>=0?(parseInt(r[c.parc])||1):1, valor_bruto:Math.round(nv(r[c.bruto])*100)/100, valor_liquido:Math.round(nv(r[c.liq])*100)/100 }); });
+  return { linhas:out, docs:Object.keys(docs) };
+}
+function iconcImportar(){
+  abrirModal('<h2>⬆ Importar documento-fonte</h2><div style="font-size:13px;color:var(--fraco);margin-bottom:10px">O arquivo é lido e conferido antes de gravar. Depois de gravado, ninguém altera. Se o mesmo arquivo já foi importado, o sistema avisa e não duplica.</div>'+
+    '<label>Tipo de documento</label><select id="cc-tipo"><option value="pixeon">Relatório de caixa da recepção (Pixeon — PDF "Repasse de Caixa Geral")</option><option value="stone">Vendas no cartão (Stone — Excel ou CSV)</option></select>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:4px">O extrato do Banco do Brasil continua entrando pelo Financeiro do IDAD.</div>'+
+    '<label>Arquivo</label><input id="cc-arq" type="file" accept=".pdf,.xlsx,.xls,.csv">'+
+    '<div id="cc-prev" style="margin-top:10px"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px" id="cc-bts"><button class="bt" onclick="iconcLerArquivo()">Ler e conferir</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function iconcHash(buf){ const h = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function iconcLerArquivo(){
+  const f = document.getElementById('cc-arq').files[0], tipo = val('cc-tipo'), pv = document.getElementById('cc-prev');
+  if(!f) return aviso('Escolha o arquivo.','erro');
+  pv.innerHTML = 'Lendo…';
+  try{
+    const buf = await f.arrayBuffer(), hash = await iconcHash(buf.slice(0));
+    const dup = S.iconc.lotes.find(l=>l.ativo!==false && l.fonte===tipo && l.arquivo_hash===hash);
+    if(dup){ pv.innerHTML = '<div style="color:var(--vermelho)">Este arquivo já foi importado em '+dataBR(String(dup.importado_em).slice(0,10))+' ('+esc(dup.descricao||'')+'). Nada foi gravado.</div>'; return; }
+    let lote, linhas, aviso2 = '';
+    if(tipo==='pixeon'){
+      if(!/\.pdf$/i.test(f.name)) throw new Error('O relatório da recepção tem que ser o PDF.');
+      const r = iconcPixeon(await iconcPdfLinhas(new Uint8Array(buf)));
+      if(!r.linhas.length) throw new Error('Não reconheci o relatório "Repasse de Caixa Geral" neste PDF.');
+      const okTot = r.totMedRel!=null && Math.abs(r.totMedRel-r.totalMed)<0.01 && Math.abs(r.totIdadRel-r.totalIdad)<0.01;
+      if(!okTot) throw new Error('A soma lida ('+brl(r.totalMed)+' médicos · '+brl(r.totalIdad)+' IDAD) não bate com o Total do relatório ('+brl(r.totMedRel)+' · '+brl(r.totIdadRel)+'). Nada foi gravado — me mande o arquivo.');
+      linhas = r.linhas; const fat = r.totalMed+r.totalIdad;
+      lote = { fonte:'pixeon', periodo_ini:r.ini, periodo_fim:r.fim, cobertura:'completo', descricao:dataBR(r.ini).slice(0,5)+' a '+dataBR(r.fim).slice(0,5)+' · '+linhas.length+' itens · '+brl(fat)+' (médicos '+brl(r.totalMed)+' · IDAD '+brl(r.totalIdad)+')', linhas:linhas.length, total:Math.round(fat*100)/100 };
+      aviso2 = '✔ A soma de cada coluna bate com o Total do próprio relatório.';
+    } else {
+      await fichXlsxLib(); const wb = XLSX.read(buf, { type:'array', cellDates:true }), ws = wb.Sheets[wb.SheetNames[0]];
+      const r = iconcStone(XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' }));
+      if(r.erro) throw new Error(r.erro); if(!r.linhas.length) throw new Error('Nenhuma venda encontrada no arquivo.');
+      const e = idadEmpresa(); if(r.docs.length && r.docs.some(d=>d && d!==String(e.cnpj).replace(/\D/g,''))) throw new Error('O arquivo traz vendas de outro CNPJ ('+r.docs.join(', ')+'). Não é do IDAD.');
+      const ja = await sb.from('idad_conc_linhas').select('ref_externa').eq('empresa_id', e.id).eq('fonte','stone').in('ref_externa', r.linhas.map(x=>x.ref_externa));
+      if(ja.error) throw new Error('Não consegui conferir as vendas já importadas: '+ja.error.message);
+      const ids = new Set((ja.data||[]).map(x=>x.ref_externa).concat(S.iconc.linhas.filter(x=>x.fonte==='stone').map(x=>x.ref_externa))), rep = r.linhas.filter(x=>ids.has(x.ref_externa));
+      linhas = r.linhas.filter(x=>!ids.has(x.ref_externa));
+      if(!linhas.length) throw new Error('Todas as '+r.linhas.length+' vendas deste arquivo já estão importadas. Nada foi gravado.');
+      if(rep.length) aviso2 = rep.length+' venda(s) já importada(s) antes foram ignoradas (mesmo Stone ID). ';
+      const ds = linhas.map(x=>x.data).sort(), b = linhas.reduce((a,x)=>a+x.valor_bruto,0), l = linhas.reduce((a,x)=>a+x.valor_liquido,0);
+      lote = { fonte:'stone', periodo_ini:ds[0], periodo_fim:ds[ds.length-1], cobertura:'completo', descricao:linhas.length+' vendas · '+brl(b)+' · líquido '+brl(l), linhas:linhas.length, total:Math.round(b*100)/100 };
+    }
+    Object.assign(lote, { empresa_id: idadEmpresa().id, arquivo_nome: f.name, arquivo_hash: hash });
+    S.iconc.pendImp = { lote, linhas };
+    pv.innerHTML = '<div class="card" style="margin:0;background:var(--campo)"><b>'+esc(ICONC_FONTE[tipo][0])+'</b><div style="margin-top:4px">'+esc(lote.descricao)+'</div><div style="font-size:12.5px;color:var(--fraco);margin-top:4px">Período: '+dataBR(lote.periodo_ini)+' a '+dataBR(lote.periodo_fim)+'</div><div style="font-size:12.5px;color:var(--verde);margin-top:4px">'+esc(aviso2)+'</div></div>';
+    document.getElementById('cc-bts').innerHTML = '<button class="bt" onclick="iconcGravar()">Gravar</button><button class="bt g" onclick="fecharModal()">Cancelar</button>';
+  }catch(err){ pv.innerHTML = '<div style="color:var(--vermelho)">'+esc(err.message||String(err))+'</div>'; }
+}
+async function iconcGravar(){
+  const p = S.iconc.pendImp; if(!p) return;
+  document.getElementById('cc-bts').innerHTML = 'Gravando…';
+  const r = await sb.from('idad_conc_lotes').insert(p.lote).select().maybeSingle();
+  if(r.error){ aviso('Não gravou: '+r.error.message,'erro'); return fecharModal(); }
+  const L = p.linhas.map(x=>Object.assign({}, x, { lote_id:r.data.id, empresa_id:r.data.empresa_id, fonte:r.data.fonte }));
+  for(let i=0; i<L.length; i+=400){ const q = await sb.from('idad_conc_linhas').insert(L.slice(i,i+400)); if(q.error){ aviso('Gravou o lote, mas falhou nas linhas: '+q.error.message+'. Avise o suporte.','erro'); break; } }
+  S.iconc.pendImp = null; S.modal = null; S.iconc.linhas = null; aviso('Documento importado e guardado ('+L.length+' linhas).','ok'); iconcCarregar();
+}
+function iconcLancar(data, tipo){
+  const d = iconcDias().find(x=>x.data===data); if(!d) return;
+  const cx = S.origens.find(o=>o.nome==='Caixa recepção IDAD');
+  const m = tipo==='caixa_falta' ? { tipo:'entrada', descricao:'Caixa recepção — entradas do dia', categoria:'Receita – Caixa', valor:d.rec, data_movimento:data, data_pagamento:data, pago:true, origem_id:cx&&cx.id }
+    : { tipo:'entrada', descricao:'Vendas no cartão (Stone) do dia', categoria:'Receita – Cartão', valor:r2(d.stone-d.cartLanc), data_movimento:data, pago:false, vencimento:data, observacao:'Líquido Stone: '+brl(d.stoneLiq) };
+  S.iconc.preLanc = m; ifinAbrir(null, 'entrada');
+  setTimeout(()=>{ const s = (k,v)=>{ const el = document.getElementById(k); if(el && v!=null) el.value = v; };
+    s('if-desc', m.descricao); s('if-cat', m.categoria); s('if-valor', m.valor); s('if-data', m.data_movimento); s('if-dpag', m.data_pagamento); s('if-venc', m.vencimento); s('if-obs', m.observacao);
+    if(m.origem_id) s('if-ori', m.origem_id); const p = document.getElementById('if-pago'); if(p) p.checked = !!m.pago; }, 30);
+}
+function iconcJustificar(data, tipo){
+  abrirModal('<h2>Justificar diferença · '+dataBR(data)+'</h2><div style="font-size:13px;color:var(--fraco);margin-bottom:8px">Explique o motivo (ex.: "paciente pagou por transferência para a conta do médico"). Fica registrado com seu nome, data e hora.</div>'+
+    '<textarea id="cc-just" rows="4" placeholder="Motivo da diferença"></textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="iconcSalvarJust(\''+data+'\',\''+tipo+'\')">Gravar justificativa</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function iconcSalvarJust(data, tipo){
+  const t = val('cc-just').trim(); if(t.length<10) return aviso('Escreva o motivo (pelo menos 10 letras).','erro');
+  const e = idadEmpresa(), p = iconcPend(iconcDias()).find(x=>x.data===data && x.tipo===tipo);
+  const r = await sb.from('idad_conc_justificativas').insert({ empresa_id:e.id, data, tipo, diferenca:p?p.valor:null, texto:t }).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  S.iconc.just.push(r.data); S.modal = null; aviso('Justificativa gravada (auditoria).','ok');
 }
 /* ===== v113 (Renato, 19/11/2026): CONVÊNIOS E PROCEDIMENTOS do Hospital IDAD.
    Tabela idad_convenios: convênio × procedimento (com especialidade opcional), valor total, PARTE DO MÉDICO e PARTE DO HOSPITAL
