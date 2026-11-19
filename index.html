@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v112">
-<meta name="rf-data" content="2026-11-18">
+<meta name="rf-versao" content="v113">
+<meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -200,8 +200,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v112',
-  data   : '18/11/2026',
+  versao : 'v113',
+  data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -435,7 +435,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -484,6 +484,7 @@ function render(){
   else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
+  else if(S.tela==='idadconv')  corpo = telaIdadConv();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3659,6 +3660,7 @@ async function atualizarSilencioso(forcar){
     }
     if(S.esc && S.esc.carregado){ S.esc.carregado = false; S.esc.proc = {}; await escCarregar(); } /* v105: procedimentos também recarregam (antes ficavam presos na 1ª leitura) */
     if(S.saldo) S.saldo.carregado = false;
+    if(S.conv && S.conv.carregado && !S.conv.carregando){ const r = await sb.from('idad_convenios').select('*').order('convenio').order('procedimento').order('vigencia_inicio'); if(!r.error) S.conv.lista = r.data||[]; }
     if(S.fich && S.fich.carregado && !S.fich.carregando){ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false}); if(!r.error) S.fich.lista = r.data||[]; }
   }catch(e){}
   _atuRodando = false;
@@ -3838,6 +3840,7 @@ function telaIdad(){
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
     '<div style="color:var(--fraco);font-size:13.5px;line-height:1.5">Este é o espaço do Hospital IDAD dentro do Sistema MR. As próximas funções serão definidas com o Vinicius e entram aqui como novas caixas.</div></div>';
@@ -4227,6 +4230,161 @@ async function obraSalvar(){
 async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) return;
   const r = await sb.from('idad_obra').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
   S.idad.obra = S.idad.obra.filter(o=>o.id!==id); S.modal=null; aviso('Gasto excluído.','ok'); }
+/* ===== v113 (Renato, 19/11/2026): CONVÊNIOS E PROCEDIMENTOS do Hospital IDAD.
+   Tabela idad_convenios: convênio × procedimento (com especialidade opcional), valor total, PARTE DO MÉDICO e PARTE DO HOSPITAL
+   em valor exato (a divisão muda por convênio), situação (ativo / a definir / não cobre), código TUSS opcional e VIGÊNCIA
+   (valor novo entra com nova data; o antigo fica guardado e a produção antiga não muda). Carga inicial: PDF de 10/10/2026.
+   A ficha do Fichário ganha convênio + procedimento e grava o valor da tabela na hora (fichas.valor_total/medico/hospital).
+   Vê a tabela: aba 'idad' ou 'fichario'. Altera: aba 'idad' + mestre/dono/operador. Exclui: mestre e dono (RLS igual). */
+S.conv = { lista:[], carregado:false, carregando:false, busca:'', mes:'' };
+const CONV_PROCS = ['Consulta','Endoscopia','Colonoscopia'];
+const CONV_SIT = { ativo:['Ativo','var(--verde)'], a_definir:['A definir','#d97706'], nao_cobre:['Não cobre','var(--fraco)'] };
+function icoConvenio(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gCnv')+
+  '<rect x="5" y="11" width="38" height="27" rx="5" fill="url(#gCnv)" opacity=".3"/><rect x="5" y="11" width="38" height="8" rx="4" fill="url(#gCnv)"/>'+
+  '<circle cx="16" cy="29" r="6" fill="url(#gCnv)"/><rect x="14.8" y="25.5" width="2.4" height="7" rx="1" fill="#fff"/><rect x="12.5" y="27.8" width="7" height="2.4" rx="1" fill="#fff"/>'+
+  '<rect x="26" y="25" width="13" height="3" rx="1.5" fill="url(#gCnv)"/><rect x="26" y="31" width="9" height="3" rx="1.5" fill="url(#gCnv)" opacity=".7"/></svg>'; }
+async function convCarregar(){
+  if(S.conv.carregando) return; S.conv.carregando = true;
+  try{ const r = await sb.from('idad_convenios').select('*').order('convenio').order('procedimento').order('vigencia_inicio');
+       if(r.error) S.conv.erro = r.error.message; else { S.conv.lista = r.data||[]; S.conv.erro = null; } }catch(e){ S.conv.erro = e.message; }
+  S.conv.carregando = false; S.conv.carregado = true;
+  if((S.tela==='idadconv' || S.tela==='idad' || S.tela==='fichario') && !cpeOcupado()) render();
+}
+function convVigentes(){ const h = hojeISO(); return S.conv.lista.filter(x=>!x.vigencia_fim || x.vigencia_fim>=h); }
+function convNomes(){ const v = {}; convVigentes().forEach(x=>{ if(x.situacao!=='nao_cobre') v[x.convenio]=1; }); return Object.keys(v).sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function convProcRot(p, e){ return p+(e?' – '+e:''); }
+function convResumo(){
+  if(!S.conv.carregado){ if(!S.conv.carregando) convCarregar(); return 'carregando…'; }
+  const v = convVigentes(), n = convNomes().length, ad = v.filter(x=>x.situacao==='a_definir').length;
+  return v.length ? n+' convênio'+(n===1?'':'s')+' · '+v.length+' valores'+(ad?' · '+ad+' a definir':'') : 'tabela de preço por convênio';
+}
+/* Valor em vigor na data do atendimento. Se a data for anterior à primeira tabela, usa a mais antiga (e avisa). */
+function convAchar(conv, proc, esp, data){
+  const n = permNorm, l = S.conv.lista.filter(x=>n(x.convenio)===n(conv) && n(x.procedimento)===n(proc) && n(x.especialidade)===n(esp));
+  if(!l.length) return null;
+  const d = data || hojeISO();
+  const ok = l.filter(x=>x.vigencia_inicio<=d && (!x.vigencia_fim || x.vigencia_fim>=d)).sort((a,b)=>b.vigencia_inicio.localeCompare(a.vigencia_inicio));
+  if(ok.length) return { r: ok[0], antes:false };
+  const ant = l.slice().sort((a,b)=>a.vigencia_inicio.localeCompare(b.vigencia_inicio))[0];
+  return d < ant.vigencia_inicio ? { r: ant, antes:true } : null;
+}
+function convPct(x){ return x.valor_total>0 && x.valor_medico!=null ? (Math.round(x.valor_medico/x.valor_total*1000)/10).toLocaleString('pt-BR')+'%' : '—'; }
+function telaIdadConv(){
+  if(!S.conv.carregado) convCarregar();
+  const veFich = veAba('fichario');
+  if(veFich && !S.fich.carregado) fichCarregar();
+  let h = '<div class="secao"><b>CONVÊNIOS E PROCEDIMENTOS</b><span>Tabela de preço do IDAD por convênio · parte do médico e do hospital</span></div>';
+  if(S.conv.erro && !S.conv.lista.length) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou a tabela: '+esc(S.conv.erro)+'</b></div>';
+  if(!S.conv.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const vig = convVigentes(), ad = vig.filter(x=>x.situacao==='a_definir'), datas = {};
+  vig.forEach(x=>datas[x.vigencia_inicio]=1);
+  h += '<div class="card"><div class="kpis">'+kpi('Convênios', String(convNomes().length))+kpi('Valores na tabela', String(vig.length))+
+    kpi('A definir', '<span style="color:'+(ad.length?'#d97706':'inherit')+'">'+ad.length+'</span>')+kpi('Tabela de', Object.keys(datas).sort().map(dataBR).join(', ')||'—')+'</div>'+
+    (ad.length ? '<div style="margin-top:10px;font-size:13px;color:#7a5a00;background:#FFF4CC;border-radius:8px;padding:8px 11px">A definir com o Vinicius: '+
+      esc(ad.map(x=>x.convenio+' · '+convProcRot(x.procedimento,x.especialidade)).join(' | '))+'</div>' : '')+'</div>';
+  if(veFich) h += convProducaoHtml();
+  const f = permNorm(S.conv.busca);
+  const l = vig.filter(x=>!f || [x.convenio,x.procedimento,x.especialidade,x.codigo_tuss].some(v=>permNorm(v).indexOf(f)>=0));
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input id="cv-busca" placeholder="Buscar convênio, procedimento ou código TUSS" value="'+esc(S.conv.busca)+'" oninput="S.conv.busca=this.value;convTabela()" style="flex:1;min-width:220px;margin:0">'+
+    (podeEditar()?'<button class="bt" onclick="convAbrir()">+ Novo valor</button>':'')+'</div>';
+  return h+'<div id="cv-tab">'+convTabelaHtml(l)+'</div>';
+}
+function convTabela(){ const e = document.getElementById('cv-tab'); if(!e) return; const f = permNorm(S.conv.busca);
+  e.innerHTML = convTabelaHtml(convVigentes().filter(x=>!f || [x.convenio,x.procedimento,x.especialidade,x.codigo_tuss].some(v=>permNorm(v).indexOf(f)>=0))); }
+function convTabelaHtml(l){
+  if(!S.conv.lista.length) return '<div class="vazio">Nenhum valor cadastrado ainda.</div>';
+  if(!l.length) return '<div class="vazio">Nada encontrado.</div>';
+  const ord = p => { const i = CONV_PROCS.indexOf(p); return i<0 ? 9 : i; };
+  l = l.slice().sort((a,b)=>a.convenio.localeCompare(b.convenio,'pt-BR') || ord(a.procedimento)-ord(b.procedimento) || String(a.especialidade||'').localeCompare(String(b.especialidade||'')));
+  let ult = '';
+  return '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Convênio</th><th>Procedimento</th><th style="text-align:right">Total</th><th style="text-align:right">Médico</th><th style="text-align:right">Hospital</th><th style="text-align:right">% médico</th><th>Situação</th></tr></thead><tbody>'+
+    l.map(x=>{ const s = CONV_SIT[x.situacao]||CONV_SIT.ativo, novo = x.convenio!==ult; ult = x.convenio;
+      return '<tr style="cursor:pointer'+(novo?';border-top:2px solid var(--linha)':'')+'" onclick="convAbrir(\''+x.id+'\')"><td>'+(novo?'<b>'+esc(x.convenio)+'</b>':'')+'</td>'+
+        '<td>'+esc(convProcRot(x.procedimento, x.especialidade))+(x.codigo_tuss?'<br><small style="color:var(--fraco)">TUSS '+esc(x.codigo_tuss)+'</small>':'')+'</td>'+
+        '<td style="text-align:right;font-weight:800">'+(x.valor_total!=null?brl(+x.valor_total):'—')+'</td>'+
+        '<td style="text-align:right">'+(x.valor_medico!=null?brl(+x.valor_medico):'—')+'</td><td style="text-align:right">'+(x.valor_hospital!=null?brl(+x.valor_hospital):'—')+'</td>'+
+        '<td style="text-align:right;color:var(--fraco)">'+convPct(x)+'</td>'+
+        '<td><span style="font-weight:700;color:'+s[1]+'">'+s[0]+'</span>'+(x.obs?'<br><small style="color:var(--fraco)">'+esc(x.obs)+'</small>':'')+'</td></tr>'; }).join('')+
+    '</tbody></table></div>';
+}
+/* Produção do mês por convênio — a partir das fichas com convênio e procedimento (valor gravado na ficha). */
+function convProducaoHtml(){
+  const mes = S.conv.mes || mesHoje(), fs = S.fich.lista.filter(f=>String(f.data_consulta||'').slice(0,7)===mes);
+  const com = fs.filter(f=>f.convenio), sem = fs.length-com.length, g = {};
+  com.forEach(f=>{ const k = f.convenio; g[k] = g[k] || { n:0, t:0, m:0, h:0, sv:0, div:false, p:{} }; const x = g[k];
+    x.n++; x.t += +f.valor_total||0; x.m += +f.valor_medico||0; x.h += +f.valor_hospital||0; if(f.valor_total==null) x.sv++; if(f.valor_medico!=null) x.div = true;
+    const pr = convProcRot(f.procedimento||'?', f.especialidade); x.p[pr] = (x.p[pr]||0)+1; });
+  const tot = Object.values(g).reduce((a,x)=>({ n:a.n+x.n, t:a.t+x.t, m:a.m+x.m, h:a.h+x.h }), { n:0, t:0, m:0, h:0 });
+  let h = '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b style="font-size:15px">Produção por convênio</b>'+
+    '<input type="month" value="'+mes+'" onchange="S.conv.mes=this.value;render()" style="width:auto;margin:0">'+
+    '<span style="font-size:12.5px;color:var(--fraco)">a partir das fichas do Fichário com convênio informado</span></div>';
+  if(!S.fich.carregado) return h+'<div style="color:var(--fraco)">Carregando as fichas…</div></div>';
+  if(!com.length) return h+'<div style="color:var(--fraco);font-size:13.5px">Nenhuma ficha deste mês com convênio informado'+(sem?' ('+sem+' ficha'+(sem===1?'':'s')+' do mês sem convênio — informe em Fichário › Corrigir)':'')+'.</div></div>';
+  h += '<div class="kpis" style="margin-bottom:10px">'+kpi('Atendimentos', String(tot.n))+kpi('Total a receber', brl(tot.t))+kpi('Parte dos médicos', brl(tot.m))+kpi('Parte do hospital', brl(tot.h))+'</div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr><th>Convênio</th><th>Atendimentos</th><th style="text-align:right">Total</th><th style="text-align:right">Médico</th><th style="text-align:right">Hospital</th></tr></thead><tbody>'+
+    Object.entries(g).sort((a,b)=>b[1].t-a[1].t).map(([k,x])=>'<tr><td><b>'+esc(k)+'</b>'+(x.sv?'<br><small style="color:#d97706">'+x.sv+' sem valor na tabela</small>':'')+'</td>'+
+      '<td>'+x.n+'<br><small style="color:var(--fraco)">'+esc(Object.entries(x.p).map(([p,n])=>n+' '+p).join(' · '))+'</small></td>'+
+      '<td style="text-align:right;font-weight:800">'+brl(x.t)+'</td><td style="text-align:right">'+(x.div?brl(x.m):'—')+'</td><td style="text-align:right">'+(x.div?brl(x.h):'—')+'</td></tr>').join('')+
+    '</tbody></table></div>'+(sem?'<div style="margin-top:8px;font-size:12.5px;color:#7a5a00">'+sem+' ficha'+(sem===1?'':'s')+' deste mês ainda sem convênio — informe em Fichário › Corrigir.</div>':'')+'</div>';
+  return h;
+}
+function convAbrir(id){
+  const x = id ? S.conv.lista.find(c=>c.id===id) : { situacao:'ativo', vigencia_inicio: hojeISO() }; if(!x) return;
+  const ed = podeEditar() && veAba('idad'), ro = ed ? '' : ' disabled', v = k => x[k]==null ? '' : x[k];
+  const dl = (i, ops) => '<datalist id="'+i+'">'+ops.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>';
+  const hist = id ? S.conv.lista.filter(c=>c.id!==id && permNorm(c.convenio)===permNorm(x.convenio) && permNorm(c.procedimento)===permNorm(x.procedimento) && permNorm(c.especialidade)===permNorm(x.especialidade)) : [];
+  abrirModal('<h2>'+(id?'Valor do convênio':'Novo valor de convênio')+'</h2><input type="hidden" id="cv-id" value="'+(id||'')+'">'+
+    '<div class="lin"><div><label>Convênio *</label><input id="cv-conv" list="cv-convs"'+ro+' value="'+esc(v('convenio'))+'">'+dl('cv-convs', convNomes())+'</div>'+
+      '<div><label>Procedimento *</label><input id="cv-proc" list="cv-procs"'+ro+' value="'+esc(v('procedimento'))+'">'+dl('cv-procs', CONV_PROCS)+'</div>'+
+      '<div><label>Especialidade</label><input id="cv-esp"'+ro+' value="'+esc(v('especialidade'))+'" placeholder="só se o valor mudar por especialidade"></div></div>'+
+    '<div class="lin"><div><label>Valor total (R$)</label><input id="cv-tot" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+v('valor_total')+'"></div>'+
+      '<div><label>Parte do médico (R$)</label><input id="cv-med" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+v('valor_medico')+'" oninput="convCalc()"></div>'+
+      '<div><label>Parte do hospital (R$)</label><input id="cv-hos" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+v('valor_hospital')+'"></div></div>'+
+    (ed?'<div style="font-size:12px;color:var(--fraco);margin:-4px 0 8px">Digite o total e a parte do médico: a parte do hospital é preenchida sozinha (dá para corrigir).</div>':'')+
+    '<div class="lin"><div><label>Situação</label><select id="cv-sit"'+ro+'>'+Object.entries(CONV_SIT).map(([k,s])=>'<option value="'+k+'"'+(x.situacao===k?' selected':'')+'>'+s[0]+'</option>').join('')+'</select></div>'+
+      '<div><label>Código TUSS</label><input id="cv-tuss"'+ro+' value="'+esc(v('codigo_tuss'))+'" placeholder="opcional"></div>'+
+      '<div><label>Vale a partir de *</label><input id="cv-ini" type="date"'+ro+' value="'+v('vigencia_inicio')+'"></div></div>'+
+    (id && ed ? '<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;margin:6px 0"><input type="checkbox" id="cv-novavig" style="width:auto"> É um <b>reajuste</b>: guardar o valor anterior e o novo passa a valer na data acima</label>' : '')+
+    '<label>Observações</label><textarea id="cv-obs"'+ro+' rows="2">'+esc(v('obs'))+'</textarea>'+
+    (hist.length ? '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px"><b>Histórico:</b> '+hist.map(c=>dataBR(c.vigencia_inicio)+(c.vigencia_fim?' a '+dataBR(c.vigencia_fim):'')+': '+(c.valor_total!=null?brl(+c.valor_total):'—')).join(' · ')+'</div>' : '')+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+(ed?'<button class="bt" onclick="convSalvar()">Salvar</button>'+(id && podeApagar()?'<button class="bt g" style="color:var(--vermelho)" onclick="convExcluir(\''+id+'\')">Excluir</button>':''):'')+
+      '<button class="bt g" onclick="fecharModal()">'+(ed?'Cancelar':'Fechar')+'</button></div>');
+}
+function convCalc(){ const t = Number(val('cv-tot')), m = Number(val('cv-med')), h = document.getElementById('cv-hos');
+  if(h && t>0 && val('cv-med')!=='' && m<=t) h.value = (Math.round((t-m)*100)/100).toFixed(2); }
+async function convSalvar(){
+  const id = val('cv-id'), g = k => val(k).trim()||null, n = k => val(k)==='' ? null : Math.round(Number(val(k))*100)/100;
+  const reg = { convenio:(g('cv-conv')||'').toUpperCase()||null, procedimento:g('cv-proc'), especialidade:g('cv-esp'), valor_total:n('cv-tot'), valor_medico:n('cv-med'), valor_hospital:n('cv-hos'),
+    situacao:val('cv-sit')||'ativo', codigo_tuss:g('cv-tuss'), vigencia_inicio:g('cv-ini'), obs:g('cv-obs') };
+  if(!reg.convenio || !reg.procedimento) return aviso('Informe o convênio e o procedimento.','erro');
+  if(!reg.vigencia_inicio) return aviso('Informe a data a partir da qual o valor vale.','erro');
+  if(reg.situacao==='ativo'){
+    if(!(reg.valor_total>0) || reg.valor_medico==null || reg.valor_hospital==null) return aviso('Valor ativo precisa do total, da parte do médico e da parte do hospital.','erro');
+    if(Math.abs(reg.valor_medico+reg.valor_hospital-reg.valor_total) > 0.02) return aviso('Médico + hospital ('+brl(reg.valor_medico+reg.valor_hospital)+') não fecha com o total ('+brl(reg.valor_total)+').','erro');
+  }
+  const reaj = id && document.getElementById('cv-novavig') && document.getElementById('cv-novavig').checked;
+  let r;
+  if(reaj){
+    const ant = S.conv.lista.find(c=>c.id===id);
+    if(!ant || reg.vigencia_inicio <= ant.vigencia_inicio) return aviso('No reajuste, a nova data tem que ser depois de '+dataBR(ant?ant.vigencia_inicio:'')+'.','erro');
+    const d = new Date(reg.vigencia_inicio+'T12:00:00'); d.setDate(d.getDate()-1);
+    const fim = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    r = await sb.from('idad_convenios').insert(reg).select().maybeSingle();
+    if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+    const r2 = await sb.from('idad_convenios').update({ vigencia_fim: fim }).eq('id', id);
+    if(r2.error) aviso('O valor novo foi gravado, mas o anterior não foi encerrado: '+r2.error.message,'erro');
+  } else {
+    r = id ? await sb.from('idad_convenios').update(reg).eq('id', id).select().maybeSingle() : await sb.from('idad_convenios').insert(reg).select().maybeSingle();
+    if(r.error) return aviso(/duplicate|unique/i.test(r.error.message) ? 'Já existe esse convênio e procedimento com essa data. Abra o que já existe para alterar.' : 'Não gravou: '+r.error.message,'erro');
+  }
+  S.modal = null; S.conv.carregado = false; await convCarregar(); aviso(reaj ? 'Reajuste gravado — o valor anterior ficou no histórico.' : 'Valor salvo.','ok');
+}
+async function convExcluir(id){
+  const usado = S.fich.lista.some(f=>f.conv_id===id);
+  if(!confirm(usado ? 'Este valor já está em fichas lançadas (elas guardam o valor). Excluir mesmo assim da tabela?' : 'Excluir este valor da tabela?')) return;
+  const r = await sb.from('idad_convenios').delete().eq('id', id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.conv.lista = S.conv.lista.filter(c=>c.id!==id); S.modal = null; aviso('Valor excluído.','ok');
+}
 /* ===== v107 (Renato, 18/11/2026): FICHÁRIO — "toda informação que vai para o sistema será através de fotos".
    Tira foto (ou escolhe várias na galeria / PDF) da ficha de consulta → Edge Function ler-ficha lê os campos →
    grava em public.fichas com a foto guardada (notas/fichario/). Lista uma ficha embaixo da outra; baixa uma,
@@ -4250,7 +4408,7 @@ async function fichCarregar(){
   try{ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false});
        if(r.error) S.fich.erro = r.error.message; else { S.fich.lista = r.data||[]; S.fich.erro = null; } }
   catch(e){ S.fich.erro = e.message; }
-  S.fich.carregando = false; S.fich.carregado = true; if(!cpeOcupado()) render();
+  S.fich.carregando = false; S.fich.carregado = true; if(!S.conv.carregado) convCarregar(); if(!cpeOcupado()) render();
 }
 function fichFiltradas(){
   const b = permNorm(S.fich.busca), bd = soDig(S.fich.busca);
@@ -4307,6 +4465,7 @@ function fichListaHtml(){
         campo('CPF', f.cpf, dv('cpf'))+campo('CNS', f.cns, dv('cns'))+campo('Telefone', f.telefone, dv('telefone'))+
         campo('Nome da mãe', f.mae, dv('mae'))+campo('Endereço', f.endereco, dv('endereco'))+campo('Queixa principal', f.queixa, dv('queixa'))+
         (dv('data_consulta')?campo('Data da consulta', dataBR(f.data_consulta), true):'')+
+        campo('Convênio · procedimento', f.convenio ? f.convenio+' · '+convProcRot(f.procedimento||'?', f.especialidade)+(f.valor_total!=null?' · '+brl(+f.valor_total):'') : '')+
         campo('Médico', fichMedTxt(f.medico_nome, f.medico_crm), dv('medico_nome')||dv('medico_crm')||!f.medico_crm)+
       '</div></div>'; }).join('');
 }
@@ -4359,12 +4518,71 @@ function fichEditar(id){
   const f = S.fich.lista.find(x=>x.id===id); if(!f) return;
   abrirModal('<h2 style="margin:0 0 4px">✎ Corrigir a leitura</h2><div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">Só para ajustar o que a foto mostra e o sistema leu errado.'+(f.foto_path?' <a href="#" onclick="fichVerFoto(\''+id+'\');return false">Ver foto</a>':'')+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 12px">'+
-    FICH_CAMPOS.map(c=>'<label style="margin:0">'+c[1]+'<input id="fe-'+c[0]+'" type="'+c[2]+'" value="'+esc(f[c[0]]==null?'':String(f[c[0]]).slice(0, c[2]==='date'?10:9999))+'"></label>').join('')+'</div>'+
+    FICH_CAMPOS.map(c=>'<label style="margin:0">'+c[1]+'<input id="fe-'+c[0]+'" type="'+c[2]+'" value="'+esc(f[c[0]]==null?'':String(f[c[0]]).slice(0, c[2]==='date'?10:9999))+'"'+(c[0]==='data_consulta'?' onchange="fichConvMostra()"':'')+'></label>').join('')+'</div>'+
+    fichConvBloco(f)+
     '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="fichSalvar(\''+id+'\')">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+  setTimeout(()=>{ fichConvProcs(); fichConvMostra(); }, 0);
+}
+/* v113: convênio e procedimento na ficha. O valor vem da tabela do IDAD vigente na data da consulta e fica gravado na ficha
+   (se a tabela mudar depois, a ficha antiga não muda). "Particular": o valor é digitado. */
+function fichConvBloco(f){
+  if(!S.conv.carregado){ if(!S.conv.carregando) convCarregar(); }
+  const ops = ['<option value="">— sem convênio informado —</option>','<option value="Particular"'+(f.convenio==='Particular'?' selected':'')+'>Particular</option>']
+    .concat(convNomes().map(n=>'<option value="'+esc(n)+'"'+(f.convenio===n?' selected':'')+'>'+esc(n)+'</option>'));
+  if(f.convenio && f.convenio!=='Particular' && convNomes().indexOf(f.convenio)<0) ops.push('<option value="'+esc(f.convenio)+'" selected>'+esc(f.convenio)+'</option>');
+  return '<div style="margin-top:12px;padding:12px;border:1px solid var(--linha);border-radius:10px;background:var(--campo)">'+
+    '<div style="font-weight:800;margin-bottom:6px">Convênio e procedimento</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 12px">'+
+      '<label style="margin:0">Convênio<select id="fe-conv" onchange="fichConvProcs();fichConvMostra()">'+ops.join('')+'</select></label>'+
+      '<label style="margin:0">Procedimento<select id="fe-proc" onchange="fichConvMostra()" data-atual="'+esc(f.procedimento ? f.procedimento+'|'+(f.especialidade||'') : '')+'"></select></label>'+
+      '<label style="margin:0" id="fe-valor-l">Valor (R$)<input id="fe-valor" type="number" step="0.01" inputmode="decimal" value="'+(f.valor_total!=null?f.valor_total:'')+'"></label>'+
+    '</div><div id="fe-conv-info" style="font-size:12.5px;color:var(--fraco);margin-top:6px"></div></div>';
+}
+function fichConvProcs(){
+  const c = val('fe-conv'), sel = document.getElementById('fe-proc'); if(!sel) return;
+  const atual = sel.value || sel.getAttribute('data-atual') || '';
+  let l;
+  if(!c) l = [];
+  else if(c==='Particular') l = CONV_PROCS.map(p=>[p,'']);
+  else { const v = {}; convVigentes().filter(x=>x.convenio===c && x.situacao!=='nao_cobre').forEach(x=>{ v[x.procedimento+'|'+(x.especialidade||'')] = [x.procedimento, x.especialidade||'']; });
+    l = Object.values(v).sort((a,b)=>CONV_PROCS.indexOf(a[0])-CONV_PROCS.indexOf(b[0]) || a[1].localeCompare(b[1])); }
+  sel.innerHTML = (l.length?'<option value="">— escolha —</option>':'<option value="">—</option>')+l.map(p=>{ const k = p[0]+'|'+p[1];
+    return '<option value="'+esc(k)+'"'+(k===atual?' selected':'')+'>'+esc(convProcRot(p[0], p[1]))+'</option>'; }).join('');
+  if(atual && !l.some(p=>p[0]+'|'+p[1]===atual) && c){ const p = atual.split('|'); sel.innerHTML += '<option value="'+esc(atual)+'" selected>'+esc(convProcRot(p[0],p[1]))+' (fora da tabela)</option>'; }
+  sel.removeAttribute('data-atual');
+}
+function fichConvMostra(){
+  const c = val('fe-conv'), pk = val('fe-proc'), info = document.getElementById('fe-conv-info'), inp = document.getElementById('fe-valor'), lab = document.getElementById('fe-valor-l');
+  if(!info || !inp) return;
+  if(!c){ info.textContent = 'Sem convênio: a ficha não entra na produção por convênio.'; inp.disabled = true; inp.value = ''; return; }
+  if(c==='Particular'){ inp.disabled = false; info.textContent = 'Particular: digite o valor cobrado.'; return; }
+  inp.disabled = true;
+  if(!pk){ info.textContent = 'Escolha o procedimento.'; inp.value = ''; return; }
+  const p = pk.split('|'), a = convAchar(c, p[0], p[1]||null, val('fe-data_consulta'));
+  if(!a){ info.innerHTML = '<span style="color:#d97706">Sem valor na tabela para essa data.</span>'; inp.value = ''; return; }
+  const x = a.r;
+  if(x.situacao!=='ativo' || x.valor_total==null){ inp.value = x.valor_total!=null ? x.valor_total : '';
+    info.innerHTML = '<span style="color:#d97706">Valor a definir na tabela do IDAD'+(x.obs?' ('+esc(x.obs)+')':'')+'. A ficha entra na produção sem valor.</span>'; return; }
+  inp.value = x.valor_total;
+  info.innerHTML = 'Médico <b>'+brl(+x.valor_medico)+'</b> · Hospital <b>'+brl(+x.valor_hospital)+'</b> · tabela de '+dataBR(x.vigencia_inicio)+
+    (a.antes?' <span style="color:#d97706">(consulta anterior à primeira tabela — usado o valor de '+dataBR(x.vigencia_inicio)+')</span>':'');
+}
+function fichConvLer(data){
+  const c = val('fe-conv'), pk = val('fe-proc');
+  const vazio = { convenio:null, procedimento:null, especialidade:null, conv_id:null, valor_total:null, valor_medico:null, valor_hospital:null };
+  if(!document.getElementById('fe-conv') || !c) return { campos: vazio };
+  if(!pk) return { erro:'Escolha o procedimento do convênio (ou deixe "sem convênio").' };
+  const p = pk.split('|'), base = Object.assign({}, vazio, { convenio:c, procedimento:p[0], especialidade:p[1]||null });
+  if(c==='Particular'){ const v = val('fe-valor')==='' ? null : Math.round(Number(val('fe-valor'))*100)/100;
+    if(v!=null && !(v>=0)) return { erro:'Valor particular inválido.' }; base.valor_total = v; return { campos: base }; }
+  const a = convAchar(c, p[0], p[1]||null, data);
+  if(a){ const x = a.r; base.conv_id = x.id; base.valor_total = x.valor_total; base.valor_medico = x.situacao==='ativo' ? x.valor_medico : null; base.valor_hospital = x.situacao==='ativo' ? x.valor_hospital : null; }
+  return { campos: base };
 }
 async function fichSalvar(id){
   const c = {}; FICH_CAMPOS.forEach(x=>{ const v = (document.getElementById('fe-'+x[0])||{}).value; c[x[0]] = v==='' || v==null ? null : (x[2]==='number' ? Math.round(Number(v)) : v.trim()); });
   c.duvidas = []; c.atualizado_em = new Date().toISOString();
+  const cv = fichConvLer(c.data_consulta); if(cv.erro) return aviso(cv.erro,'erro'); Object.assign(c, cv.campos);
   const r = await sb.from('fichas').update(c).eq('id', id).select().maybeSingle();
   if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
   const i = S.fich.lista.findIndex(x=>x.id===id); if(i>=0) S.fich.lista[i] = r.data;
@@ -4391,12 +4609,13 @@ async function fichBaixar(qual){
   if(!l.length) return aviso('Nenhuma ficha para baixar.','erro');
   try{ await fichXlsxLib(); }catch(e){ return aviso(e.message,'erro'); }
   const dt = d=>{ if(!d) return null; const p = String(d).slice(0,10).split('-').map(Number); return (Date.UTC(p[0],p[1]-1,p[2]) - Date.UTC(1899,11,30))/86400000; };   // número de série do Excel (sem fuso)
-  const rows = [['Nº da ficha','Nome completo','Data da consulta','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal','Médico','CRM do médico']]
-    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'', f.medico_nome||'', f.medico_crm||'']));
+  const rows = [['Nº da ficha','Nome completo','Data da consulta','Data de nascimento','Idade','Sexo','CPF','CNS','Telefone','Nome da mãe','Endereço','Queixa principal','Convênio','Procedimento','Valor total','Parte do médico','Parte do hospital','Médico','CRM do médico']]
+    .concat(l.map(f=>[f.ficha_num||'', f.nome||'', dt(f.data_consulta), dt(f.nascimento), f.idade==null?'':f.idade, f.sexo||'', f.cpf||'', f.cns||'', f.telefone||'', f.mae||'', f.endereco||'', f.queixa||'', f.convenio||'', f.convenio?convProcRot(f.procedimento||'', f.especialidade):'', f.valor_total==null?'':+f.valor_total, f.valor_medico==null?'':+f.valor_medico, f.valor_hospital==null?'':+f.valor_hospital, f.medico_nome||'', f.medico_crm||'']));
   const ws = XLSX.utils.aoa_to_sheet(rows);
   for(let r=1; r<rows.length; r++) ['C','D'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = 'dd/mm/yyyy'; });
-  ws['!cols'] = [11,32,16,18,7,6,17,21,17,28,48,40,32,14].map(w=>({ wch:w }));
-  ws['!autofilter'] = { ref: 'A1:N'+rows.length };
+  for(let r=1; r<rows.length; r++) ['O','P','Q'].forEach(c=>{ const cel = ws[c+(r+1)]; if(cel && cel.t==='n') cel.z = '"R$" #,##0.00'; });
+  ws['!cols'] = [11,32,16,18,7,6,17,21,17,28,48,40,24,26,13,14,14,32,14].map(w=>({ wch:w }));
+  ws['!autofilter'] = { ref: 'A1:S'+rows.length };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Fichas');
   const nome = l.length===1 && qual!=='todas' ? 'Ficha - '+String(l[0].nome||'paciente').replace(/[\\\/:*?"<>|]/g,'') : 'Fichario - '+l.length+' ficha'+(l.length===1?'':'s')+' - '+hojeISO().split('-').reverse().join('-');
   /* v110 (Renato, 18/11/2026: "não está baixando o Excel"): no app Android e no iPhone o download direto (blob) não funciona.
