@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v113">
+<meta name="rf-versao" content="v114">
 <meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v113',
+  versao : 'v114',
   data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4431,6 +4431,7 @@ function telaFichario(){
       '<span id="fi-st" style="font-size:13px;color:var(--fraco)">'+(S.fich.st||'O sistema lê cada foto e coloca a ficha na lista, já com o médico <b>'+esc(fichMedTxt(FICH_MEDICO_PADRAO.nome, FICH_MEDICO_PADRAO.crm))+'</b>. Só entra informação por foto.')+'</span></div>';
   h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">'+
       '<input id="fi-busca" placeholder="Buscar por paciente, médico, CRM, CPF, CNS ou telefone" value="'+esc(S.fich.busca)+'" oninput="S.fich.busca=this.value;fichLista()" style="max-width:320px;margin:0;flex:1;min-width:200px">'+
+      '<button class="bt g" id="fi-todas" onclick="fichMarcarTodas()">☑ Marcar todas</button>'+
       '<span id="fi-cont" style="font-size:13px;color:var(--fraco)"></span><div style="flex:1"></div>'+
       '<button class="bt g" onclick="fichBaixar(\'marcadas\')">⬇ Baixar marcadas</button>'+
       '<button class="bt" onclick="fichBaixar(\'todas\')">⬇ Baixar todas (Excel)</button></div>'+
@@ -4440,7 +4441,12 @@ function telaFichario(){
 }
 function fichContagem(){ const e = document.getElementById('fi-cont'); if(!e) return;
   const n = fichFiltradas().length, m = Object.keys(S.fich.sel).filter(k=>S.fich.sel[k] && S.fich.lista.some(f=>f.id===k)).length;
-  e.textContent = n+' ficha'+(n===1?'':'s')+(m?' · '+m+' marcada'+(m===1?'':'s'):''); }
+  e.textContent = n+' ficha'+(n===1?'':'s')+(m?' · '+m+' marcada'+(m===1?'':'s'):'');
+  const b = document.getElementById('fi-todas'); if(b) b.textContent = fichTodasMarcadas() ? '☐ Desmarcar todas' : '☑ Marcar todas'; }
+/* v114 (Renato, 19/11/2026: "quero selecionar todas em um só clique"): marca (ou desmarca) de uma vez todas as fichas
+   que estão na lista — se houver busca, só as que aparecem no resultado. */
+function fichTodasMarcadas(){ const l = fichFiltradas(); return l.length>0 && l.every(f=>S.fich.sel[f.id]); }
+function fichMarcarTodas(){ const tudo = fichTodasMarcadas(); fichFiltradas().forEach(f=>{ if(tudo) delete S.fich.sel[f.id]; else S.fich.sel[f.id] = true; }); fichLista(); }
 function fichLista(){ const e = document.getElementById('fi-lista'); if(e) e.innerHTML = fichListaHtml(); fichContagem(); }
 function fichListaHtml(){
   const ed = fichEdita(), l = fichFiltradas();
