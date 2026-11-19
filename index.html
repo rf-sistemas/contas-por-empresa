@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v114">
+<meta name="rf-versao" content="v115">
 <meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v114',
+  versao : 'v115',
   data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -435,7 +435,7 @@ function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -485,6 +485,7 @@ function render(){
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
+  else if(S.tela==='idadfin')   corpo = telaIdadFin();
   else if(S.tela==='painel')   corpo = telaPainel();
   else if(S.tela==='pessoais') corpo = telaPessoais();
   else if(S.tela==='fila')     corpo = telaFila();
@@ -3717,7 +3718,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -3836,6 +3837,7 @@ function telaIdad(){
   const pl = S.idad.plantoes, plMes = pl.filter(x=>String(x.data).slice(0,7)===mes);
   let h = '';   // v95: quadro de resumo do topo retirado a pedido do Renato
   h += '<div class="bxs">'+
+    '<button type="button" class="bx" onclick="irPara(\'idadfin\')"><div class="ic">'+icoFinIdad()+'</div><div><b>Financeiro do IDAD</b><small>'+ifinResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
@@ -4230,6 +4232,187 @@ async function obraSalvar(){
 async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) return;
   const r = await sb.from('idad_obra').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
   S.idad.obra = S.idad.obra.filter(o=>o.id!==id); S.modal=null; aviso('Gasto excluído.','ok'); }
+/* ===== v115 (Renato, 19/11/2026): FINANCEIRO DO IDAD — "esse módulo IDAD vai ser 100% auditado".
+   Tela própria dentro do Hospital IDAD com tudo que entra e sai do CNPJ do IDAD (extrato BB + caixa da recepção + contas).
+   - Transferência entre caixa e banco (categoria "Transferência…") NÃO conta como receita nem despesa: aparece separada.
+   - Situação de cada lançamento: pago/recebido, a pagar/a receber, vencido; e "a conferir" (movimentos.conferir).
+   - Conferir: marca quem conferiu e quando (movimentos.conferido_por / conferido_em).
+   - AUDITORIA: todo inserir/alterar/excluir em movimentos fica gravado em cpe_auditoria (gatilho no banco, ninguém apaga),
+     com o antes e o depois, quem fez e quando. Exclusão pode ser restaurada pelo histórico. */
+S.ifin = { mes:'', tudo:false, sit:'todos', tipo:'', busca:'', aud:null, audCarregando:false };
+const IFIN_SIT = [['todos','Todos'],['pago','Pagos / recebidos'],['aberto','A pagar / a receber'],['vencido','Vencidos'],['conferir','A conferir']];
+function icoFinIdad(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gFid')+
+  '<rect x="5" y="9" width="38" height="30" rx="5" fill="url(#gFid)" opacity=".3"/><rect x="10" y="27" width="5" height="8" rx="1.5" fill="url(#gFid)"/>'+
+  '<rect x="18" y="21" width="5" height="14" rx="1.5" fill="url(#gFid)"/><rect x="26" y="16" width="5" height="19" rx="1.5" fill="url(#gFid)"/>'+
+  '<rect x="34" y="12" width="5" height="23" rx="1.5" fill="url(#gFid)"/></svg>'; }
+function ifinMovs(){ const e = idadEmpresa(); return e ? S.movimentos.filter(m=>m.empresa_id===e.id && !m.pessoal) : []; }
+function ifinTransf(m){ return /^transfer/i.test(m.categoria||''); }
+function ifinVencido(m){ return !m.pago && m.vencimento && m.vencimento < hojeISO(); }
+function ifinData(m){ return m.pago ? (m.data_pagamento||m.data_movimento) : (m.vencimento||m.data_movimento); }
+function ifinResumo(){
+  const l = ifinMovs(); if(!l.length) return 'entradas, saídas e contas do IDAD';
+  const v = l.filter(ifinVencido).length, c = l.filter(m=>m.conferir).length;
+  return l.length+' lançamentos'+(v?' · '+v+' vencido'+(v===1?'':'s'):'')+(c?' · '+c+' a conferir':'');
+}
+function ifinFiltrados(){
+  const mes = S.ifin.mes || mesHoje(), b = permNorm(S.ifin.busca);
+  return ifinMovs().filter(m=>{
+    if(!S.ifin.tudo && String(ifinData(m)||'').slice(0,7)!==mes && !(S.ifin.sit==='vencido' || S.ifin.sit==='conferir')) return false;
+    if(S.ifin.tipo && m.tipo!==S.ifin.tipo) return false;
+    const s = S.ifin.sit;
+    if(s==='pago' && !m.pago) return false; if(s==='aberto' && m.pago) return false;
+    if(s==='vencido' && !ifinVencido(m)) return false; if(s==='conferir' && !m.conferir) return false;
+    return !b || [m.descricao,m.fornecedor,m.categoria,m.observacao,nomeOrigem(m.origem_id)].some(x=>permNorm(x).indexOf(b)>=0) || String(m.valor).indexOf(S.ifin.busca.replace(',','.'))>=0;
+  }).sort((a,b)=>String(ifinData(b)).localeCompare(String(ifinData(a))));
+}
+function telaIdadFin(){
+  const e = idadEmpresa();
+  let h = '<div class="secao"><b>FINANCEIRO DO IDAD</b><span>CNPJ 33.231.594/0001-09 · tudo que entra e sai, com auditoria</span></div>';
+  if(!e) return h+'<div class="vazio">O CNPJ do IDAD não está cadastrado (ou este login não tem acesso a ele).</div>';
+  const mes = S.ifin.mes || mesHoje(), todos = ifinMovs(), dm = m=>String(ifinData(m)||'').slice(0,7);
+  const doMes = todos.filter(m=>S.ifin.tudo || dm(m)===mes), op = doMes.filter(m=>!ifinTransf(m));
+  const soma = f => op.filter(f).reduce((a,m)=>a+(+m.valor||0),0);
+  const rec = soma(m=>m.tipo==='entrada'&&m.pago), pag = soma(m=>m.tipo==='saida'&&m.pago);
+  const arec = soma(m=>m.tipo==='entrada'&&!m.pago), apag = soma(m=>m.tipo==='saida'&&!m.pago);
+  const venc = todos.filter(ifinVencido), conf = todos.filter(m=>m.conferir);
+  const cx = S.origens.find(o=>o.nome==='Caixa recepção IDAD');
+  const sCx = cx ? todos.filter(m=>m.origem_id===cx.id && m.pago).reduce((a,m)=>a+(m.tipo==='entrada'?1:-1)*(+m.valor||0),0) : null;
+  const tr = doMes.filter(m=>ifinTransf(m) && m.tipo==='saida').reduce((a,m)=>a+(+m.valor||0),0);
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<input type="month" value="'+mes+'" onchange="S.ifin.mes=this.value;S.ifin.tudo=false;render()" style="width:auto;margin:0"'+(S.ifin.tudo?' disabled':'')+'>'+
+    '<label style="display:flex;gap:6px;align-items:center;margin:0;text-transform:none;font-size:14px;cursor:pointer"><input type="checkbox" style="width:auto" '+(S.ifin.tudo?'checked':'')+' onchange="S.ifin.tudo=this.checked;render()"> Todos os meses</label>'+
+    '<div style="flex:1"></div>'+
+    (podeEditar()?'<button class="bt" onclick="ifinAbrir(null,\'entrada\')">+ Entrada</button><button class="bt" onclick="ifinAbrir(null,\'saida\')">+ Saída</button>':'')+
+    '<button class="bt g" onclick="ifinAuditoria()">🛡 Auditoria</button></div>';
+  h += '<div class="card"><div class="kpis">'+
+    kpi('Recebido', '<span style="color:var(--verde)">'+brl(rec)+'</span>')+kpi('Pago', '<span style="color:var(--vermelho)">'+brl(pag)+'</span>')+
+    kpi('Resultado do caixa', brl(rec-pag))+kpi('A receber', brl(arec))+kpi('A pagar', brl(apag))+'</div>'+
+    '<div class="kpis" style="margin-top:8px">'+
+    kpi('Vencidos (todos os meses)', '<span style="color:'+(venc.length?'var(--vermelho)':'inherit')+'">'+venc.length+' · '+brl(venc.reduce((a,m)=>a+(+m.valor||0),0))+'</span>')+
+    kpi('A conferir', '<span style="color:'+(conf.length?'#d97706':'inherit')+'">'+conf.length+'</span>')+
+    (sCx!=null?kpi('Saldo do caixa da recepção', brl(sCx)):'')+
+    kpi('Transferido caixa → banco', brl(tr))+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Transferências entre caixa e banco não entram como receita nem como despesa.</div></div>';
+  const cats = {}; op.filter(m=>m.tipo==='saida').forEach(m=>{ const k=m.categoria||'Sem categoria'; cats[k]=(cats[k]||0)+(+m.valor||0); });
+  const tCat = Object.values(cats).reduce((a,v)=>a+v,0);
+  if(tCat) h += '<div class="card"><b style="font-size:14px">Saídas por categoria</b><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+
+    Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<span style="background:var(--campo);border:1px solid var(--linha);border-radius:20px;padding:5px 11px;font-size:12.5px"><b>'+esc(k)+'</b> '+brl(v)+' · '+Math.round(v/tCat*100)+'%</span>').join('')+'</div></div>';
+  h += '<div class="card" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+
+    IFIN_SIT.map(s=>'<button class="bt '+(S.ifin.sit===s[0]?'':'g ')+'mini" onclick="S.ifin.sit=\''+s[0]+'\';render()">'+s[1]+(s[0]==='vencido'&&venc.length?' ('+venc.length+')':'')+(s[0]==='conferir'&&conf.length?' ('+conf.length+')':'')+'</button>').join('')+
+    '<select onchange="S.ifin.tipo=this.value;render()" style="width:auto;margin:0 0 0 8px"><option value="">Entradas e saídas</option><option value="entrada"'+(S.ifin.tipo==='entrada'?' selected':'')+'>Só entradas</option><option value="saida"'+(S.ifin.tipo==='saida'?' selected':'')+'>Só saídas</option></select>'+
+    '<input id="if-busca" placeholder="Buscar descrição, fornecedor, categoria ou valor" value="'+esc(S.ifin.busca)+'" oninput="S.ifin.busca=this.value;ifinLista()" style="flex:1;min-width:200px;margin:0"></div>';
+  return h+'<div id="if-lista">'+ifinListaHtml()+'</div>';
+}
+function ifinLista(){ const e = document.getElementById('if-lista'); if(e) e.innerHTML = ifinListaHtml(); }
+function ifinSituacao(m){
+  if(ifinTransf(m)) return ['Transferência','var(--fraco)'];
+  if(m.pago) return [m.tipo==='entrada'?'Recebido':'Pago','var(--verde)'];
+  if(ifinVencido(m)) return ['Vencido '+dataBR(m.vencimento),'var(--vermelho)'];
+  return [(m.tipo==='entrada'?'A receber':'A pagar')+(m.vencimento?' '+dataBR(m.vencimento):''),'#d97706'];
+}
+function ifinListaHtml(){
+  const l = ifinFiltrados();
+  if(!l.length) return '<div class="vazio">Nenhum lançamento neste filtro.</div>';
+  const tot = l.filter(m=>!ifinTransf(m)).reduce((a,m)=>a+(m.tipo==='entrada'?1:-1)*(+m.valor||0),0);
+  return '<div class="card" style="overflow-x:auto;padding:6px 10px"><div style="font-size:12.5px;color:var(--fraco);padding:6px 4px">'+l.length+' lançamento'+(l.length===1?'':'s')+' · saldo do filtro (sem transferências): <b style="color:var(--texto)">'+brl(tot)+'</b></div>'+
+    '<table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th>Situação</th><th></th></tr></thead><tbody>'+
+    l.map(m=>{ const s = ifinSituacao(m), ent = m.tipo==='entrada';
+      return '<tr style="cursor:pointer'+(ifinTransf(m)?';opacity:.65':'')+'" onclick="ifinAbrir(\''+m.id+'\')"><td style="white-space:nowrap">'+dataBR(ifinData(m))+'</td>'+
+        '<td><b>'+esc(m.descricao||m.fornecedor||'—')+'</b>'+(m.fornecedor && m.fornecedor!==m.descricao?'<br><small style="color:var(--fraco)">'+esc(m.fornecedor)+'</small>':'')+
+          (m.conferir?' <span style="font-size:11px;color:#7a5a00;background:#FFF4CC;border-radius:6px;padding:1px 7px;white-space:nowrap">a conferir</span>':'')+'</td>'+
+        '<td>'+esc(m.categoria||'—')+'</td><td style="font-size:12.5px">'+esc(m.origem_id?nomeOrigem(m.origem_id):(m.pago?'Banco do Brasil':'—'))+'</td>'+
+        '<td style="text-align:right;font-weight:800;white-space:nowrap;color:'+(ent?'var(--verde)':'var(--vermelho)')+'">'+(ent?'+ ':'− ')+brl(+m.valor)+'</td>'+
+        '<td style="white-space:nowrap"><span style="font-weight:700;color:'+s[1]+'">'+s[0]+'</span></td>'+
+        '<td style="white-space:nowrap" onclick="event.stopPropagation()">'+(m.conferir && podeEditar()?'<button class="bt g mini" onclick="ifinConferir(\''+m.id+'\')" title="Marcar como conferido">✓ Conferi</button> ':'')+
+          '<button class="bt g mini" onclick="ifinHistorico(\''+m.id+'\')" title="Histórico de alterações">🕘</button></td></tr>'; }).join('')+
+    '</tbody></table></div>';
+}
+function ifinAbrir(id, tipoNovo){
+  const e = idadEmpresa(), m = id ? S.movimentos.find(x=>x.id===id) : { tipo:tipoNovo, data_movimento:hojeISO(), pago:false };
+  if(!m || !e) return;
+  const ed = podeEditar(), ro = ed ? '' : ' disabled', ent = m.tipo==='entrada', v = k => m[k]==null ? '' : m[k];
+  const cats = {}; ifinMovs().forEach(x=>{ if(x.categoria) cats[x.categoria]=1; });
+  const oris = S.origens.filter(o=>!o.empresa_id || o.empresa_id===e.id);
+  abrirModal('<h2>'+(id?'':'Nova ')+(ent?'Entrada':'Saída')+' · IDAD</h2><input type="hidden" id="if-id" value="'+(id||'')+'"><input type="hidden" id="if-tipo" value="'+m.tipo+'">'+
+    '<label>Descrição *</label><input id="if-desc"'+ro+' value="'+esc(v('descricao'))+'">'+
+    '<div class="lin"><div><label>'+(ent?'Pagador':'Fornecedor')+'</label><input id="if-forn"'+ro+' value="'+esc(v('fornecedor'))+'"></div>'+
+      '<div><label>Categoria</label><input id="if-cat" list="if-cats"'+ro+' value="'+esc(v('categoria'))+'"><datalist id="if-cats">'+Object.keys(cats).sort().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></div></div>'+
+    '<div class="lin"><div><label>Valor (R$) *</label><input id="if-valor" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+v('valor')+'"></div>'+
+      '<div><label>Data / competência</label><input id="if-data" type="date"'+ro+' value="'+String(v('data_movimento')).slice(0,10)+'"></div>'+
+      '<div><label>Vencimento</label><input id="if-venc" type="date"'+ro+' value="'+String(v('vencimento')).slice(0,10)+'"></div></div>'+
+    '<div class="lin"><label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;padding-top:22px"><input type="checkbox" id="if-pago" style="width:auto"'+ro+(m.pago?' checked':'')+'> '+(ent?'Já recebido':'Já pago')+'</label>'+
+      '<div><label>'+(ent?'Recebido em':'Pago em')+'</label><input id="if-dpag" type="date"'+ro+' value="'+String(v('data_pagamento')).slice(0,10)+'"></div>'+
+      '<div><label>Origem (conta / caixa)</label><select id="if-ori"'+ro+'><option value="">Banco do Brasil (extrato)</option>'+oris.map(o=>'<option value="'+o.id+'"'+(m.origem_id===o.id?' selected':'')+'>'+esc(o.nome)+'</option>').join('')+'</select></div></div>'+
+    '<label>Observações</label><textarea id="if-obs"'+ro+' rows="3">'+esc(v('observacao'))+'</textarea>'+
+    '<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;margin-top:8px"><input type="checkbox" id="if-conf" style="width:auto"'+ro+(m.conferir?' checked':'')+'> Marcar como <b>a conferir</b></label>'+
+    (m.conferido_em?'<div style="font-size:12px;color:var(--fraco);margin-top:4px">Conferido em '+new Date(m.conferido_em).toLocaleString('pt-BR')+'</div>':'')+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+(ed?'<button class="bt" onclick="ifinSalvar()">Salvar</button>':'')+
+      (id?'<button class="bt g" onclick="ifinHistorico(\''+id+'\')">🕘 Histórico</button>':'')+
+      (id && podeApagar()?'<button class="bt g" style="color:var(--vermelho)" onclick="ifinExcluir(\''+id+'\')">Excluir</button>':'')+
+      '<button class="bt g" onclick="fecharModal()">'+(ed?'Cancelar':'Fechar')+'</button></div>'+
+    '<div style="font-size:11.5px;color:var(--fraco);margin-top:10px">🛡 Toda alteração fica registrada na auditoria (quem, quando, antes e depois).</div>');
+}
+async function ifinSalvar(){
+  const e = idadEmpresa(), id = val('if-id'), g = k => val(k).trim()||null;
+  const reg = { tipo: val('if-tipo'), empresa_id: e.id, descricao: g('if-desc'), fornecedor: g('if-forn'), categoria: g('if-cat'),
+    valor: Math.round(Number(val('if-valor'))*100)/100, data_movimento: g('if-data')||hojeISO(), vencimento: g('if-venc'),
+    pago: document.getElementById('if-pago').checked, data_pagamento: g('if-dpag'), origem_id: val('if-ori')||null,
+    observacao: g('if-obs'), conferir: document.getElementById('if-conf').checked, pessoal:false };
+  if(!reg.descricao) return aviso('Informe a descrição.','erro');
+  if(!(reg.valor>0)) return aviso('Informe o valor.','erro');
+  if(reg.pago && !reg.data_pagamento) reg.data_pagamento = hojeISO();
+  if(!reg.pago) reg.data_pagamento = null;
+  const r = id ? await sb.from('movimentos').update(reg).eq('id', id).select().maybeSingle() : await sb.from('movimentos').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  if(id){ const i = S.movimentos.findIndex(x=>x.id===id); if(i>=0) S.movimentos[i] = r.data; } else S.movimentos.unshift(r.data);
+  S.modal = null; aviso('Lançamento salvo (registrado na auditoria).','ok');
+}
+async function ifinConferir(id){
+  const r = await sb.from('movimentos').update({ conferir:false, conferido_em: new Date().toISOString(), conferido_por: S.user.id }).eq('id', id).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  const i = S.movimentos.findIndex(x=>x.id===id); if(i>=0) S.movimentos[i] = r.data; aviso('Marcado como conferido.','ok');
+}
+async function ifinExcluir(id){
+  if(!confirm('Excluir este lançamento? Ele fica guardado na auditoria e pode ser restaurado.')) return;
+  const r = await sb.from('movimentos').delete().eq('id', id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.movimentos = S.movimentos.filter(x=>x.id!==id); S.modal = null; aviso('Excluído — dá para restaurar em Auditoria.','ok');
+}
+/* ---- Auditoria (tabela cpe_auditoria, gravada por gatilho no banco) ---- */
+const AUD_ROT = { INSERT:['Incluiu','var(--verde)'], UPDATE:['Alterou','#0a6cf0'], DELETE:['Excluiu','var(--vermelho)'] };
+const AUD_CAMPOS = { descricao:'Descrição', fornecedor:'Fornecedor', categoria:'Categoria', valor:'Valor', data_movimento:'Data', vencimento:'Vencimento', pago:'Pago',
+  data_pagamento:'Data do pagamento', origem_id:'Origem', observacao:'Observação', empresa_id:'Empresa', conferir:'A conferir', tipo:'Tipo' };
+function audValor(k, v){ if(v==null || v==='') return '—'; if(k==='valor') return brl(+v); if(k==='pago'||k==='conferir') return v?'sim':'não';
+  if(k==='empresa_id') return nomeEmpresa(v); if(k==='origem_id') return nomeOrigem(v); if(/^\d{4}-\d{2}-\d{2}/.test(String(v))) return dataBR(v); return String(v); }
+function audLinha(a){
+  const r = AUD_ROT[a.acao]||[a.acao,'inherit'], d = a.depois||{}, an = a.antes||{}, x = a.acao==='DELETE' ? an : d;
+  const mud = a.acao==='UPDATE' ? Object.keys(AUD_CAMPOS).filter(k=>JSON.stringify(an[k])!==JSON.stringify(d[k])) : [];
+  return '<div style="border-bottom:1px solid var(--linha);padding:8px 0;font-size:13px">'+
+    '<div><b style="color:'+r[1]+'">'+r[0]+'</b> · '+esc(a.usuario_email||'sistema')+' · <span style="color:var(--fraco)">'+new Date(a.em).toLocaleString('pt-BR')+'</span></div>'+
+    '<div style="color:var(--fraco)">'+esc(x.descricao||x.fornecedor||'')+' · '+brl(+x.valor||0)+'</div>'+
+    (mud.length?'<div style="margin-top:3px">'+mud.map(k=>'<span style="display:inline-block;margin:2px 6px 0 0">'+AUD_CAMPOS[k]+': <s style="color:var(--fraco)">'+esc(audValor(k,an[k]))+'</s> → <b>'+esc(audValor(k,d[k]))+'</b></span>').join('')+'</div>':'')+
+    (a.acao==='DELETE' && podeApagar()?'<button class="bt g mini" style="margin-top:4px" onclick="ifinRestaurar('+a.id+')">↺ Restaurar</button>':'')+'</div>';
+}
+async function ifinHistorico(id){
+  abrirModal('<h2 style="margin:0 0 8px">🕘 Histórico do lançamento</h2><div id="aud-h">Carregando…</div><div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+  const r = await sb.from('cpe_auditoria').select('*').eq('tabela','movimentos').eq('registro_id', id).order('em',{ascending:false});
+  const el = document.getElementById('aud-h'); if(!el) return;
+  el.innerHTML = r.error ? '<span style="color:var(--vermelho)">'+esc(r.error.message)+'</span>' : (r.data||[]).length ? r.data.map(audLinha).join('') :
+    '<div style="color:var(--fraco)">Sem alterações registradas desde que a auditoria foi ligada (v115). O lançamento original está como foi importado.</div>';
+}
+async function ifinAuditoria(){
+  const e = idadEmpresa(); if(!e) return;
+  abrirModal('<style>.modal{max-width:760px}</style><h2 style="margin:0 0 4px">🛡 Auditoria do Financeiro do IDAD</h2><div style="font-size:12.5px;color:var(--fraco);margin-bottom:8px">Últimas 200 ações: quem incluiu, alterou ou excluiu, com o antes e o depois. Nada aqui pode ser apagado.</div><div id="aud-g" style="max-height:65vh;overflow:auto">Carregando…</div><div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+  const r = await sb.from('cpe_auditoria').select('*').eq('tabela','movimentos').eq('empresa_id', e.id).order('em',{ascending:false}).limit(200);
+  const el = document.getElementById('aud-g'); if(!el) return;
+  el.innerHTML = r.error ? '<span style="color:var(--vermelho)">'+esc(r.error.message)+'</span>' : (r.data||[]).length ? r.data.map(audLinha).join('') : '<div style="color:var(--fraco)">Nenhuma ação registrada ainda.</div>';
+}
+async function ifinRestaurar(audId){
+  const r = await sb.from('cpe_auditoria').select('*').eq('id', audId).maybeSingle(); if(r.error || !r.data || !r.data.antes) return aviso('Não achei o registro para restaurar.','erro');
+  if(!confirm('Restaurar este lançamento excluído?')) return;
+  const reg = Object.assign({}, r.data.antes); ['criado_em','atualizado_em'].forEach(k=>delete reg[k]);
+  const ins = await sb.from('movimentos').insert(reg).select().maybeSingle(); if(ins.error) return aviso('Não restaurou: '+ins.error.message,'erro');
+  S.movimentos.unshift(ins.data); S.modal = null; aviso('Lançamento restaurado.','ok');
+}
 /* ===== v113 (Renato, 19/11/2026): CONVÊNIOS E PROCEDIMENTOS do Hospital IDAD.
    Tabela idad_convenios: convênio × procedimento (com especialidade opcional), valor total, PARTE DO MÉDICO e PARTE DO HOSPITAL
    em valor exato (a divisão muda por convênio), situação (ativo / a definir / não cobre), código TUSS opcional e VIGÊNCIA
