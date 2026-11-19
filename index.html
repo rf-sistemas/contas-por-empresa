@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v115">
+<meta name="rf-versao" content="v116">
 <meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -200,7 +200,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v115',
+  versao : 'v116',
   data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4290,7 +4290,7 @@ function telaIdadFin(){
     '<div class="kpis" style="margin-top:8px">'+
     kpi('Vencidos (todos os meses)', '<span style="color:'+(venc.length?'var(--vermelho)':'inherit')+'">'+venc.length+' · '+brl(venc.reduce((a,m)=>a+(+m.valor||0),0))+'</span>')+
     kpi('A conferir', '<span style="color:'+(conf.length?'#d97706':'inherit')+'">'+conf.length+'</span>')+
-    (sCx!=null?kpi('Saldo do caixa da recepção', brl(sCx)):'')+
+    (sCx!=null?kpi('Saldo do caixa da recepção · ESTIMADO', brl(sCx)+'<div style="font-size:11.5px;font-weight:400;color:#7a5a00;margin-top:3px;line-height:1.35">Calculado pelo sistema (entradas − saídas − depósitos). Falta o extrato BB de 01 a 19/10 e a contagem real do caixa.</div>'):'')+
     kpi('Transferido caixa → banco', brl(tr))+'</div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Transferências entre caixa e banco não entram como receita nem como despesa.</div></div>';
   const cats = {}; op.filter(m=>m.tipo==='saida').forEach(m=>{ const k=m.categoria||'Sem categoria'; cats[k]=(cats[k]||0)+(+m.valor||0); });
