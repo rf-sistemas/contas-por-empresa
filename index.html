@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v117">
+<meta name="rf-versao" content="v118">
 <meta name="rf-data" content="2026-11-19">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -208,7 +208,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v117',
+  versao : 'v118',
   data   : '19/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4459,9 +4459,10 @@ function iconcDias(){
     if(x.fonte==='stone'){ d.stone += +x.valor_bruto||0; d.stoneLiq += +x.valor_liquido||0; } });
   S.movimentos.filter(m=>m.empresa_id===e.id && !m.pessoal && m.tipo==='entrada' && String(ifinData(m)).slice(0,7)===mes).forEach(m=>{
     const d = dia(String(ifinData(m)).slice(0,10));
-    if(cx && m.origem_id===cx.id && m.categoria==='Receita – Caixa') d.caixa += +m.valor||0;
-    else if(!m.origem_id && /PIX/i.test(m.descricao||'') && !ifinTransf(m)) d.pix += +m.valor||0;
-    else if(m.categoria==='Receita – Cartão') d.cartLanc += +m.valor||0; });
+    if(ifinTransf(m)) return;
+    if(m.categoria==='Receita – Caixa' && (!cx || m.origem_id===cx.id)) d.caixa += +m.valor||0;
+    else if(m.categoria==='Receita – Cartão') d.cartLanc += +m.valor||0;
+    else if(/PIX/i.test(m.descricao||'')) d.pix += +m.valor||0; });   // v118: Pix do extrato vale em qualquer conta do IDAD
   return Object.values(D).filter(d=>d.n||d.stone||d.caixa||d.cartLanc).sort((a,b)=>a.data.localeCompare(b.data)).map(d=>{
     d.difCx = r2(d.caixa + d.pix - d.rec); d.difSt = r2(d.stone - d.cartRec); d.difLc = r2(d.cartLanc - d.stone); return d; });
 }
