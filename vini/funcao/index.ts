@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v7 (20/11/2026)";
+const VERSAO = "vini-ponte v8 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -135,6 +135,7 @@ const MAPA = `MAPA DO SISTEMA MR (o que existe e onde fica):
 - HOSPITAL IDAD (CNPJ 33.231.594/0001-09): Financeiro do IDAD (auditado), Conciliação (relatório da recepção Pixeon x caixa x Pix x Stone), Convênios e procedimentos (tabela de valores por convênio, parte médico/hospital, vigência), Cadastro de pacientes, Farmácia e Almoxarifado (estoque), Obra do IDAD.
 - FICHÁRIO: fichas de consulta lidas por foto (médico padrão Marcus Adriano, CRM 36770/BA), com convênio e procedimento.
 - USUÁRIOS: logins e permissões.
+- SISTEMAS EXTERNOS (navegador do Vini): sistemas de terceiros cadastrados na tela "Acessos do Vini" (login e senha guardados no cofre). Você entra, lê a tela e responde; só leitura (não aceita, lança, assina nem prescreve nada). Nunca peça nem repita senha.
 Regras: você só CONSULTA. Nunca mostre CPF, endereço, telefone ou dados clínicos de paciente; para pacientes dê só contagens. Valores sempre em R$.`;
 const TOOLS = [
   { type: "function", function: { name: "contas", description: "Contas a pagar/receber: vencidas e a vencer.", parameters: { type: "object", properties: { empresa: { type: "string", description: "nome ou parte do nome do CNPJ (opcional)" }, dias: { type: "integer", description: "dias à frente (padrão 7)" }, tipo: { type: "string", enum: ["saida", "entrada"] } } } } },
@@ -149,12 +150,42 @@ const TOOLS = [
   { type: "function", function: { name: "saldo_terceirizado", description: "Saldo terceirizado da NAFS: partida, saídas e saldo.", parameters: { type: "object", properties: {} } } },
   { type: "function", function: { name: "idad", description: "Hospital IDAD. assunto: financeiro (mês), conciliacao (mês), convenios (valor de um convênio/procedimento), estoque (itens abaixo do mínimo), obra (gastos), pacientes (só contagem), fichario (fichas do mês).", parameters: { type: "object", properties: { assunto: { type: "string", enum: ["financeiro", "conciliacao", "convenios", "estoque", "obra", "pacientes", "fichario"] }, mes: { type: "string", description: "AAAA-MM" }, convenio: { type: "string" }, procedimento: { type: "string" } }, required: ["assunto"] } } },
   { type: "function", function: { name: "usuarios", description: "Quem tem login no sistema e o papel de cada um.", parameters: { type: "object", properties: {} } } },
+  // v8: navegador do Vini (sistemas de terceiros, ex.: sistemas dos médicos). Só leitura. Nunca pede senha.
+  { type: "function", function: { name: "acessar_sistema", description: "Entra com o login cadastrado num sistema EXTERNO (site de terceiro, ex.: sistema de um hospital ou convênio) e responde a pergunta lendo a tela; a resposta e o print chegam em ~1 min. Use quando pedirem algo que está nesse sistema externo. Sem argumentos de sistema, lista os sistemas cadastrados.", parameters: { type: "object", properties: { sistema: { type: "string", description: "nome ou chave do sistema cadastrado" }, pergunta: { type: "string", description: "o que procurar na tela" } } } } },
+  { type: "function", function: { name: "informar_codigo_sistema", description: "Grava o código de verificação (SMS/e-mail/app) que a pessoa mandou para o acesso que está esperando código.", parameters: { type: "object", properties: { codigo: { type: "string" } }, required: ["codigo"] } } },
 ];
+const NAVEGA = ["acessar_sistema", "informar_codigo_sistema"];
 async function empresas() { const { data } = await sb.from("empresas").select("id,nome,cnpj,ativo"); return data || []; }
 const mesAtual = () => hojeBahia().slice(0, 7);
 const fimMes = (m: string) => { const [a, b] = m.split("-").map(Number); return new Date(Date.UTC(a, b, 0)).toISOString().slice(0, 10); };
 const soma = (l: any[], k = "valor") => Math.round(l.reduce((s, x) => s + (+x[k] || 0), 0) * 100) / 100;
 async function tudo(q: () => any) { let out: any[] = []; for (let i = 0; i < 20; i++) { const { data } = await q().range(i * 1000, i * 1000 + 999); out = out.concat(data || []); if (!data || data.length < 1000) break; } return out; }
+async function navegar(nome: string, a: any, ctx: any) {
+  if (nome === "acessar_sistema") {
+    const { data: sis } = await sb.from("robo_sistemas").select("chave,nome,medico,ativo").order("nome");
+    const lista = (sis || []).map((x: any) => ({ sistema: x.nome, chave: x.chave, medico: x.medico, pausado: !x.ativo }));
+    if (!a.sistema) return { sistemas: lista };
+    const n = norm(a.sistema), s = (sis || []).find((x: any) => x.chave === String(a.sistema).toLowerCase() || norm(x.nome) === n) || (sis || []).find((x: any) => norm(x.nome).includes(n) || n.includes(norm(x.nome)));
+    if (!s) return { erro: "sistema não cadastrado", sistemas: lista };
+    if (!s.ativo) return { erro: "esse sistema está pausado na tela Acessos do Vini" };
+    const { data: ja } = await sb.from("robo_acessos").select("id").eq("sistema", s.chave).in("status", ["pendente", "rodando", "aguardando_codigo"]).gte("criado_em", new Date(Date.now() - 10 * 60e3).toISOString()).limit(1);
+    if (ja?.length) return { ok: true, aviso: "já tem um acesso a esse sistema em andamento; a resposta chega em seguida" };
+    const { error } = await sb.from("robo_acessos").insert({ sistema: s.chave, pedido_por: ctx.contato.nome + " (WhatsApp)", pedido_fone: ctx.contato.telefone, pergunta: String(a.pergunta || "O que aparece na tela inicial?").slice(0, 500), avisar_chat: ctx.chat });
+    if (error) return { erro: error.message };
+    return { ok: true, resposta_para_a_pessoa: `Estou entrando no ${s.nome}; em ~1 min mando a resposta com o print. Se o site pedir código de verificação, eu te pergunto aqui.` };
+  }
+  if (nome === "informar_codigo_sistema") return await gravarCodigo(String(a.codigo || ""), ctx);
+  return { erro: "ferramenta desconhecida" };
+}
+async function gravarCodigo(codigo: string, ctx: any) {
+  const c = codigo.replace(/\s/g, "");
+  if (!/^[A-Za-z0-9]{4,10}$/.test(c)) return { erro: "código inválido" };
+  const chats = [ctx.chat, ...variantes(so(ctx.contato.telefone)).map((v) => v + "@s.whatsapp.net")];
+  const { data: a } = await sb.from("robo_acessos").select("id,sistema").eq("status", "aguardando_codigo").in("avisar_chat", chats).gte("codigo_pedido_em", new Date(Date.now() - 6 * 60e3).toISOString()).order("codigo_pedido_em", { ascending: false }).limit(1).maybeSingle();
+  if (!a) return { erro: "não há acesso esperando código agora (o prazo é de 5 minutos)" };
+  await sb.from("robo_acessos").update({ codigo: c }).eq("id", a.id);
+  return { ok: true, resposta_para_a_pessoa: "Recebi o código, estou entrando. Em seguida mando a resposta com o print." };
+}
 async function ferramenta(nome: string, a: any) {
   const emps = await empresas(), filtroE = (n?: string) => n ? emps.filter((e: any) => norm(e.nome).includes(norm(n))) : emps;
   const nomeE = (id: string) => emps.find((e: any) => e.id === id)?.nome || "sem CNPJ";
@@ -252,13 +283,14 @@ async function conversa(chat: string, contato: any, texto: string, grupo = false
   if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
   // ferramentas liberadas: grupo só escala; contato com lista própria (vini_contatos.ferramentas) só a lista
   const lista: string[] | null = grupo ? ["escala", "anestesistas"] : (Array.isArray(contato.ferramentas) && contato.ferramentas.length ? contato.ferramentas : null);
-  const liberadas = lista ? TOOLS.filter((t: any) => lista.includes(t.function.name)) : TOOLS;
+  const base = TOOLS.filter((t: any) => !NAVEGA.includes(t.function.name) || (contato.pode_navegar && !grupo));
+  const liberadas = lista ? base.filter((t: any) => lista.includes(t.function.name)) : base;
   if (lista && !grupo) msgs[0].content += `\n\nACESSO RESTRITO: ${contato.nome} só pode consultar: ${lista.join(", ")}. Sobre qualquer outro assunto do sistema (outros CNPJs, NAFS, salários etc.), diga educadamente que essa informação não está liberada para ela/ele.`;
   for (let i = 0; i < 6; i++) {
     const m = await ia(msgs, liberadas);
     if (!m?.tool_calls?.length) return String(m?.content || "Não entendi. Pode repetir?");
     msgs.push(m);
-    for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(lista && !lista.includes(tc.function.name) ? { erro: "não liberado para este contato" } : await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
+    for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(!liberadas.some((t: any) => t.function.name === tc.function.name) ? { erro: "não liberado para este contato" } : NAVEGA.includes(tc.function.name) ? await navegar(tc.function.name, a, { chat, contato }) : await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
   }
   return "Não consegui fechar a resposta. Pode perguntar de outro jeito?";
 }
@@ -297,6 +329,9 @@ async function entrada(b: any): Promise<string[]> {
   if (b.midia && /^image\//.test(b.midia.mime || "")) return [await lerProducao(chat, autor, b.midia)];
   if (b.midia) return ["Por enquanto eu leio fotos (imagem). PDF e áudio ainda não."];
   if (!texto) return [];
+  // v8: "código 123456" para o navegador do Vini
+  const mc = texto.match(/^c[oó]d(?:igo)?\.?\s*:?\s*([A-Za-z0-9 ]{4,12})$/i);
+  if (mc && (mc[1].match(/\d/g) || []).length >= 4 && contato.pode_navegar && !grupo) { const r: any = await gravarCodigo(mc[1], { chat, contato }); return [r.ok ? r.resposta_para_a_pessoa : "Não achei acesso esperando código agora (o prazo é de 5 minutos)."]; }
   // agradecimento/confirmação solta não é pergunta (v6): responde curto, sem consultar nada
   if (/^(OK|OKAY|OK OK|BELEZA|BLZ|VALEU|OBRIGADO|OBRIGADA|OBG|TA BOM|TA|SHOW|TOP|PERFEITO|CERTO|ENTENDI|BOM|JOIA|BOA)( VINI)?$/.test(norm(texto)) || /^[\p{Extended_Pictographic}\p{Emoji_Modifier}\s\u{FE0F}\u{200D}]+$/u.test(texto)) return grupo ? [] : ["👍"];
   return [await conversa(chat, contato, texto, grupo)];
@@ -320,9 +355,16 @@ Deno.serve(async (req) => {
     }
     if (b.acao === "saida") {
       await sb.from("vini_saida").update({ status: "pendente" }).eq("status", "enviando").lt("criado_em", new Date(Date.now() - 5 * 60e3).toISOString());
-      const { data } = await sb.from("vini_saida").select("id,chat,texto").eq("status", "pendente").order("criado_em").limit(5);
+      const { data } = await sb.from("vini_saida").select("id,chat,texto,imagem_path").eq("status", "pendente").order("criado_em").limit(5);
       if (data?.length) await sb.from("vini_saida").update({ status: "enviando" }).in("id", data.map((x: any) => x.id));
-      return J({ ok: true, itens: (data || []).map((x: any) => ({ ...x, texto: x.texto + ASSINA })) });
+      // v8: print do navegador do Vini -> link temporário (10 min) para o motor baixar e mandar como imagem
+      const itens = [];
+      for (const x of data || []) {
+        let imagem_url = null;
+        if (x.imagem_path) { const { data: u } = await sb.storage.from("robo-acessos").createSignedUrl(x.imagem_path, 600); imagem_url = u?.signedUrl || null; }
+        itens.push({ id: x.id, chat: x.chat, texto: x.texto + ASSINA, imagem_url });
+      }
+      return J({ ok: true, itens });
     }
     if (b.acao === "saida_ok") {
       const { data: s } = await sb.from("vini_saida").select("*").eq("id", b.id).maybeSingle();

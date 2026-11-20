@@ -3,7 +3,7 @@
    - Pasta própria (auth-vini), processo próprio no pm2 ("vini"), sem porta aberta: ele só CHAMA a ponte.
    - Nada do Ravi/RF é lido ou alterado.
    Config no arquivo .env ao lado: PONTE_URL e VINI_TOKEN. */
-const VERSAO = 'motor-vini v1 (20/11/2026)';
+const VERSAO = 'motor-vini v2 (20/11/2026)';   // v2: manda o print do navegador do Vini como imagem
 const fs = require('fs'), path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, Browsers } = require('@whiskeysockets/baileys');
@@ -80,7 +80,14 @@ async function filaDeSaida() {
   if (!conectado || pausado) return;
   const j = await ponte({ acao: 'saida' });
   for (const it of (j.itens || [])) {
-    try { await digitarEResponder(it.chat, [it.texto]); await ponte({ acao: 'saida_ok', id: it.id, ok: true }); }
+    try {
+      await digitarEResponder(it.chat, [it.texto]);
+      if (it.imagem_url) {   // v2: print do navegador (link temporário do Supabase do MR)
+        try { const r = await fetch(it.imagem_url, { signal: AbortSignal.timeout(30000) }); if (r.ok) await sock.sendMessage(it.chat, { image: Buffer.from(await r.arrayBuffer()), mimetype: 'image/png' }); }
+        catch (e) { console.error('print não foi:', e.message); }
+      }
+      await ponte({ acao: 'saida_ok', id: it.id, ok: true });
+    }
     catch (e) { await ponte({ acao: 'saida_ok', id: it.id, ok: false, erro: e.message }); }
     await espera(2500);
   }
