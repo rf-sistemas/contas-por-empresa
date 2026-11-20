@@ -1,11 +1,11 @@
 // Edge Function: vini-ponte — CÉREBRO DO ROBÔ VINI (WhatsApp do Sistema MR)
 // Só o motor do WhatsApp (VPS) chama esta função, com o cabeçalho x-vini-token (token na tabela vini_segredo).
 // Ações: status (motor informa conexão/QR/grupos), saida (motor busca o que enviar), saida_ok, entrada (mensagem recebida).
-// Regras: só responde a contatos cadastrados em vini_contatos; lançamento só depois de "SIM" de quem pode_lancar;
+// Regras: só responde a contatos cadastrados em vini_contatos (v5: lista de ferramentas por contato); lançamento só depois de "SIM" de quem pode_lancar;
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v4 (20/11/2026)";
+const VERSAO = "vini-ponte v5 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -248,11 +248,15 @@ async function conversa(chat: string, contato: any, texto: string, grupo = false
   const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}` }];
   (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
   if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
+  // ferramentas liberadas: grupo só escala; contato com lista própria (vini_contatos.ferramentas) só a lista
+  const lista: string[] | null = grupo ? ["escala", "anestesistas"] : (Array.isArray(contato.ferramentas) && contato.ferramentas.length ? contato.ferramentas : null);
+  const liberadas = lista ? TOOLS.filter((t: any) => lista.includes(t.function.name)) : TOOLS;
+  if (lista && !grupo) msgs[0].content += `\n\nACESSO RESTRITO: ${contato.nome} só pode consultar: ${lista.join(", ")}. Sobre qualquer outro assunto do sistema (outros CNPJs, NAFS, salários etc.), diga educadamente que essa informação não está liberada para ela/ele.`;
   for (let i = 0; i < 6; i++) {
-    const m = await ia(msgs, grupo ? TOOLS.filter((t: any) => ["escala", "anestesistas"].includes(t.function.name)) : TOOLS);
+    const m = await ia(msgs, liberadas);
     if (!m?.tool_calls?.length) return String(m?.content || "Não entendi. Pode repetir?");
     msgs.push(m);
-    for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
+    for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(lista && !lista.includes(tc.function.name) ? { erro: "não liberado para este contato" } : await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
   }
   return "Não consegui fechar a resposta. Pode perguntar de outro jeito?";
 }
