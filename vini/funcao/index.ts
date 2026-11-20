@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v8 (20/11/2026)";
+const VERSAO = "vini-ponte v9 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -29,7 +29,9 @@ async function ia(messages: any[], tools?: any[], json = false) {
   if (json) body.response_format = { type: "json_object" };
   const r = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + OPENAI }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error("IA: " + (await r.text()).slice(0, 200));
-  return (await r.json())?.choices?.[0]?.message;
+  const j = await r.json();
+  if (j?.usage) await sb.from("uso_ia").insert({ robo: "vini", modelo: body.model, tokens_in: j.usage.prompt_tokens || 0, tokens_out: j.usage.completion_tokens || 0 }).then(() => {}, () => {});   // v9: custo de IA no painel
+  return j?.choices?.[0]?.message;
 }
 
 /* ---------- Produção da anestesia (foto do mapa cirúrgico) ---------- */
@@ -278,7 +280,7 @@ async function conversa(chat: string, contato: any, texto: string, grupo = false
   // v7: o WhatsApp pode usar um id "@lid" na conversa; junta também o que o Vini mandou para o número da pessoa
   const chats = [chat, ...variantes(so(contato.telefone)).map((v) => v + "@s.whatsapp.net")];
   const { data: hist } = await sb.from("vini_mensagens").select("direcao,texto").in("chat", grupo ? [chat] : chats).order("em", { ascending: false }).limit(8);
-  const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}` }];
+  const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente. Se não souber responder ou fazer o que pediram, NUNCA deixe a pessoa sem resposta: diga que vai passar para a equipe técnica.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}\n\nREGRAS APRENDIDAS:\n${await regras()}` }];
   (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
   if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
   // ferramentas liberadas: grupo só escala; contato com lista própria (vini_contatos.ferramentas) só a lista
@@ -293,6 +295,173 @@ async function conversa(chat: string, contato: any, texto: string, grupo = false
     for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(!liberadas.some((t: any) => t.function.name === tc.function.name) ? { erro: "não liberado para este contato" } : NAVEGA.includes(tc.function.name) ? await navegar(tc.function.name, a, { chat, contato }) : await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
   }
   return "Não consegui fechar a resposta. Pode perguntar de outro jeito?";
+}
+
+/* ---------- v9 (20/11/2026): LOTE DE FOTOS, ESCALA, DÚVIDAS E APRENDIZADO ----------
+   Pedido do Renato: o Vini nunca descarta um documento. Se não conhece, pergunta a quem mandou o que fazer.
+   Se não souber executar a resposta, sobe para a equipe técnica (Claude, tarefa agendada); se ela não resolver em 2 h,
+   sobe para o Renato. O que for ensinado vira regra (vini_conhecimento) e entra no cérebro do Vini. */
+async function regras(): Promise<string> {
+  const { data } = await sb.from("vini_conhecimento").select("assunto,regra").eq("ativo", true).order("id");
+  return (data || []).map((r: any, i: number) => `${i + 1}. [${r.assunto}] ${r.regra}`).join("\n");
+}
+const PROMPT_DOC = (rg: string) => `Voce recebe a FOTO de um documento enviado ao Vini (assistente do Sistema MR: escala de anestesistas NAFS/Anestesia, producao cirurgica, Hospital IDAD).
+Classifique e extraia. Responda SOMENTE JSON:
+{"tipo":"escala|producao|outro","data":"AAAA-MM-DD ou null","hospital":"","cirurgiao":"",
+ "escala":[{"local":"nome do local/hospital como escrito","turno":"M|T|N|SN|","anestesista":"nome","vermelho":false}],
+ "itens":[{"paciente":"","idade":null,"procedimento":"","situacao":"realizado|cancelado","obs":""}],
+ "resumo":"1 frase dizendo que documento e este (sem CPF, sem endereco)"}
+- escala: tabela de anestesistas x locais/turnos de um dia (preencha "escala").
+- producao: mapa cirurgico, lista de cirurgias, ficha/descricao cirurgica ou relatorio de procedimentos de UM paciente ou de varios (preencha "itens"; linha riscada = cancelado).
+- outro: qualquer outra coisa (pedido de exame, guia, recibo, conversa...). Descreva bem no resumo.
+REGRAS APRENDIDAS (siga):
+${rg || "(nenhuma)"}`;
+async function lerDoc(b64: string, mime: string, legenda: string, rg: string) {
+  const msg = await ia([{ role: "user", content: [{ type: "text", text: PROMPT_DOC(rg) + (legenda ? `\n\nTEXTO QUE A PESSOA MANDOU JUNTO: ${legenda}` : "") }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}`, detail: "high" } }] }], undefined, true);
+  try { return JSON.parse(String(msg?.content || "").replace(/^```json|```$/g, "")); } catch { return { tipo: "outro", resumo: "não consegui ler a foto" }; }
+}
+async function baixar(path: string) {
+  const { data } = await sb.storage.from("notas").download(path); if (!data) return null;
+  const u = new Uint8Array(await data.arrayBuffer()); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s);
+}
+// foto chegou: guarda e espera ~20 s; quem processa é a última foto da sequência
+async function receberFoto(b: any, chat: string, autor: string, contato: any): Promise<string[]> {
+  const path = `vini/entrada/${crypto.randomUUID()}.jpg`;
+  await sb.storage.from("notas").upload(path, Uint8Array.from(atob(b.midia.b64), (c) => c.charCodeAt(0)), { contentType: b.midia.mime || "image/jpeg" });
+  const legenda = String(b.texto || "").trim() || null;
+  const { data: ant } = await sb.from("vini_lote").select("id").eq("chat", chat).eq("processado", false).gte("em", new Date(Date.now() - 3 * 60e3).toISOString()).limit(1);
+  const { data: eu } = await sb.from("vini_lote").insert({ chat, autor, foto_path: path, mime: b.midia.mime || "image/jpeg", legenda }).select("id").single();
+  // @ts-ignore EdgeRuntime existe no Supabase
+  EdgeRuntime.waitUntil((async () => {
+    await new Promise((r) => setTimeout(r, 22000));
+    const { data: depois } = await sb.from("vini_lote").select("id").eq("chat", chat).eq("processado", false).gt("id", eu.id).limit(1);
+    if (depois?.length) return;                                      // chegou outra foto: a última processa
+    try { await processarLote(chat, autor, contato); } catch (e) { await sb.from("vini_saida").insert({ chat, texto: "Tive um problema lendo as fotos: " + String((e as Error).message).slice(0, 150) + ". Pode mandar de novo?" }); }
+  })());
+  return ant?.length ? [] : ["📥 Recebendo… pode mandar todas as fotos. Quando terminar eu leio tudo junto e te respondo com um resumo."];
+}
+const turnoOk = (a: string, b: string) => !a || !b || a === b || (a === "SN" || b === "SN");
+async function processarLote(chat: string, autor: string, contato: any) {
+  const { data: fotos } = await sb.from("vini_lote").select("*").eq("chat", chat).eq("processado", false).order("id");
+  if (!fotos?.length) return;
+  await sb.from("vini_lote").update({ processado: true }).in("id", fotos.map((f: any) => f.id));
+  const rg = await regras();
+  const { data: locais } = await sb.from("esc_locais").select("id,hospital,unidade");
+  const { data: anes } = await sb.from("esc_anestesistas").select("id,nome,ativo");
+  const nomeLocal = (id: string) => { const l: any = (locais || []).find((x: any) => x.id === id) || {}; return l.hospital || l.unidade || "—"; };
+  const preencher: any[] = [], producao: any[] = [], linhasEsc: string[] = [], linhasProd: string[] = [], duvidas: any[] = [];
+  let n = 0;
+  for (const f of fotos) {
+    const b64 = await baixar(f.foto_path); if (!b64) continue;
+    const d: any = await lerDoc(b64, f.mime, f.legenda || "", rg); n++;
+    const data = /^\d{4}-\d{2}-\d{2}$/.test(d?.data || "") ? d.data : null;
+    if (d.tipo === "escala" && Array.isArray(d.escala) && data) {
+      const ps = await plantoesDoDia(data);
+      linhasEsc.push(`*Escala de ${dbr(data)}*`);
+      for (const e of d.escala.filter((x: any) => !x.vermelho && x.anestesista)) {
+        const ln = norm(e.local), t = String(e.turno || "").toUpperCase();
+        const cand = ps.filter((p: any) => { const h = norm(p.hospital); return h && (h === ln || h.includes(ln) || ln.includes(h)) && turnoOk(String(p.turno || ""), t); });
+        const an = norm(e.anestesista), ac = (anes || []).filter((a: any) => a.ativo !== false && (norm(a.nome) === an || norm(a.nome).startsWith(an + " ") || norm(a.nome).split(" ")[0] === an.split(" ")[0]));
+        const rot = `${e.local}${t ? " (" + t + ")" : ""} — ${e.anestesista}`;
+        if (!cand.length) { linhasEsc.push(`❓ ${rot}: não achei esse plantão na escala do sistema`); continue; }
+        const p = cand[0];
+        if (p.anestesista_id) { const ok = ac.some((a: any) => a.id === p.anestesista_id); linhasEsc.push(ok ? `✅ ${rot}` : `⚠️ ${rot}: no sistema está *${p.anestesista}* (não mudei)`); continue; }
+        if (ac.length !== 1) { linhasEsc.push(`❓ ${rot}: ${ac.length ? "mais de um anestesista com esse nome" : "anestesista não cadastrado"}`); continue; }
+        preencher.push({ dia_id: p.id, anestesista_id: ac[0].id, rot: `${nomeLocal(p.local_id)}${p.turno ? " (" + p.turno + ")" : ""} → ${ac[0].nome}` });
+        linhasEsc.push(`➕ ${rot}: plantão está *sem anestesista* — vou preencher com ${ac[0].nome}`);
+      }
+      continue;
+    }
+    if (d.tipo === "producao" && Array.isArray(d.itens) && d.itens.length) {
+      const itens = d.itens.filter((x: any) => x?.procedimento).map((x: any) => ({ paciente: String(x.paciente || "").slice(0, 120), idade: Number.isFinite(+x.idade) && x.idade !== null ? Math.round(+x.idade) : null, procedimento: String(x.procedimento).slice(0, 160), situacao: x.situacao === "cancelado" ? "cancelado" : "realizado", obs: String(x.obs || "").slice(0, 120) }));
+      const rot = `${d.hospital || "hospital?"} · ${data ? dbr(data) : "sem data"} · ${itens.map((x: any) => x.procedimento).join(" + ").slice(0, 90)}`;
+      let cand: any[] = [];
+      if (data) { const ps = await plantoesDoDia(data), hn = norm(d.hospital || ""); cand = hn ? ps.filter((p: any) => { const a = norm(p.hospital); return a && (a.includes(hn) || hn.includes(a) || a.split(" ").some((w: string) => w.length >= 4 && hn.includes(w))); }) : []; }
+      const velha = data && (Date.parse(hojeBahia()) - Date.parse(data)) > 7 * 864e5;
+      if (cand.length === 1 && !velha) { producao.push({ dia_id: cand[0].id, itens, foto: f.foto_path, rot: rotPlantao(cand[0]), cad: cand[0].cad?.servicos || [] }); linhasProd.push(`➕ ${rot} → plantão *${rotPlantao(cand[0])}*`); continue; }
+      const motivo = !data ? "não consegui ver a data" : velha ? `a data da ficha é ${dbr(data)} (mais de 7 dias atrás)` : cand.length ? `há ${cand.length} plantões possíveis nesse dia` : `não achei plantão de ${d.hospital || "esse hospital"} em ${dbr(data)} na escala`;
+      linhasProd.push(`❓ ${rot}: ${motivo}`);
+      duvidas.push({ resumo: `Ficha de produção: ${rot}`, dados: { tipo: "producao", data, hospital: d.hospital, cirurgiao: d.cirurgiao, itens, candidatos: cand.map((p: any) => ({ id: p.id, rot: rotPlantao(p), servicos: p.cad?.servicos || [] })) }, foto: f.foto_path,
+        pergunta: `Sobre a ficha *${rot}*: ${motivo}. Em qual plantão eu lanço (data, hospital e anestesista)? Ou devo ignorar?` });
+      continue;
+    }
+    duvidas.push({ resumo: `Documento: ${d.resumo || "não identificado"}${f.legenda ? ` — você escreveu: "${f.legenda}"` : ""}`, dados: { tipo: d.tipo || "outro", data, hospital: d.hospital, itens: d.itens || [], legenda: f.legenda }, foto: f.foto_path,
+      pergunta: `Recebi um documento que ainda não sei tratar: *${d.resumo || "não identificado"}*${f.legenda ? ` (você escreveu: "${f.legenda}")` : ""}. O que você quer que eu faça com ele?` });
+  }
+  let t = `📋 *Li ${n} foto(s).*\n`;
+  if (linhasEsc.length) t += "\n" + linhasEsc.join("\n") + "\n";
+  if (linhasProd.length) t += "\n*Produção*\n" + linhasProd.join("\n") + "\n";
+  for (const q of duvidas) await sb.from("vini_duvidas").insert({ chat, autor, autor_nome: contato.nome, tipo: "documento", resumo: q.resumo, dados: q.dados, foto_path: q.foto, pergunta: q.pergunta });
+  if (preencher.length || producao.length) {
+    await sb.from("vini_acoes").update({ status: "expirada", resolvido_em: new Date().toISOString() }).eq("chat", chat).eq("status", "aguardando");
+    await sb.from("vini_acoes").insert({ chat, autor, tipo: "lote", dados: { preencher, producao } });
+    t += `\nPosso fazer o que está com ➕ (${preencher.length} anestesista(s) na escala, ${producao.length} ficha(s) de produção)? Responda *SIM* ou *NÃO*.`;
+    if (duvidas.length) t += `\nDepois eu te pergunto sobre ${duvidas.length === 1 ? "o item com ❓" : "os " + duvidas.length + " itens com ❓"}, um de cada vez.`;
+    await sb.from("vini_saida").insert({ chat, texto: t });
+  } else {
+    await sb.from("vini_saida").insert({ chat, texto: t + (duvidas.length ? `\nVou te perguntar sobre ${duvidas.length === 1 ? "o item com ❓" : "os " + duvidas.length + " itens com ❓"}, um de cada vez.` : "") });
+    await proximaDuvida(chat);
+  }
+}
+async function gravarLote(acao: any): Promise<string> {
+  const d = acao.dados; let esc = 0, procs = 0; const avisos: string[] = [];
+  for (const p of d.preencher || []) { const { data } = await sb.from("esc_dias").update({ anestesista_id: p.anestesista_id }).eq("id", p.dia_id).is("anestesista_id", null).select("id"); if (data?.length) esc++; else avisos.push(`${p.rot}: já tinha anestesista, não mudei`); }
+  for (const p of d.producao || []) {
+    try { const r = await gravarProducao({ dados: { itens: p.itens, foto: p.foto, dia_id: p.dia_id, candidatos: [{ id: p.dia_id, rot: p.rot, servicos: p.cad || [] }] } }); if (/^✅/.test(r)) procs++; else avisos.push(r); }
+    catch (e) { avisos.push(`${p.rot}: ${(e as Error).message}`); }
+  }
+  return `✅ Feito: ${esc} anestesista(s) colocados na escala e ${procs} ficha(s) de produção lançadas.` + (avisos.length ? "\n" + avisos.map((a) => "⚠️ " + a).join("\n") : "");
+}
+// faz a próxima pergunta da fila (uma de cada vez)
+async function proximaDuvida(chat: string) {
+  const { data: ja } = await sb.from("vini_duvidas").select("id").eq("chat", chat).eq("status", "aguardando_pessoa").limit(1);
+  if (ja?.length) return;
+  const { data: q } = await sb.from("vini_duvidas").select("id,pergunta").eq("chat", chat).eq("status", "na_fila").order("id").limit(1).maybeSingle();
+  if (!q) return;
+  await sb.from("vini_duvidas").update({ status: "aguardando_pessoa", atualizado_em: new Date().toISOString() }).eq("id", q.id);
+  await sb.from("vini_saida").insert({ chat, texto: `❓ *Dúvida #${q.id}*\n${q.pergunta}` });
+}
+// a pessoa (ou o Renato) respondeu uma dúvida: o Vini tenta executar; se não souber, sobe de nível
+async function responderDuvida(dv: any, texto: string, chat: string, autor: string, contato: any, deRenato = false): Promise<string[]> {
+  const rg = await regras(), dd = dv.dados || {};
+  let cand = dd.candidatos || [];
+  const prompt = `Voce e o Vini (Sistema MR). Voce perguntou a ${deRenato ? "Renato (dono do sistema)" : contato.nome} sobre um documento e recebeu a resposta. Decida o que fazer.
+DOCUMENTO: ${dv.resumo}
+LEITURA: ${JSON.stringify({ data: dd.data, hospital: dd.hospital, itens: (dd.itens || []).map((x: any) => x.procedimento), legenda: dd.legenda })}
+PLANTOES POSSIVEIS (id e rotulo): ${JSON.stringify(cand.map((c: any) => ({ id: c.id, rot: c.rot })))}
+SUA PERGUNTA: ${dv.pergunta}
+RESPOSTA: ${texto}
+O QUE VOCE SABE FAZER: (a) lancar a producao num plantao da escala (precisa de um plantao: id da lista ou uma data AAAA-MM-DD + hospital para eu procurar); (b) ignorar/arquivar o documento; (c) qualquer outra coisa voce NAO sabe fazer ainda.
+REGRAS APRENDIDAS: ${rg}
+Se a RESPOSTA nao tem nada a ver com a pergunta (a pessoa mudou de assunto), use "acao":"outro_assunto".
+Responda SOMENTE JSON: {"acao":"lancar|ignorar|nao_sei|outro_assunto","dia_id":"id da lista ou null","data":"AAAA-MM-DD ou null","hospital":"","regra":"se a resposta ensina algo que vale para os proximos documentos, escreva a regra geral (como reconhecer + o que fazer); senao vazio","resposta":"frase curta para a pessoa"}`;
+  const m = await ia([{ role: "user", content: prompt }], undefined, true);
+  let r: any = {}; try { r = JSON.parse(String(m?.content || "{}")); } catch { r = { acao: "nao_sei" }; }
+  const agora = new Date().toISOString();
+  if (r.acao === "outro_assunto" && !deRenato) return [await conversa(chat, contato, texto, false) + `\n\n_(Ainda espero sua resposta sobre a dúvida #${dv.id}.)_`];
+  if (r.regra) await sb.from("vini_conhecimento").insert({ assunto: String(dv.resumo || "").slice(0, 80), regra: String(r.regra).slice(0, 600), origem: (deRenato ? "Renato" : contato.nome) + ` (dúvida #${dv.id})`, duvida_id: dv.id, ativo: deRenato });
+  if (r.acao === "lancar" && (dd.itens || []).length) {
+    if (!r.dia_id && r.data && /^\d{4}-\d{2}-\d{2}$/.test(r.data)) { const ps = await plantoesDoDia(r.data), hn = norm(r.hospital || dd.hospital || ""); const f = hn ? ps.filter((p: any) => { const a = norm(p.hospital); return a && (a.includes(hn) || hn.includes(a)); }) : ps; cand = f.map((p: any) => ({ id: p.id, rot: rotPlantao(p), servicos: p.cad?.servicos || [] })); }
+    const dia = r.dia_id && cand.find((c: any) => c.id === r.dia_id) ? r.dia_id : (cand.length === 1 ? cand[0].id : null);
+    if (cand.length) {
+      await sb.from("vini_duvidas").update({ resposta: texto, status: "resolvida", solucao: "lançar produção", resolvido_por: deRenato ? "Renato" : contato.nome, resolvida_em: agora, atualizado_em: agora }).eq("id", dv.id);
+      const dados = { itens: dd.itens, data: r.data || dd.data, hospital_lido: dd.hospital || "", cirurgiao: dd.cirurgiao || "", foto: dv.foto_path, candidatos: cand, dia_id: dia, duvida: dv.id };
+      await sb.from("vini_acoes").update({ status: "expirada", resolvido_em: agora }).eq("chat", chat).eq("status", "aguardando");
+      await sb.from("vini_acoes").insert({ chat, autor, tipo: "lancar_procedimentos", dados });
+      if (deRenato && dv.chat !== chat) await sb.from("vini_saida").insert({ chat: dv.chat, texto: `✅ Sobre a dúvida #${dv.id}: o Renato me orientou e estou lançando com ele.` });
+      return [resumoProducao(dados)];
+    }
+  }
+  if (r.acao === "ignorar") {
+    await sb.from("vini_duvidas").update({ resposta: texto, status: "resolvida", solucao: "ignorar", resolvido_por: deRenato ? "Renato" : contato.nome, resolvida_em: agora, atualizado_em: agora }).eq("id", dv.id);
+    if (deRenato && dv.chat !== chat) await sb.from("vini_saida").insert({ chat: dv.chat, texto: `✅ Sobre a dúvida #${dv.id}: o Renato orientou deixar esse documento de lado.` });
+    await proximaDuvida(dv.chat); return [r.resposta || "Ok, deixei esse documento de lado."];
+  }
+  // não sabe: sobe um nível (pessoa -> equipe técnica; equipe técnica/Renato -> Renato)
+  const nivel = deRenato ? "renato" : "claude";
+  await sb.from("vini_duvidas").update({ resposta: deRenato ? (dv.resposta || "") + `\nRenato: ${texto}` : texto, status: deRenato ? "com_renato" : "com_claude", nivel, atualizado_em: agora }).eq("id", dv.id);
+  if (!deRenato) await proximaDuvida(chat);
+  return [deRenato ? `Anotei, Renato. Ainda não sei executar isso sozinho; a dúvida #${dv.id} fica registrada para a equipe técnica me ensinar.` : `Anotei sua resposta 👍 Ainda não sei fazer isso sozinho, então passei para a equipe técnica (dúvida #${dv.id}). Te retorno assim que tiver a resposta.`];
 }
 
 /* ---------- Mensagem recebida ---------- */
@@ -311,7 +480,16 @@ async function entrada(b: any): Promise<string[]> {
   }
   // ação aguardando resposta?
   const { data: acao } = await sb.from("vini_acoes").select("*").eq("chat", chat).eq("autor", autor).eq("status", "aguardando").gte("criado_em", new Date(Date.now() - 6 * 3600e3).toISOString()).order("criado_em", { ascending: false }).limit(1).maybeSingle();
-  if (acao && texto && !b.midia) {
+  if (acao && acao.tipo === "lote" && texto && !b.midia) {   // v9
+    const t = norm(texto);
+    if (/^(SIM|S|CONFIRMO|PODE|OK|LANCA|PODE FAZER)$/.test(t)) {
+      if (!contato.pode_lancar) return ["Você não tem permissão para confirmar lançamentos pelo WhatsApp. Peça ao Renato."];
+      const r = await gravarLote(acao); await sb.from("vini_acoes").update({ status: "confirmada", resultado: r, resolvido_em: new Date().toISOString() }).eq("id", acao.id);
+      await proximaDuvida(chat); return [r];
+    }
+    if (/^(NAO|N|CANCELA|CANCELAR)$/.test(t)) { await sb.from("vini_acoes").update({ status: "cancelada", resolvido_em: new Date().toISOString() }).eq("id", acao.id); await proximaDuvida(chat); return ["Ok, não fiz nada desse resumo."]; }
+  }
+  if (acao && acao.tipo !== "lote" && texto && !b.midia) {
     const t = norm(texto), d = acao.dados;
     if (!d.dia_id && /^\d{1,2}$/.test(t) && d.candidatos[+t - 1]) { d.dia_id = d.candidatos[+t - 1].id; await sb.from("vini_acoes").update({ dados: d }).eq("id", acao.id); return [resumoProducao(d)]; }
     const m = texto.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
@@ -320,13 +498,31 @@ async function entrada(b: any): Promise<string[]> {
       await sb.from("vini_acoes").update({ dados: d }).eq("id", acao.id); return [resumoProducao(d)]; }
     if (/^(SIM|S|CONFIRMO|PODE|PODE LANCAR|OK|LANCA)$/.test(t) && d.dia_id) {
       if (!contato.pode_lancar) return ["Você não tem permissão para confirmar lançamentos pelo WhatsApp. Peça ao Renato."];
-      try { const r = await gravarProducao(acao); await sb.from("vini_acoes").update({ status: "confirmada", resultado: r, resolvido_em: new Date().toISOString() }).eq("id", acao.id); return [r]; }
+      try { const r = await gravarProducao(acao); await sb.from("vini_acoes").update({ status: "confirmada", resultado: r, resolvido_em: new Date().toISOString() }).eq("id", acao.id); await proximaDuvida(chat); return [r]; }
       catch (e) { await sb.from("vini_acoes").update({ status: "erro", resultado: String((e as Error).message), resolvido_em: new Date().toISOString() }).eq("id", acao.id); return ["Não consegui lançar: " + (e as Error).message]; }
     }
     if (/^(NAO|N|CANCELA|CANCELAR)$/.test(t)) { await sb.from("vini_acoes").update({ status: "cancelada", resolvido_em: new Date().toISOString() }).eq("id", acao.id); await sb.storage.from("notas").remove([d.foto]); return ["Ok, não lancei nada."]; }
   }
   if (grupo && b.midia) return ["Fotos para lançar eu recebo só no privado — me manda lá, por favor."];
-  if (b.midia && /^image\//.test(b.midia.mime || "")) return [await lerProducao(chat, autor, b.midia)];
+  if (b.midia && /^image\//.test(b.midia.mime || "")) return await receberFoto(b, chat, autor, contato);   // v9: junta as fotos num lote
+  // v9: texto mandado no meio das fotos = legenda da última foto
+  if (texto && !b.midia) {
+    const { data: aberto } = await sb.from("vini_lote").select("id,legenda").eq("chat", chat).eq("processado", false).gte("em", new Date(Date.now() - 60e3).toISOString()).order("id", { ascending: false }).limit(1).maybeSingle();
+    if (aberto) { await sb.from("vini_lote").update({ legenda: ((aberto.legenda ? aberto.legenda + " / " : "") + texto).slice(0, 500) }).eq("id", aberto.id); return []; }
+  }
+  // v9: Renato responde uma dúvida escalada: "#12 o que fazer"
+  const mr = texto.match(/^#\s*(\d+)\s+([\s\S]+)$/);
+  if (mr && so(contato.telefone) === "5575999717578") {
+    const { data: dv } = await sb.from("vini_duvidas").select("*").eq("id", Number(mr[1])).maybeSingle();
+    if (!dv) return [`Não achei a dúvida #${mr[1]}.`];
+    return await responderDuvida(dv, mr[2], chat, autor, contato, true);
+  }
+  // v9: a pessoa está respondendo uma dúvida do Vini
+  if (texto && !b.midia && !grupo) {
+    const chats = [chat, ...variantes(so(contato.telefone)).map((v) => v + "@s.whatsapp.net")];
+    const { data: dv } = await sb.from("vini_duvidas").select("*").in("chat", chats).eq("status", "aguardando_pessoa").order("id").limit(1).maybeSingle();
+    if (dv && !/^(OK|OKAY|BELEZA|BLZ|VALEU|OBRIGADO|OBRIGADA|SHOW|TOP)$/.test(norm(texto))) return await responderDuvida(dv, texto, chat, autor, contato);
+  }
   if (b.midia) return ["Por enquanto eu leio fotos (imagem). PDF e áudio ainda não."];
   if (!texto) return [];
   // v8: "código 123456" para o navegador do Vini
