@@ -30,3 +30,8 @@ COMANDOS ÚTEIS
 
 ATUALIZAR DEPOIS
   substituir vini.js e package.json, rodar npm install --omit=dev e pm2 restart vini
+
+INSTALADO EM 20/11/2026 (pela conversa do projeto RFL)
+- Rodando como serviço do sistema (systemd), NÃO pelo pm2: serviço "vini.service", usuário próprio, pasta /opt/vini.
+- Comandos certos:  systemctl status vini  |  systemctl restart vini  |  journalctl -u vini -n 30
+- Atualizar: trocar vini.js/package.json em /opt/vini, npm install --omit=dev, systemctl restart vini
