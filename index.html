@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v122">
+<meta name="rf-versao" content="v123">
 <meta name="rf-data" content="2026-11-20">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -212,7 +212,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v122',
+  versao : 'v123',
   data   : '20/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3807,18 +3807,17 @@ function telaInicio(){
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
   if(viniDono()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
     h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente no WhatsApp e os robôs que fiscalizam o sistema</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+cpeCaixa('robos', icoRobos(), 'Funcionários Cibernéticos', robResumo())+cpeCaixa('acessos', icoNav(), 'Acessos do Vini', navResumo())+'</div>'; if(!S.rob.robos && !S.rob.carregando) robCarregar(); if(!S.nav.dados && !S.nav.carregando) navCarregar(); }
-  else if(navPode()){ h += '<div class="secao"><b>ROBÔ VINI</b><span>O Vini entra nos sistemas dos médicos com o login de cada um</span></div><div class="bxs">'+cpeCaixa('acessos', icoNav(), 'Acessos do Vini', navResumo())+'</div>'; if(!S.nav.dados && !S.nav.carregando) navCarregar(); }
   if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
 }
 
 /* ===== v122 (Renato, 20/11/2026): ACESSOS DO VINI — o Vini entra com login em sistemas de terceiros (sistemas dos médicos).
-   Edge mr-navegador (instância própria do MR, separada da RF por LGPD). Só o Renato e o Vinicius veem esta tela.
+   Edge mr-navegador (instância própria do MR, separada da RF por LGPD). Só o Renato vê esta tela (v123).
    Senha vai para o cofre criptografado (Vault) e nunca volta para a tela. Só leitura: o Vini não aceita, lança, assina nem prescreve. */
-const NAV_PODE = ['2b001670-3aae-4655-9278-5f35bff4cee5', '33cbfca4-e51e-452d-8535-fd2485cb70b9'];
+const NAV_PODE = ['2b001670-3aae-4655-9278-5f35bff4cee5'];   // v123: só o Renato (decisão 20/11)
 S.nav = { dados:null, carregando:false, novo:false, edit:null, roteiro:null };
 function navDH(t){ if(!t) return '—'; const d = new Date(t); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
-function navPode(){ return !!(S.user && NAV_PODE.includes(S.user.id)); }
+function navPode(){ return !!(S.user && NAV_PODE.includes(S.user.id) && papel()==='mestre'); }
 function icoNav(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gNav')+
   '<circle cx="21" cy="21" r="14" fill="none" stroke="url(#gNav)" stroke-width="3.2"/><path d="M7 21h28M21 7c-5 4-5 24 0 28M21 7c5 4 5 24 0 28" fill="none" stroke="url(#gNav)" stroke-width="2.4"/>'+
   '<circle cx="35" cy="34" r="5.5" fill="url(#gNav)"/><rect x="33.6" y="36" width="2.8" height="9" rx="1.2" fill="url(#gNav)"/><circle cx="35" cy="34" r="2" fill="#fff"/></svg>'; }

@@ -7,7 +7,7 @@
 // - Aviso: sai pelo Vini (fila vini_saida), com o print quando o motor do Vini mandar imagem.
 // - SÓ LEITURA: não clica em aceitar, lançar, assinar nem prescrever nada.
 // Ações da VPS (x-mrnav = nav_token): proximo, pede_codigo, codigo, resultado.
-// Ações da tela (JWT do Renato ou do Vinicius): app_listar, app_salvar, app_pausar, app_testar, app_print, app_passos (só Renato).
+// Ações da tela (só o JWT do Renato): app_listar, app_salvar, app_pausar, app_testar, app_print, app_passos (só Renato).
 // Rotina (x-mrnav-limpeza = limpeza_token): limpar.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { NAV_JS, NAV_VERSAO } from "./nav.ts";
@@ -16,7 +16,7 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const json = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { "Content-Type": "application/json", ...CORS } });
 const iguais = (a: string, b: string) => { if (!a || !b || a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 const RENATO = "2b001670-3aae-4655-9278-5f35bff4cee5", VINICIUS = "33cbfca4-e51e-452d-8535-fd2485cb70b9";
-const PODE_TELA = [RENATO, VINICIUS];
+const PODE_TELA = [RENATO];   // 20/11: a tela é só do Renato
 async function cofre(chave: string) { const { data } = await sb.rpc("nav_cofre_ler", { p_chave: chave }); return data ? String(data) : ""; }
 async function setCofre(chave: string, valor: string) { const { error } = await sb.rpc("nav_cofre_gravar", { p_chave: chave, p_valor: valor }); if (error) throw new Error("cofre: " + error.message); }
 async function estado(id: string) { const { data } = await sb.from("robo_nav_estado").select("valor").eq("id", id).maybeSingle(); return data ? String(data.valor) : ""; }
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
       const { data: u } = jwt ? await sb.auth.getUser(jwt) : { data: null } as any;
       const uid = u?.user?.id || "";
-      if (!PODE_TELA.includes(uid)) return json({ ok: false, erro: "só o Renato e o Vinicius" }, 403);
+      if (!PODE_TELA.includes(uid)) return json({ ok: false, erro: "só o Renato" }, 403);
       const { data: perf } = await sb.from("perfis").select("nome").eq("id", uid).maybeSingle();
       const quem = uid === RENATO ? "Renato" : (perf?.nome || "Vinicius");
       if (acao === "app_listar") {
