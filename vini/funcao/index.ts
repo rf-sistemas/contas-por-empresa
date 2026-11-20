@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v5 (20/11/2026)";
+const VERSAO = "vini-ponte v6 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -295,6 +295,8 @@ async function entrada(b: any): Promise<string[]> {
   if (b.midia && /^image\//.test(b.midia.mime || "")) return [await lerProducao(chat, autor, b.midia)];
   if (b.midia) return ["Por enquanto eu leio fotos (imagem). PDF e áudio ainda não."];
   if (!texto) return [];
+  // agradecimento/confirmação solta não é pergunta (v6): responde curto, sem consultar nada
+  if (/^(OK|OKAY|OK OK|BELEZA|BLZ|VALEU|OBRIGADO|OBRIGADA|OBG|TA BOM|TA|SHOW|TOP|PERFEITO|CERTO|ENTENDI|BOM|JOIA|BOA)( VINI)?$/.test(norm(texto)) || /^[\p{Extended_Pictographic}\p{Emoji_Modifier}\s\u{FE0F}\u{200D}]+$/u.test(texto)) return grupo ? [] : ["👍"];
   return [await conversa(chat, contato, texto, grupo)];
 }
 
