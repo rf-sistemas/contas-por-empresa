@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v3 (20/11/2026)";
+const VERSAO = "vini-ponte v4 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -243,13 +243,13 @@ async function ferramenta(nome: string, a: any) {
   if (nome === "usuarios") { const { data } = await sb.from("perfis").select("nome,papel,ativo").order("papel"); return (data || []).map((p: any) => ({ nome: p.nome, papel: p.papel === "adm1" ? "ADM_Nivel 1" : p.papel, ativo: p.ativo })); }
   return { erro: "ferramenta desconhecida" };
 }
-async function conversa(chat: string, contato: any, texto: string) {
+async function conversa(chat: string, contato: any, texto: string, grupo = false) {
   const { data: hist } = await sb.from("vini_mensagens").select("direcao,texto").eq("chat", chat).order("em", { ascending: false }).limit(8);
-  const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente.\n\n${MAPA}` }];
+  const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}` }];
   (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
   if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
   for (let i = 0; i < 6; i++) {
-    const m = await ia(msgs, TOOLS);
+    const m = await ia(msgs, grupo ? TOOLS.filter((t: any) => ["escala", "anestesistas"].includes(t.function.name)) : TOOLS);
     if (!m?.tool_calls?.length) return String(m?.content || "Não entendi. Pode repetir?");
     msgs.push(m);
     for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
@@ -287,10 +287,11 @@ async function entrada(b: any): Promise<string[]> {
     }
     if (/^(NAO|N|CANCELA|CANCELAR)$/.test(t)) { await sb.from("vini_acoes").update({ status: "cancelada", resolvido_em: new Date().toISOString() }).eq("id", acao.id); await sb.storage.from("notas").remove([d.foto]); return ["Ok, não lancei nada."]; }
   }
+  if (grupo && b.midia) return ["Fotos para lançar eu recebo só no privado — me manda lá, por favor."];
   if (b.midia && /^image\//.test(b.midia.mime || "")) return [await lerProducao(chat, autor, b.midia)];
   if (b.midia) return ["Por enquanto eu leio fotos (imagem). PDF e áudio ainda não."];
   if (!texto) return [];
-  return [await conversa(chat, contato, texto)];
+  return [await conversa(chat, contato, texto, grupo)];
 }
 
 let TOKEN = "";   // token do motor: tabela vini_segredo (sem acesso pela API pública)
