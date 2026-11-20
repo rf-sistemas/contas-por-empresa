@@ -1,0 +1,32 @@
+MOTOR DO VINI — robô de WhatsApp do Sistema MR (CPE)
+=====================================================
+O que é: só o "canal" de WhatsApp do Vini. A inteligência fica no Supabase do MR
+(função vini-ponte, projeto btbxqbozmrbbhjjpajbv). O motor NÃO abre porta: ele só chama a ponte.
+
+REGRAS (não negociáveis)
+- Instalar na VPS Hostinger (srv2021578) numa PASTA PRÓPRIA: /opt/vini
+- Processo PRÓPRIO no pm2 com o nome "vini"
+- NÃO mexer no Ravi: nem na pasta, nem no processo, nem nas sessões/auth dele, nem no banco da RF
+- Nada do banco da RF é usado aqui
+
+INSTALAÇÃO (Node 20 ou mais novo, o mesmo já usado pelo Ravi)
+  mkdir -p /opt/vini && cd /opt/vini
+  (copiar para cá: vini.js, package.json, .env)
+  chmod 600 .env
+  npm install --omit=dev
+  pm2 start vini.js --name vini --max-memory-restart 400M
+  pm2 save
+
+CONFERIR
+  pm2 logs vini --lines 30
+  -> deve aparecer "motor-vini v1 ... iniciando" e "QR novo enviado ao sistema"
+  O QR aparece no Sistema MR: Início › Robô Vini (login mestre). Ler com o WhatsApp Business do Vini
+  em Dispositivos conectados › Conectar dispositivo. Depois de ler: "Vini conectado".
+
+COMANDOS ÚTEIS
+  pm2 restart vini        (reinicia só o Vini)
+  pm2 stop vini           (para só o Vini)
+  Desconectar o número: pelo botão no Sistema MR (o motor apaga a pasta auth-vini sozinho)
+
+ATUALIZAR DEPOIS
+  substituir vini.js e package.json, rodar npm install --omit=dev e pm2 restart vini

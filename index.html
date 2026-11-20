@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v118">
-<meta name="rf-data" content="2026-11-19">
+<meta name="rf-versao" content="v119">
+<meta name="rf-data" content="2026-11-20">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -208,8 +208,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v118',
-  data   : '19/11/2026',
+  versao : 'v119',
+  data   : '20/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -502,6 +502,7 @@ function render(){
   else if(S.tela==='origens')  corpo = telaOrigens();
   else if(S.tela==='empresas') corpo = telaEmpresas();
   else if(S.tela==='usuarios') corpo = telaUsuarios();
+  else if(S.tela==='vini')     corpo = telaVini();
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
@@ -533,7 +534,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t!=='inicio' && t!=='usuarios' && t!=='meus' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if(t==='vini' && !ehMestre()){ aviso('Só o login mestre administra o robô.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3671,6 +3672,7 @@ async function atualizarSilencioso(forcar){
     if(S.esc && S.esc.carregado){ S.esc.carregado = false; S.esc.proc = {}; await escCarregar(); } /* v105: procedimentos também recarregam (antes ficavam presos na 1ª leitura) */
     if(S.saldo) S.saldo.carregado = false;
     if(S.conv && S.conv.carregado && !S.conv.carregando){ const r = await sb.from('idad_convenios').select('*').order('convenio').order('procedimento').order('vigencia_inicio'); if(!r.error) S.conv.lista = r.data||[]; }
+    if(S.vini && S.vini.st && ehMestre()) await viniCarregar();
     if(S.fich && S.fich.carregado && !S.fich.carregando){ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false}); if(!r.error) S.fich.lista = r.data||[]; }
   }catch(e){}
   _atuRodando = false;
@@ -3694,6 +3696,7 @@ function syncDesligar(){ if(_syncCanal){ try{ sb.removeChannel(_syncCanal); }cat
 setInterval(()=>{ if(_renderPend && !cpeOcupado()){ _renderPend = false; render(); } }, 1200);
 setInterval(()=>{ if(S.user && !S.anesTok && !_syncCanal) syncLigar(); }, 10000);
 async function atualizarAgora(){ aviso('Atualizando…','ok'); await checarVersao(); await atualizarSilencioso(true); aviso('Atualizado.','ok'); }
+setInterval(()=>{ if(document.visibilityState==='visible' && S.tela==='vini' && ehMestre() && !S.modal) viniCarregar(); }, 8000);   // v119: QR e conversas do Vini ao vivo
 setInterval(()=>{ if(document.visibilityState!=='visible') return; checarVersao(); if(Date.now()-_atuUlt > 120000) atualizarSilencioso(); }, 60000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ checarVersao(); if(Date.now()-_atuUlt > 20000) atualizarSilencioso(); } });
 window.addEventListener('focus', ()=>{ checarVersao(); });
@@ -3725,7 +3728,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
    Escala: caixa "Escala" → dentro: NAFS (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
-  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'},
+  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
   producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
@@ -3795,8 +3798,116 @@ function telaInicio(){
   const cad = (veAba('empresas')? cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs') : '')+
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
+  if(ehMestre()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
+    h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente do Sistema MR no WhatsApp</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+'</div>'; }
   if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
+}
+
+/* ===== v119 (Renato, 20/11/2026): ROBÔ VINI — assistente do Sistema MR no WhatsApp.
+   O motor (Baileys) roda na VPS isolado do Ravi e só fala com a função vini-ponte do Supabase do MR.
+   Esta tela é só do login mestre: ver se está ligado, ler o QR, pausar, quem pode falar com ele, conversas e lançamentos feitos por ele.
+   Tabelas: vini_status, vini_contatos, vini_mensagens, vini_saida, vini_acoes (RLS: só mestre). */
+S.vini = { st:null, ct:[], msg:[], ac:[], carregando:false, chat:null };
+function ehMestre(){ return papel()==='mestre'; }
+function icoVini(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gVin')+
+  '<path d="M24 6a17 17 0 0 0-14.7 25.5L7 41l9.8-2.3A17 17 0 1 0 24 6z" fill="url(#gVin)" opacity=".3"/>'+
+  '<rect x="13" y="15" width="22" height="17" rx="6" fill="url(#gVin)"/><circle cx="19.5" cy="23" r="2.6" fill="#fff"/><circle cx="28.5" cy="23" r="2.6" fill="#fff"/>'+
+  '<rect x="20" y="27.5" width="8" height="1.8" rx=".9" fill="#fff"/><rect x="22.8" y="9.5" width="2.4" height="5.5" rx="1.2" fill="url(#gVin)"/><circle cx="24" cy="9" r="2.2" fill="url(#gVin)"/></svg>'; }
+async function viniCarregar(){
+  if(S.vini.carregando) return; S.vini.carregando = true;
+  const [st, ct, msg, ac] = await Promise.all([
+    sb.from('vini_status').select('*').eq('id',1).maybeSingle(),
+    sb.from('vini_contatos').select('*').order('nome'),
+    sb.from('vini_mensagens').select('*').order('em',{ascending:false}).limit(300),
+    sb.from('vini_acoes').select('*').order('criado_em',{ascending:false}).limit(30) ]);
+  S.vini.st = st.data||{}; S.vini.ct = ct.data||[]; S.vini.msg = msg.data||[]; S.vini.ac = ac.data||[]; S.vini.carregando = false; render();
+}
+function viniRolar(){ setTimeout(()=>{ const c = document.getElementById('vini-conv'); if(c) c.scrollTop = c.scrollHeight; }, 0); }
+function viniVivo(){ const v = S.vini.st && S.vini.st.visto_em; return v && (Date.now()-new Date(v).getTime()) < 90000; }
+function viniFone(t){ const d = soDig(t); if(d.length===10||d.length===11) return '55'+d; return d; }
+function viniFoneBR(t){ const d = soDig(t).replace(/^55/,''); return d.length>=10 ? '('+d.slice(0,2)+') '+d.slice(2,-4)+'-'+d.slice(-4) : t; }
+function viniHora(t){ const d = new Date(t); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function viniResumo(){ const s = S.vini.st; if(!s) return 'assistente do Sistema MR no WhatsApp'; return (s.conectado && viniVivo() ? 'ligado' : 'desligado')+(s.numero?' · '+viniFoneBR(s.numero):'')+' · fotos do mapa cirúrgico e perguntas'; }
+function telaVini(){
+  let h = '<div class="secao"><b>ROBÔ VINI</b><span>assistente do Sistema MR no WhatsApp</span></div>';
+  if(!ehMestre()) return h+'<div class="vazio">Só o login mestre administra o robô.</div>';
+  if(!S.vini.st){ viniCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
+  const s = S.vini.st, vivo = viniVivo(), lig = s.conectado && vivo;
+  const cor = lig ? (s.pausado?'#d97706':'var(--verde)') : 'var(--vermelho)';
+  const est = !vivo ? 'Motor desligado' : s.pausado ? 'Pausado' : s.conectado ? 'Ligado' : s.qr ? 'Esperando leitura do QR' : 'Conectando…';
+  h += '<div class="card"><div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">'+
+    '<div style="width:64px;height:64px">'+icoVini().replace(/46/g,'64')+'</div>'+
+    '<div style="flex:1;min-width:220px"><div style="font-size:20px;font-weight:800">Vini <span style="font-size:13px;font-weight:700;color:'+cor+'">● '+est+'</span></div>'+
+    '<div style="font-size:13px;color:var(--fraco);margin-top:2px">'+(s.numero?'WhatsApp '+esc(viniFoneBR(s.numero))+(s.nome?' · '+esc(s.nome):''):'Número ainda não conectado')+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco)">'+(s.visto_em?'Motor visto '+viniHora(s.visto_em):'Motor ainda não falou com o sistema')+(s.motor_versao?' · '+esc(s.motor_versao):'')+'</div>'+
+    (s.erro?'<div style="font-size:12.5px;color:var(--vermelho);margin-top:3px">'+esc(s.erro)+'</div>':'')+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="bt '+(s.pausado?'':'g')+'" onclick="viniPausar('+(!s.pausado)+')">'+(s.pausado?'▶ Retomar':'⏸ Pausar')+'</button>'+
+      '<button class="bt g" onclick="viniPedido(\'reiniciar\')">↻ Reiniciar</button>'+
+      '<button class="bt g" onclick="viniPedido(\'desconectar\')" style="color:var(--vermelho)">Desconectar número</button></div></div>'+
+    (!s.conectado && s.qr && vivo ? '<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--linha)">'+
+      '<img src="'+s.qr+'" alt="QR" style="width:220px;height:220px;border-radius:12px;background:#fff;padding:6px">'+
+      '<div style="font-size:13.5px;line-height:1.6"><b>Ligar o número do Vini</b><br>1. No celular do Vini, abra o <b>WhatsApp Business</b>.<br>2. Toque em ⋮ › <b>Dispositivos conectados</b> › <b>Conectar dispositivo</b>.<br>3. Aponte a câmera para este QR.<br><small style="color:var(--fraco)">O QR muda a cada ~20 segundos; a tela atualiza sozinha.</small></div></div>' : '')+
+    '</div>';
+  // contatos
+  h += '<div class="card"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><b style="font-size:14px;flex:1">Quem pode falar com o Vini</b><button class="bt mini" onclick="viniContato()">+ Contato</button></div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Número fora desta lista recebe só uma apresentação. Em grupo, o Vini só responde quando chamado pelo nome ou marcado.</div>'+
+    (S.vini.ct.length ? '<table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Pode confirmar lançamentos</th><th></th></tr></thead><tbody>'+S.vini.ct.map(c=>
+      '<tr style="'+(c.ativo?'':'opacity:.5')+'"><td><b>'+esc(c.nome)+'</b></td><td>'+esc(viniFoneBR(c.telefone))+'</td><td>'+(c.pode_lancar?'<span style="color:var(--verde);font-weight:700">Sim</span>':'Não')+'</td>'+
+      '<td style="text-align:right;white-space:nowrap"><button class="bt g mini" onclick="viniContato(\''+c.id+'\')">Editar</button> <button class="bt g mini" onclick="viniMandar(\''+c.telefone+'\')">Mandar mensagem</button></td></tr>').join('')+'</tbody></table>'
+      : '<div class="vazio">Nenhum contato.</div>')+'</div>';
+  // lançamentos feitos/pedidos pelo robô
+  const NOME = { aguardando:['Aguardando SIM','#d97706'], confirmada:['Lançado','var(--verde)'], cancelada:['Cancelado','var(--fraco)'], expirada:['Expirou','var(--fraco)'], erro:['Erro','var(--vermelho)'] };
+  h += '<div class="card"><b style="font-size:14px">Lançamentos pelo WhatsApp</b><div style="font-size:12px;color:var(--fraco);margin:2px 0 6px">Foto do mapa cirúrgico → o Vini lê, acha o plantão na escala e só grava depois do SIM. A foto fica como prova no plantão.</div>'+
+    (S.vini.ac.length ? S.vini.ac.slice(0,10).map(a=>{ const d = a.dados||{}, n = NOME[a.status]||[a.status,'']; const c = (d.candidatos||[]).find(x=>x.id===d.dia_id);
+      return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--linha);font-size:13px;flex-wrap:wrap"><span style="color:var(--fraco);white-space:nowrap">'+viniHora(a.criado_em)+'</span>'+
+        '<span style="flex:1;min-width:200px">'+(d.itens||[]).length+' procedimento(s)'+(c?' · '+esc(c.rot):d.data?' · lista de '+dataBR(d.data):'')+(a.resultado?'<br><small style="color:var(--fraco)">'+esc(a.resultado)+'</small>':'')+'</span>'+
+        '<b style="color:'+n[1]+'">'+n[0]+'</b></div>'; }).join('') : '<div class="vazio">Nenhum ainda.</div>')+'</div>';
+  // conversas
+  const chats = {}; S.vini.msg.forEach(m=>{ (chats[m.chat] = chats[m.chat] || []).push(m); });
+  const lista = Object.entries(chats).sort((a,b)=>b[1][0].em.localeCompare(a[1][0].em));
+  const aberto = S.vini.chat && chats[S.vini.chat] ? S.vini.chat : (lista[0]||[])[0];
+  const nomeChat = k => { const c = S.vini.ct.find(x=>k && k.indexOf(x.telefone)===0); const g = (s.grupos||[]).find(x=>x.id===k); return g ? '👥 '+g.nome : c ? c.nome : viniFoneBR(String(k).split('@')[0]); };
+  h += '<div class="card"><b style="font-size:14px">Conversas</b>'+(lista.length ? '<div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">'+
+    '<div style="width:220px;max-width:100%">'+lista.map(([k,v])=>'<button type="button" onclick="S.vini.chat=\''+k+'\';render()" style="display:block;width:100%;text-align:left;border:1px solid var(--linha);border-radius:10px;padding:8px 10px;margin-bottom:6px;background:'+(k===aberto?'var(--campo)':'transparent')+';cursor:pointer;color:inherit;font:inherit"><b style="font-size:13px">'+esc(nomeChat(k))+'</b><br><small style="color:var(--fraco)">'+viniHora(v[0].em)+' · '+v.length+' msg</small></button>').join('')+'</div>'+
+    '<div id="vini-conv" style="flex:1;min-width:260px;max-height:520px;overflow:auto;background:#efeae2;border-radius:12px;padding:10px">'+(chats[aberto]||[]).slice(0,40).reverse().map(m=>
+      '<div style="display:flex;justify-content:'+(m.direcao==='saida'?'flex-end':'flex-start')+';margin:4px 0"><div style="max-width:80%;white-space:pre-wrap;font-size:13px;line-height:1.4;padding:7px 10px;border-radius:10px;background:'+(m.direcao==='saida'?'#d9fdd3':'#fff')+';color:#111;box-shadow:0 1px 1px rgba(0,0,0,.08)">'+
+      (m.direcao==='entrada'&&m.grupo?'<b style="font-size:11.5px;color:#0a6cf0">'+esc(m.autor_nome||viniFoneBR(m.autor))+'</b><br>':'')+esc(m.texto||'')+'<div style="font-size:10.5px;color:#667;text-align:right">'+viniHora(m.em)+'</div></div></div>').join('')+'</div></div>'
+    : '<div class="vazio">Nenhuma conversa ainda.</div>')+'</div>';
+  viniRolar();
+  if((s.grupos||[]).length) h += '<div class="card"><b style="font-size:14px">Grupos em que o Vini está ('+s.grupos.length+')</b><div style="font-size:13px;margin-top:6px">'+s.grupos.map(g=>esc(g.nome)+' <small style="color:var(--fraco)">('+g.membros+')</small>').join(' · ')+'</div></div>';
+  return h;
+}
+async function viniPausar(p){ const r = await sb.from('vini_status').update({ pausado:p }).eq('id',1); if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); S.vini.st.pausado = p; aviso(p?'Vini pausado — não responde nem envia até retomar.':'Vini retomado.','ok'); }
+async function viniPedido(p){
+  if(p==='desconectar' && !confirm('Desconectar o número do Vini? Vai precisar ler o QR de novo no celular.')) return;
+  const r = await sb.from('vini_status').update({ pedido:p, pedido_em:new Date().toISOString() }).eq('id',1); if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  aviso('Pedido enviado ao motor — em até 30 segundos.','ok');
+}
+function viniContato(id){
+  const c = S.vini.ct.find(x=>x.id===id) || { nome:'', telefone:'', pode_lancar:false, ativo:true };
+  abrirModal('<h2>'+(id?'Editar contato':'Novo contato do Vini')+'</h2><label>Nome</label><input id="vc-nome" value="'+esc(c.nome)+'">'+
+    '<label>WhatsApp (com DDD)</label><input id="vc-fone" inputmode="tel" value="'+esc(c.telefone?viniFoneBR(c.telefone):'')+'" placeholder="(75) 99999-9999">'+
+    '<label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="vc-lanca" style="width:auto"'+(c.pode_lancar?' checked':'')+'> Pode confirmar lançamentos (responder SIM)</label>'+
+    '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="vc-ativo" style="width:auto"'+(c.ativo?' checked':'')+'> Ativo</label>'+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="viniSalvarContato(\''+(id||'')+'\')">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function viniSalvarContato(id){
+  const o = { nome: val('vc-nome').trim(), telefone: viniFone(val('vc-fone')), pode_lancar: document.getElementById('vc-lanca').checked, ativo: document.getElementById('vc-ativo').checked };
+  if(!o.nome || o.telefone.length<12) return aviso('Informe nome e WhatsApp com DDD.','erro');
+  const r = id ? await sb.from('vini_contatos').update(o).eq('id',id) : await sb.from('vini_contatos').insert(o);
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  S.modal = null; aviso('Contato salvo.','ok'); viniCarregar();
+}
+function viniMandar(fone){
+  abrirModal('<h2>Mensagem pelo Vini</h2><div style="font-size:13px;color:var(--fraco)">Para '+esc(viniFoneBR(fone))+'. Sai assinada "Vini · Sistema MR".</div><textarea id="vm-txt" rows="4"></textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="viniEnviar(\''+fone+'\')">Enviar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function viniEnviar(fone){
+  const t = val('vm-txt').trim(); if(!t) return;
+  const r = await sb.from('vini_saida').insert({ chat: fone+'@s.whatsapp.net', texto:t }); if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  S.modal = null; aviso('Na fila — o Vini envia em até 10 segundos.','ok');
 }
 
 /* ===== v89 (Renato, 16/11/2026): MÓDULO HOSPITAL IDAD — primeira versão (base).

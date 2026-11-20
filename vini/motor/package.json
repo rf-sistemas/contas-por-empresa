@@ -1,0 +1,15 @@
+{
+  "name": "motor-vini",
+  "version": "1.0.0",
+  "description": "Motor do WhatsApp do robô Vini (Sistema MR) — só canal; o cérebro é a função vini-ponte no Supabase do MR",
+  "main": "vini.js",
+  "private": true,
+  "scripts": { "start": "node vini.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.21",
+    "dotenv": "16.4.5",
+    "pino": "9.5.0",
+    "qrcode": "1.5.4"
+  }
+}
