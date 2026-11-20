@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v120">
+<meta name="rf-versao" content="v121">
 <meta name="rf-data" content="2026-11-20">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -208,7 +208,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v120',
+  versao : 'v121',
   data   : '20/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -503,6 +503,7 @@ function render(){
   else if(S.tela==='empresas') corpo = telaEmpresas();
   else if(S.tela==='usuarios') corpo = telaUsuarios();
   else if(S.tela==='vini')     corpo = telaVini();
+  else if(S.tela==='robos')    corpo = telaRobos();
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
@@ -534,7 +535,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t==='vini' && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3673,6 +3674,7 @@ async function atualizarSilencioso(forcar){
     if(S.saldo) S.saldo.carregado = false;
     if(S.conv && S.conv.carregado && !S.conv.carregando){ const r = await sb.from('idad_convenios').select('*').order('convenio').order('procedimento').order('vigencia_inicio'); if(!r.error) S.conv.lista = r.data||[]; }
     if(S.vini && S.vini.st && viniDono()) await viniCarregar();
+    if(S.rob && S.rob.robos && viniDono()) await robCarregar();
     if(S.fich && S.fich.carregado && !S.fich.carregando){ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false}); if(!r.error) S.fich.lista = r.data||[]; }
   }catch(e){}
   _atuRodando = false;
@@ -3728,7 +3730,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
    Escala: caixa "Escala" → dentro: NAFS (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
-  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'},
+  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
   producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
@@ -3799,7 +3801,7 @@ function telaInicio(){
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
   if(viniDono()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
-    h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente do Sistema MR no WhatsApp</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+'</div>'; }
+    h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente no WhatsApp e os robôs que fiscalizam o sistema</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+cpeCaixa('robos', icoRobos(), 'Funcionários Cibernéticos', robResumo())+'</div>'; if(!S.rob.robos && !S.rob.carregando) robCarregar(); }
   if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
 }
@@ -3909,6 +3911,102 @@ async function viniEnviar(fone){
   const t = val('vm-txt').trim(); if(!t) return;
   const r = await sb.from('vini_saida').insert({ chat: fone+'@s.whatsapp.net', texto:t }); if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
   S.modal = null; aviso('Na fila — o Vini envia em até 10 segundos.','ok');
+}
+
+/* ===== v121 (Renato, 20/11/2026): FUNCIONÁRIOS CIBERNÉTICOS — robôs internos do MR (modelo do RF Sistema).
+   Os robôs rodam sozinhos no banco (pg_cron): fiscais de cada área a cada 15 min e o Vigia a cada 5 min (função robos_rodar).
+   Cada divergência vira EXCEÇÃO; quando o problema some do sistema, ela fecha sozinha. Só o Renato vê (vini_dono()).
+   Tabelas: robos, robos_pulso, excecoes, robos_config, cobrancas, chamados, uso_ia. */
+S.rob = { robos:null, pulso:[], exc:[], cfg:null, ia:[], f:'abertas', robo:'', carregando:false };
+function icoRobos(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gRob')+
+  '<rect x="6" y="16" width="16" height="14" rx="4" fill="url(#gRob)" opacity=".55"/><rect x="26" y="16" width="16" height="14" rx="4" fill="url(#gRob)" opacity=".55"/>'+
+  '<rect x="14" y="9" width="20" height="18" rx="5" fill="url(#gRob)"/><circle cx="20" cy="18" r="2.4" fill="#fff"/><circle cx="28" cy="18" r="2.4" fill="#fff"/>'+
+  '<rect x="11" y="31" width="26" height="9" rx="3" fill="url(#gRob)"/><rect x="16" y="34" width="16" height="3" rx="1.5" fill="#fff" opacity=".8"/></svg>'; }
+async function robCarregar(){
+  if(S.rob.carregando) return; S.rob.carregando = true;
+  const d7 = new Date(Date.now()-7*864e5).toISOString(), m1 = new Date(); m1.setDate(1); m1.setHours(0,0,0,0);
+  const [r, p, e, c, ia] = await Promise.all([
+    sb.from('robos').select('*').order('ordem'),
+    sb.from('robos_pulso').select('*').gte('em', d7).order('em',{ascending:false}).limit(2000),
+    sb.from('excecoes').select('*').or('status.neq.resolvida,resolvida_em.gte.'+d7).order('aberta_em',{ascending:false}).limit(2000),
+    sb.from('robos_config').select('*').eq('id',1).maybeSingle(),
+    sb.from('uso_ia').select('robo,tokens_in,tokens_out').gte('em', m1.toISOString()).limit(20000) ]);
+  S.rob.robos = r.data||[]; S.rob.pulso = p.data||[]; S.rob.exc = e.data||[]; S.rob.cfg = c.data||{}; S.rob.ia = ia.data||[]; S.rob.carregando = false; render();
+}
+function robResumo(){ const ab = (S.rob.exc||[]).filter(x=>x.status==='aberta'); return S.rob.robos ? ab.length+' exceção(ões) aberta(s) · robôs fiscais e vigia' : 'robôs fiscais de cada área, exceções e vigia'; }
+function robMinutos(t){ return t ? Math.round((Date.now()-new Date(t).getTime())/60000) : null; }
+function robQuando(t){ const m = robMinutos(t); if(m==null) return 'nunca'; if(m<1) return 'agora'; if(m<60) return 'há '+m+' min'; if(m<1440) return 'há '+Math.round(m/60)+' h'; return 'há '+Math.round(m/1440)+' dia(s)'; }
+function robCustoMes(robo){ const c = S.rob.cfg||{}, l = S.rob.ia.filter(x=>!robo || x.robo===robo);
+  const usd = l.reduce((a,x)=>a+(+x.tokens_in||0)*(+c.preco_in_1m||0)/1e6+(+x.tokens_out||0)*(+c.preco_out_1m||0)/1e6,0); return { chamadas:l.length, brl: usd*(+c.dolar||0) }; }
+function telaRobos(){
+  let h = '<div class="secao"><b>FUNCIONÁRIOS CIBERNÉTICOS</b><span>robôs que fiscalizam o sistema sozinhos · só exceções</span></div>';
+  if(!viniDono()) return h+'<div class="vazio">Você não tem acesso a esta aba.</div>';
+  if(!S.rob.robos){ robCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
+  const ex = S.rob.exc, ab = ex.filter(x=>x.status==='aberta'), tr = ex.filter(x=>x.status==='tratamento'), cr = ab.filter(x=>x.critico);
+  const hoje = new Date(); hoje.setHours(0,0,0,0); const resH = ex.filter(x=>x.status==='resolvida' && new Date(x.resolvida_em)>=hoje).length;
+  const fiscais = S.rob.robos.filter(r=>r.id!=='vini'), ok = fiscais.filter(r=>{ const u = S.rob.pulso.find(p=>p.robo===r.id); return r.ativo && u && robMinutos(u.em) <= r.intervalo_min*3; }).length;
+  const cm = robCustoMes();
+  h += '<div class="card"><div class="kpis">'+kpi('Exceções abertas', '<span style="color:'+(ab.length?'#d97706':'var(--verde)')+'">'+ab.length+'</span>')+
+    kpi('Prioridade (≥ '+brl(+S.rob.cfg.limite_dono||1000)+' ou crítico)', '<span style="color:'+(cr.length?'var(--vermelho)':'var(--verde)')+'">'+cr.length+'</span>')+
+    kpi('Em tratamento', tr.length)+kpi('Resolvidas hoje', '<span style="color:var(--verde)">'+resH+'</span>')+
+    kpi('Robôs rodando', ok+' de '+fiscais.length)+kpi('Custo de IA no mês', cm.chamadas?brl(cm.brl)+' <small style="font-size:11px;color:var(--fraco)">estimado</small>':'<span style="font-size:13px;color:var(--fraco)">medição na próxima versão do Vini</span>')+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Fluxo: dado → robô da área → divergência vira exceção → (cobrança, quando os números da equipe entrarem) → quando o problema some, a exceção fecha sozinha. O Vini recebe só as exceções.</div></div>';
+  // cartões dos robôs
+  h += '<div class="cc-fontes" style="margin-bottom:14px">'+S.rob.robos.map(r=>{
+    const ps = S.rob.pulso.filter(p=>p.robo===r.id), u = ps[0], exr = ex.filter(x=>x.robo===r.id), abr = exr.filter(x=>x.status==='aberta').length, res7 = exr.filter(x=>x.status==='resolvida').length;
+    let st, cor;
+    if(r.id==='vini'){ const v = S.vini.st||{}; const vivo = v.visto_em && robMinutos(v.visto_em)<=2; st = vivo&&v.conectado ? (v.pausado?'Pausado':'Ligado') : 'Desligado'; cor = vivo&&v.conectado&&!v.pausado ? 'ok' : 'falta'; }
+    else { st = !r.ativo ? 'Pausado' : !u ? 'Nunca rodou' : robMinutos(u.em) > r.intervalo_min*3 ? 'Atrasado' : 'Rodando'; cor = !r.ativo ? 'parc' : st==='Rodando' ? 'ok' : 'falta'; }
+    const cia = robCustoMes(r.id);
+    return '<div class="cc-fonte '+cor+'" style="flex-direction:column;gap:6px"><div style="display:flex;gap:10px;align-items:center"><div style="width:38px;height:38px">'+(r.id==='vini'?icoVini():icoRobos()).replace(/46/g,'38')+'</div>'+
+      '<div style="flex:1"><b>'+esc(r.nome)+'</b><small>'+esc(r.setor)+'</small></div><b style="font-size:12px;color:'+(cor==='ok'?'var(--verde)':cor==='parc'?'#d97706':'var(--vermelho)')+'">● '+st+'</b></div>'+
+      '<div style="font-size:12px;color:var(--fraco)">'+esc(r.descricao||'')+'</div>'+
+      (r.id==='vini' ? '<div style="font-size:12.5px">Recebe as exceções · relatório 7h/19h: <b>'+(S.rob.cfg.relatorio_ativo?'ligado':'desligado')+'</b>'+(cia.chamadas?' · IA no mês: '+cia.chamadas+' chamadas ≈ '+brl(cia.brl):'')+'</div>'
+        : '<div style="font-size:12.5px">Última rodada '+robQuando(u&&u.em)+(u?' · '+u.processados+' registros vistos · '+u.divergencias+' divergência(s)':'')+'</div>'+
+          '<div style="font-size:12.5px"><b style="color:'+(abr?'#d97706':'var(--verde)')+'">'+abr+' aberta(s)</b> · '+res7+' resolvida(s) em 7 dias · '+ps.length+' rodadas em 7 dias</div>'+
+          '<div><button class="bt g mini" onclick="robPausar(\''+r.id+'\','+(!r.ativo)+')">'+(r.ativo?'⏸ Pausar':'▶ Retomar')+'</button> <button class="bt g mini" onclick="S.rob.robo=\''+r.id+'\';S.rob.f=\'abertas\';render()">Ver exceções</button></div>')+
+      '</div>'; }).join('')+'</div>';
+  // exceções
+  const F = [['abertas','Abertas ('+ab.length+')'],['criticas','Prioridade ('+cr.length+')'],['tratamento','Em tratamento ('+tr.length+')'],['resolvidas','Resolvidas 7 dias']];
+  let l = S.rob.f==='abertas' ? ab : S.rob.f==='criticas' ? cr : S.rob.f==='tratamento' ? tr : ex.filter(x=>x.status==='resolvida');
+  if(S.rob.robo) l = l.filter(x=>x.robo===S.rob.robo);
+  l = l.slice().sort((a,b)=>(b.critico-a.critico) || (Math.abs(+b.valor||0)-Math.abs(+a.valor||0)));
+  const nomeR = id => ((S.rob.robos.find(r=>r.id===id)||{}).nome||id);
+  h += '<div class="card"><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><b style="font-size:14px;margin-right:6px">Exceções</b>'+
+    F.map(f=>'<button class="bt '+(S.rob.f===f[0]?'':'g ')+'mini" onclick="S.rob.f=\''+f[0]+'\';render()">'+f[1]+'</button>').join('')+
+    '<select onchange="S.rob.robo=this.value;render()" style="width:auto;margin:0 0 0 auto"><option value="">Todos os robôs</option>'+S.rob.robos.filter(r=>r.id!=='vini').map(r=>'<option value="'+r.id+'"'+(S.rob.robo===r.id?' selected':'')+'>'+esc(r.nome)+'</option>').join('')+'</select></div>'+
+    (l.length ? l.slice(0,200).map(x=>'<div class="cc-pend" style="align-items:flex-start"><div style="flex:1;min-width:220px">'+
+      '<div>'+(x.critico?'<b style="color:var(--vermelho)">● </b>':'')+'<b>'+esc(x.titulo)+'</b></div>'+
+      '<div style="font-size:12.5px;color:var(--fraco);margin-top:2px">'+esc(x.detalhe||'')+'</div>'+
+      '<div style="font-size:11.5px;color:var(--fraco);margin-top:3px">'+esc(nomeR(x.robo))+' · aberta '+robQuando(x.aberta_em)+(x.status==='resolvida'?' · resolvida '+robQuando(x.resolvida_em)+' ('+esc(x.resolvida_como||'')+')':'')+(x.nota?' · nota: “'+esc(x.nota)+'”':'')+'</div></div>'+
+      (x.valor!=null?'<b style="white-space:nowrap;color:'+(+x.valor<0?'var(--vermelho)':'inherit')+'">'+brl(+x.valor)+'</b>':'')+
+      (x.status==='aberta'?'<div style="display:flex;gap:6px"><button class="bt g mini" onclick="robTratar(\''+x.id+'\',\'tratamento\')">Em tratamento</button><button class="bt g mini" onclick="robTratar(\''+x.id+'\',\'ignorada\')">Ignorar</button></div>'
+        : x.status==='tratamento'?'<button class="bt g mini" onclick="robTratar(\''+x.id+'\',\'aberta\')">Reabrir</button>':'')+'</div>').join('')+(l.length>200?'<div class="vazio">… e mais '+(l.length-200)+'</div>':'')
+      : '<div class="vazio">Nada aqui. ✔</div>')+
+    '<div style="font-size:11.5px;color:var(--fraco);padding-top:8px">"Em tratamento" e "Ignorar" pedem uma nota e ficam na auditoria. A exceção fecha sozinha quando o problema é corrigido no sistema.</div></div>';
+  // configuração
+  const c = S.rob.cfg;
+  h += '<div class="card"><b style="font-size:14px">Regras</b><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:flex-end">'+
+    '<div><label>Valor que vai direto para você</label><input id="rc-lim" type="number" step="100" value="'+(+c.limite_dono||1000)+'" style="width:140px"></div>'+
+    '<div><label>Horário de mensagens</label><div style="display:flex;gap:6px;align-items:center"><input id="rc-hi" type="number" min="0" max="23" value="'+c.hora_ini+'" style="width:70px"> às <input id="rc-hf" type="number" min="0" max="23" value="'+c.hora_fim+'" style="width:70px"> h</div></div>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin:0 0 10px"><input type="checkbox" id="rc-rel" style="width:auto"'+(c.relatorio_ativo?' checked':'')+'> Relatório das 7h e 19h pelo Vini (só para você)</label>'+
+    '<button class="bt" onclick="robSalvarCfg()" style="margin-bottom:8px">Salvar</button></div></div>';
+  return h;
+}
+async function robPausar(id, ativo){ const r = await sb.from('robos').update({ ativo }).eq('id', id); if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); aviso(ativo?'Robô retomado.':'Robô pausado — ele para de rodar até você retomar.','ok'); robCarregar(); }
+function robTratar(id, st){
+  if(st==='aberta') return robSalvarTrat(id, st, null);
+  abrirModal('<h2>'+(st==='tratamento'?'Marcar em tratamento':'Ignorar esta exceção')+'</h2><div style="font-size:13px;color:var(--fraco);margin-bottom:8px">'+(st==='tratamento'?'Diga o que está sendo feito.':'Diga por que este caso não é problema. O robô não volta a abrir enquanto a situação for a mesma.')+'</div>'+
+    '<textarea id="rt-nota" rows="3"></textarea><div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="robSalvarTrat(\''+id+'\',\''+st+'\',val(\'rt-nota\'))">Gravar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function robSalvarTrat(id, st, nota){
+  if(st!=='aberta' && (!nota || nota.trim().length<5)) return aviso('Escreva a nota (pelo menos 5 letras).','erro');
+  const r = await sb.from('excecoes').update({ status:st, nota: st==='aberta'?null:nota.trim(), tratado_por: S.user.id }).eq('id', id);
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); S.modal = null; aviso('Gravado (auditoria).','ok'); robCarregar();
+}
+async function robSalvarCfg(){
+  const o = { limite_dono: +val('rc-lim')||1000, hora_ini: +val('rc-hi'), hora_fim: +val('rc-hf'), relatorio_ativo: document.getElementById('rc-rel').checked };
+  const r = await sb.from('robos_config').update(o).eq('id',1); if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); aviso('Regras salvas.','ok'); robCarregar();
 }
 
 /* ===== v89 (Renato, 16/11/2026): MÓDULO HOSPITAL IDAD — primeira versão (base).
