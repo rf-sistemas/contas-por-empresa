@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v119">
+<meta name="rf-versao" content="v120">
 <meta name="rf-data" content="2026-11-20">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -208,7 +208,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v119',
+  versao : 'v120',
   data   : '20/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -534,7 +534,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t==='vini' && !ehMestre()){ aviso('Só o login mestre administra o robô.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if(t==='vini' && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3672,7 +3672,7 @@ async function atualizarSilencioso(forcar){
     if(S.esc && S.esc.carregado){ S.esc.carregado = false; S.esc.proc = {}; await escCarregar(); } /* v105: procedimentos também recarregam (antes ficavam presos na 1ª leitura) */
     if(S.saldo) S.saldo.carregado = false;
     if(S.conv && S.conv.carregado && !S.conv.carregando){ const r = await sb.from('idad_convenios').select('*').order('convenio').order('procedimento').order('vigencia_inicio'); if(!r.error) S.conv.lista = r.data||[]; }
-    if(S.vini && S.vini.st && ehMestre()) await viniCarregar();
+    if(S.vini && S.vini.st && viniDono()) await viniCarregar();
     if(S.fich && S.fich.carregado && !S.fich.carregando){ const r = await sb.from('fichas').select('*').order('criado_em',{ascending:false}); if(!r.error) S.fich.lista = r.data||[]; }
   }catch(e){}
   _atuRodando = false;
@@ -3696,7 +3696,7 @@ function syncDesligar(){ if(_syncCanal){ try{ sb.removeChannel(_syncCanal); }cat
 setInterval(()=>{ if(_renderPend && !cpeOcupado()){ _renderPend = false; render(); } }, 1200);
 setInterval(()=>{ if(S.user && !S.anesTok && !_syncCanal) syncLigar(); }, 10000);
 async function atualizarAgora(){ aviso('Atualizando…','ok'); await checarVersao(); await atualizarSilencioso(true); aviso('Atualizado.','ok'); }
-setInterval(()=>{ if(document.visibilityState==='visible' && S.tela==='vini' && ehMestre() && !S.modal) viniCarregar(); }, 8000);   // v119: QR e conversas do Vini ao vivo
+setInterval(()=>{ if(document.visibilityState==='visible' && S.tela==='vini' && viniDono() && !S.modal) viniCarregar(); }, 8000);   // v119: QR e conversas do Vini ao vivo
 setInterval(()=>{ if(document.visibilityState!=='visible') return; checarVersao(); if(Date.now()-_atuUlt > 120000) atualizarSilencioso(); }, 60000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ checarVersao(); if(Date.now()-_atuUlt > 20000) atualizarSilencioso(); } });
 window.addEventListener('focus', ()=>{ checarVersao(); });
@@ -3798,7 +3798,7 @@ function telaInicio(){
   const cad = (veAba('empresas')? cpeCaixa('empresas','🏛️','Empresas','Cadastro dos CNPJs') : '')+
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
-  if(ehMestre()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
+  if(viniDono()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
     h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente do Sistema MR no WhatsApp</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+'</div>'; }
   if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
@@ -3806,10 +3806,11 @@ function telaInicio(){
 
 /* ===== v119 (Renato, 20/11/2026): ROBÔ VINI — assistente do Sistema MR no WhatsApp.
    O motor (Baileys) roda na VPS isolado do Ravi e só fala com a função vini-ponte do Supabase do MR.
-   Esta tela é só do login mestre: ver se está ligado, ler o QR, pausar, quem pode falar com ele, conversas e lançamentos feitos por ele.
+   Esta tela é SÓ do Renato (v120 — nenhum outro mestre/dono): ver se está ligado, ler o QR, pausar, quem pode falar com ele, conversas e lançamentos feitos por ele.
    Tabelas: vini_status, vini_contatos, vini_mensagens, vini_saida, vini_acoes (RLS: só mestre). */
 S.vini = { st:null, ct:[], msg:[], ac:[], carregando:false, chat:null };
-function ehMestre(){ return papel()==='mestre'; }
+const VINI_DONO = '2b001670-3aae-4655-9278-5f35bff4cee5';   // v120: aba Vini é SÓ do Renato (login rflogisticadistribuicao@gmail.com) — o banco trava igual (função vini_dono)
+function viniDono(){ return !!(S.user && S.user.id===VINI_DONO && papel()==='mestre'); }
 function icoVini(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gVin')+
   '<path d="M24 6a17 17 0 0 0-14.7 25.5L7 41l9.8-2.3A17 17 0 1 0 24 6z" fill="url(#gVin)" opacity=".3"/>'+
   '<rect x="13" y="15" width="22" height="17" rx="6" fill="url(#gVin)"/><circle cx="19.5" cy="23" r="2.6" fill="#fff"/><circle cx="28.5" cy="23" r="2.6" fill="#fff"/>'+
@@ -3831,7 +3832,7 @@ function viniHora(t){ const d = new Date(t); return d.toLocaleDateString('pt-BR'
 function viniResumo(){ const s = S.vini.st; if(!s) return 'assistente do Sistema MR no WhatsApp'; return (s.conectado && viniVivo() ? 'ligado' : 'desligado')+(s.numero?' · '+viniFoneBR(s.numero):'')+' · fotos do mapa cirúrgico e perguntas'; }
 function telaVini(){
   let h = '<div class="secao"><b>ROBÔ VINI</b><span>assistente do Sistema MR no WhatsApp</span></div>';
-  if(!ehMestre()) return h+'<div class="vazio">Só o login mestre administra o robô.</div>';
+  if(!viniDono()) return h+'<div class="vazio">Você não tem acesso a esta aba.</div>';
   if(!S.vini.st){ viniCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
   const s = S.vini.st, vivo = viniVivo(), lig = s.conectado && vivo;
   const cor = lig ? (s.pausado?'#d97706':'var(--verde)') : 'var(--vermelho)';
