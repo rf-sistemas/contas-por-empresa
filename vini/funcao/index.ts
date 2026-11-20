@@ -5,15 +5,17 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v1 (20/11/2026)";
+const VERSAO = "vini-ponte v2 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
 const ASSINA = "\n\n_Vini · Sistema MR_";
 const so = (t: unknown) => String(t ?? "").replace(/\D/g, "");
-const norm = (t: unknown) => String(t ?? "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const norm = (t: unknown) => String(t ?? "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const brl = (v: number) => "R$ " + (Math.round((+v || 0) * 100) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dbr = (d: string) => (d ? String(d).slice(0, 10).split("-").reverse().join("/") : "");
+// WhatsApp grava celular do Brasil às vezes SEM o 9 (ex.: 557599717578 = (75) 9 9971-7578): aceita as duas formas
+const variantes = (d: string) => { const v = [d]; if (/^55\d{2}9\d{8}$/.test(d)) v.push(d.slice(0, 4) + d.slice(5)); if (/^55\d{2}[6-9]\d{7}$/.test(d)) v.push(d.slice(0, 4) + "9" + d.slice(4)); return v; };
 const hojeBahia = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 
 async function log(direcao: string, chat: string, texto: string, extra: Record<string, unknown> = {}) {
@@ -168,7 +170,8 @@ async function entrada(b: any): Promise<string[]> {
   await log("entrada", chat, texto || (b.midia ? "[imagem]" : ""), { autor, autor_nome: b.autor_nome || null, grupo, wa_id: b.wa_id || null, midia: b.midia ? { mime: b.midia.mime, bytes: Math.round((b.midia.b64 || "").length * 0.75) } : null });
   const st = (await sb.from("vini_status").select("pausado").eq("id", 1).maybeSingle()).data;
   if (st?.pausado) return [];
-  const { data: contato } = await sb.from("vini_contatos").select("*").eq("telefone", autor).eq("ativo", true).maybeSingle();
+  const { data: cts } = await sb.from("vini_contatos").select("*").in("telefone", variantes(autor)).eq("ativo", true).limit(1);
+  const contato = cts?.[0] || null;
   if (grupo && !b.mencionado) return [];                             // em grupo, só quando chamado ("Vini" ou @)
   if (!contato) {
     if (grupo) return [];
