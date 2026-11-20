@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v121">
+<meta name="rf-versao" content="v122">
 <meta name="rf-data" content="2026-11-20">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -191,6 +191,10 @@
 .cc-fonte.parc{background:#fff8e6;border-color:#f3dc9c}.cc-fonte.parc .cc-fi{color:#d97706}.cc-fonte.falta{background:#fff1f1;border-color:#f5c2c2}.cc-fonte.falta .cc-fi{color:var(--vermelho)}
 .cc-tab th,.cc-tab td{text-align:right;white-space:nowrap;font-size:12.5px}.cc-tab th:first-child,.cc-tab td:first-child,.cc-tab td:last-child,.cc-tab th:last-child{text-align:left}
 .cc-tab th.cc-g1{background:#eef7f4}.cc-tab th.cc-g2{background:#eef3fb}.cc-tab thead th{text-align:center}
+.nav-st{font-weight:700}.nav-st.nv-ok{color:var(--verde)}.nav-st.nv-parc{color:#d97706}.nav-st.nv-falta{color:var(--vermelho)}
+.nav-regras{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:4px 16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--linha);font-size:12.5px}.nav-regras b{grid-column:1/-1;font-size:12px;color:var(--fraco);text-transform:uppercase;letter-spacing:.5px}
+.nav-lin{display:flex;gap:8px;font-size:12.5px;margin-top:5px}.nav-lin small{color:var(--fraco);width:92px;flex:none}.nav-lin span{word-break:break-all}.nav-lin em{color:var(--fraco);font-style:normal;font-size:11.5px}
+.nav-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 12px}.nav-off{opacity:.65}.nav-form{border:1px solid var(--mr-turq)}
 .cc-pend{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--linha);padding:10px 0}.cc-pend.just{opacity:.6}
 </style>
 </head>
@@ -208,7 +212,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v121',
+  versao : 'v122',
   data   : '20/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -504,6 +508,7 @@ function render(){
   else if(S.tela==='usuarios') corpo = telaUsuarios();
   else if(S.tela==='vini')     corpo = telaVini();
   else if(S.tela==='robos')    corpo = telaRobos();
+  else if(S.tela==='acessos')  corpo = telaAcessos();
   else if(S.tela==='escala')   corpo = telaEscala();
   else if(S.tela==='escalas')  corpo = telaEscalas();
   else if(S.tela==='hospitais') corpo = podeEditar() ? telaHospCad() : telaEscalaHub();
@@ -535,7 +540,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3730,7 +3735,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
    Escala: caixa "Escala" → dentro: NAFS (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
-  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'},
+  empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
   producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
@@ -3801,10 +3806,113 @@ function telaInicio(){
     (podeUsuarios()? cpeCaixa('usuarios','👥','Usuários','Quem acessa, o que cada um pode fazer e as permissões de cada login') : '');
   if(cad) h += '<div class="secao"><b>CADASTROS</b><span>Empresas e quem usa o sistema</span></div><div class="bxs">'+cad+'</div>';
   if(viniDono()){ if(!S.vini.st && !S.vini.carregando) viniCarregar();
-    h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente no WhatsApp e os robôs que fiscalizam o sistema</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+cpeCaixa('robos', icoRobos(), 'Funcionários Cibernéticos', robResumo())+'</div>'; if(!S.rob.robos && !S.rob.carregando) robCarregar(); }
+    h += '<div class="secao"><b>ROBÔ VINI</b><span>Assistente no WhatsApp e os robôs que fiscalizam o sistema</span></div><div class="bxs">'+cpeCaixa('vini', icoVini(), 'Vini', viniResumo())+cpeCaixa('robos', icoRobos(), 'Funcionários Cibernéticos', robResumo())+cpeCaixa('acessos', icoNav(), 'Acessos do Vini', navResumo())+'</div>'; if(!S.rob.robos && !S.rob.carregando) robCarregar(); if(!S.nav.dados && !S.nav.carregando) navCarregar(); }
+  else if(navPode()){ h += '<div class="secao"><b>ROBÔ VINI</b><span>O Vini entra nos sistemas dos médicos com o login de cada um</span></div><div class="bxs">'+cpeCaixa('acessos', icoNav(), 'Acessos do Vini', navResumo())+'</div>'; if(!S.nav.dados && !S.nav.carregando) navCarregar(); }
   if(!h) h = '<div class="card"><div class="vazio">Nenhuma aba liberada para o seu login. Peça ao administrador.</div></div>';
   return h;
 }
+
+/* ===== v122 (Renato, 20/11/2026): ACESSOS DO VINI — o Vini entra com login em sistemas de terceiros (sistemas dos médicos).
+   Edge mr-navegador (instância própria do MR, separada da RF por LGPD). Só o Renato e o Vinicius veem esta tela.
+   Senha vai para o cofre criptografado (Vault) e nunca volta para a tela. Só leitura: o Vini não aceita, lança, assina nem prescreve. */
+const NAV_PODE = ['2b001670-3aae-4655-9278-5f35bff4cee5', '33cbfca4-e51e-452d-8535-fd2485cb70b9'];
+S.nav = { dados:null, carregando:false, novo:false, edit:null, roteiro:null };
+function navDH(t){ if(!t) return '—'; const d = new Date(t); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+function navPode(){ return !!(S.user && NAV_PODE.includes(S.user.id)); }
+function icoNav(){ return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">'+icoGrad('gNav')+
+  '<circle cx="21" cy="21" r="14" fill="none" stroke="url(#gNav)" stroke-width="3.2"/><path d="M7 21h28M21 7c-5 4-5 24 0 28M21 7c5 4 5 24 0 28" fill="none" stroke="url(#gNav)" stroke-width="2.4"/>'+
+  '<circle cx="35" cy="34" r="5.5" fill="url(#gNav)"/><rect x="33.6" y="36" width="2.8" height="9" rx="1.2" fill="url(#gNav)"/><circle cx="35" cy="34" r="2" fill="#fff"/></svg>'; }
+async function navChamar(acao, corpo){
+  const { data, error } = await sb.functions.invoke('mr-navegador', { body: Object.assign({ acao }, corpo||{}) });
+  if(error){ let m = error.message; try{ const j = await error.context.json(); if(j && j.erro) m = j.erro; }catch(_){ } return { ok:false, erro:m }; }
+  return data || { ok:false, erro:'sem resposta' };
+}
+async function navCarregar(){
+  if(S.nav.carregando) return; S.nav.carregando = true;
+  const r = await navChamar('app_listar'); S.nav.carregando = false;
+  if(!r.ok){ S.nav.dados = { erro: r.erro||'falhou', sistemas:[], acessos:[] }; } else S.nav.dados = r;
+  render();
+}
+function navResumo(){ const d = S.nav.dados; if(!d || d.erro) return 'O Vini entra nos sistemas dos médicos com login e responde no WhatsApp';
+  const at = d.sistemas.filter(s=>s.ativo).length; return d.sistemas.length ? at+' sistema(s) ativo(s) · '+d.acessos.length+' acesso(s) recente(s)' : 'Nenhum sistema cadastrado ainda'; }
+function navVps(){ const v = (S.nav.dados||{}).vps||''; const t = v.slice(0,24), m = t ? Math.round((Date.now()-new Date(t).getTime())/60000) : null;
+  if(m==null || isNaN(m)) return { ok:false, txt:'Navegador ainda não instalado na VPS' };
+  return m<=2 ? { ok:true, txt:'Navegador no ar · '+esc(v.slice(25)) } : { ok:false, txt:'Navegador sem sinal há '+(m<60?m+' min':Math.round(m/60)+' h') }; }
+const NAV_ST = { pendente:['Na fila','parc'], rodando:['Entrando…','parc'], aguardando_codigo:['Esperando código','parc'], ok:['Respondido','ok'], erro:['Não conseguiu','falta'] };
+function telaAcessos(){
+  let h = '<div class="secao"><b>ACESSOS DO VINI</b><span>o Vini entra com login nos sistemas dos médicos e responde no WhatsApp</span></div>';
+  if(!navPode()) return h+'<div class="vazio">Você não tem acesso a esta aba.</div>';
+  const d = S.nav.dados; if(!d){ navCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
+  if(d.erro) return h+'<div class="card"><div class="vazio">Não carregou: '+esc(d.erro)+' <button class="bt g mini" onclick="S.nav.dados=null;render()">Tentar de novo</button></div></div>';
+  const vps = navVps();
+  h += '<div class="card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between">'+
+    '<div><span class="nav-st nv-'+(vps.ok?'ok':'falta')+'">●</span> <b style="font-size:14px">'+vps.txt+'</b>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:3px">Chrome sem tela na VPS, isolado do sistema da RF. Pergunta a fila a cada 10 s.</div></div>'+
+    '<button class="bt" onclick="S.nav.novo=!S.nav.novo;S.nav.edit=null;render()">'+(S.nav.novo?'Fechar':'+ Cadastrar sistema')+'</button></div>'+
+    '<div class="nav-regras"><b>Regras</b>'+
+    '<span>🔒 A senha vai para o cofre criptografado. Depois de salva, ninguém vê — nem você, nem o Vini.</span>'+
+    '<span>👁️ Só leitura: o Vini não aceita, lança, assina nem prescreve nada.</span>'+
+    '<span>✍️ Cadastre o login de um médico só com a autorização dele por escrito.</span>'+
+    '<span>🗑️ O print de cada acesso é apagado sozinho depois de 7 dias. Fica só a resposta.</span>'+
+    '<span>🔑 Se o site pedir código por SMS ou e-mail, o Vini pergunta no WhatsApp. Captcha ("não sou um robô") ele não passa.</span></div></div>';
+  if(S.nav.novo || S.nav.edit) h += navForm();
+  // sistemas
+  h += '<div class="cc-fontes" style="margin-bottom:14px">'+(d.sistemas.length ? d.sistemas.map(s=>{
+    const ult = d.acessos.find(a=>a.sistema===s.chave);
+    return '<div class="card nav-sis'+(s.ativo?'':' nav-off')+'"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start">'+
+      '<div><b style="font-size:15px">'+esc(s.nome)+'</b><div style="font-size:12px;color:var(--fraco)">'+(s.medico?'Login de '+esc(s.medico):'Médico não informado')+'</div></div>'+
+      '<span class="nav-st nv-'+(s.ativo?'ok':'parc')+'" style="font-size:12px;white-space:nowrap">● '+(s.ativo?'Ativo':'Pausado')+'</span></div>'+
+      '<div class="nav-lin"><small>Endereço</small><span>'+esc(s.url_login)+'</span></div>'+
+      '<div class="nav-lin"><small>Login</small><span>'+esc(s.login||'—')+'</span></div>'+
+      '<div class="nav-lin"><small>Senha</small><span>'+(s.tem_senha?'•••••••• <em>no cofre'+(s.senha_em?' desde '+dataBR(s.senha_em):'')+'</em>':'<b style="color:var(--vermelho)">sem senha</b>')+'</span></div>'+
+      '<div class="nav-lin"><small>Último acesso</small><span>'+(ult? robQuando(ult.criado_em)+' · '+(NAV_ST[ult.status]||[ult.status])[0] : 'nenhum')+'</span></div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">'+
+      '<button class="bt g mini" onclick="navTestar(\''+s.chave+'\')"'+(s.ativo?'':' disabled')+'>▶ Testar</button>'+
+      '<button class="bt g mini" onclick="S.nav.edit=\''+s.chave+'\';S.nav.novo=false;S.nav.trocaSenha=true;render();window.scrollTo(0,0)">🔑 Trocar senha</button>'+
+      '<button class="bt g mini" onclick="S.nav.edit=\''+s.chave+'\';S.nav.novo=false;S.nav.trocaSenha=false;render();window.scrollTo(0,0)">✏️ Editar</button>'+
+      '<button class="bt g mini" onclick="navPausar(\''+s.chave+'\','+(!s.ativo)+')">'+(s.ativo?'⏸ Pausar':'▶ Retomar')+'</button>'+
+      (d.renato?'<button class="bt g mini" onclick="S.nav.roteiro=S.nav.roteiro===\''+s.chave+'\'?null:\''+s.chave+'\';render()">🧭 Roteiro</button>':'')+'</div>'+
+      (d.renato && S.nav.roteiro===s.chave ? '<div style="margin-top:10px"><div style="font-size:12px;color:var(--fraco);margin-bottom:4px">Caminho até a tela certa, um passo por linha. Comece com o login e ajuste olhando o primeiro print. Passos: login_auto, ir, clicar, clicar_texto, preencher, esperar, esperar_texto.</div>'+
+        '<textarea id="navRot" rows="6" style="width:100%;font-family:monospace;font-size:12px">'+esc((s.passos||[]).map(p=>JSON.stringify(p)).join('\n'))+'</textarea>'+
+        '<button class="bt g mini" style="margin-top:6px" onclick="navSalvarRoteiro(\''+s.chave+'\')">Salvar roteiro</button></div>' : '')+
+      '</div>'; }).join('') : '<div class="card"><div class="vazio">Nenhum sistema cadastrado. Comece por "+ Cadastrar sistema".</div></div>')+'</div>';
+  // histórico
+  h += '<div class="card"><b style="font-size:14px">Histórico de acessos</b><div style="font-size:12px;color:var(--fraco);margin:2px 0 8px">Quem pediu, o que perguntou e o que o Vini respondeu. O texto da tela não é guardado.</div>';
+  if(!d.acessos.length) h += '<div class="vazio">Nenhum acesso ainda.</div>';
+  else h += '<div style="overflow-x:auto"><table class="tb"><thead><tr><th>Quando</th><th>Sistema</th><th>Quem pediu</th><th>Pergunta</th><th>Situação</th><th>Resposta</th><th>Print</th></tr></thead><tbody>'+
+    d.acessos.map(a=>{ const s = d.sistemas.find(x=>x.chave===a.sistema), st = NAV_ST[a.status]||[a.status,'parc'];
+      return '<tr><td style="white-space:nowrap">'+navDH(a.criado_em)+'</td><td>'+esc(s?s.nome:a.sistema)+'</td><td>'+esc(a.pedido_por||'—')+'</td><td>'+esc(a.pergunta||'—')+'</td>'+
+      '<td><span class="nav-st nv-'+st[1]+'">● '+st[0]+'</span></td><td style="max-width:340px">'+esc(a.status==='erro'?(a.erro||''):(a.resposta||'—'))+'</td>'+
+      '<td>'+(a.print_path && !a.print_apagado_em ? '<button class="bt g mini" onclick="navPrint('+a.id+')">Ver</button>' : '<span style="font-size:12px;color:var(--fraco)">'+(a.print_apagado_em?'apagado (7 dias)':'—')+'</span>')+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  return h+'</div>';
+}
+function navForm(){
+  const s = S.nav.edit ? (S.nav.dados.sistemas.find(x=>x.chave===S.nav.edit)||{}) : {}, ed = !!S.nav.edit, so = ed && S.nav.trocaSenha;
+  return '<div class="card nav-form"><b style="font-size:15px">'+(so?'Trocar a senha — '+esc(s.nome):ed?'Editar — '+esc(s.nome):'Cadastrar sistema')+'</b>'+
+    (so?'':'<div class="nav-grid"><label>Nome do sistema<input id="navNome" value="'+esc(s.nome||'')+'" placeholder="Ex.: Portal Unimed – Dr. Fulano"></label>'+
+    '<label>Endereço da tela de login<input id="navUrl" value="'+esc(s.url_login||'')+'" placeholder="https://..."></label>'+
+    '<label>Médico (dono do login)<input id="navMed" value="'+esc(s.medico||'')+'" placeholder="Nome do médico"></label>'+
+    '<label>Login<input id="navLogin" autocomplete="off" value="'+esc(s.login||'')+'" placeholder="usuário ou e-mail"></label></div>')+
+    '<label style="display:block;margin-top:8px">'+(ed?'Senha nova'+(so?'':' (deixe em branco para manter)'):'Senha')+'<input id="navSenha" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%"></label>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:6px">🔒 A senha vai direto para o cofre criptografado. Depois de salva, ela não aparece mais em lugar nenhum.</div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="bt" onclick="navSalvar()">Salvar</button><button class="bt g mini" onclick="S.nav.novo=false;S.nav.edit=null;render()">Cancelar</button></div></div>';
+}
+async function navSalvar(){
+  const ed = S.nav.edit ? S.nav.dados.sistemas.find(x=>x.chave===S.nav.edit) : null, so = ed && S.nav.trocaSenha;
+  const v = (id)=>{ const e = document.getElementById(id); return e ? e.value.trim() : ''; }, senha = (document.getElementById('navSenha')||{}).value||'';
+  const corpo = so ? { chave:ed.chave, nome:ed.nome, url_login:ed.url_login, medico:ed.medico, senha } : { chave: ed?ed.chave:'', nome:v('navNome'), url_login:v('navUrl'), medico:v('navMed'), login:v('navLogin'), senha };
+  if(so && !senha) return aviso('Digite a senha nova.','erro');
+  const r = await navChamar('app_salvar', corpo); if(!r.ok) return aviso(r.erro||'Não gravou.','erro');
+  aviso(so?'Senha trocada. A nova já está no cofre.':ed?'Sistema atualizado.':'Sistema cadastrado. Clique em "Testar" para ver se o login funciona.','ok');
+  S.nav.novo = false; S.nav.edit = null; S.nav.dados = null; render();
+}
+async function navTestar(chave){ const r = await navChamar('app_testar', { chave }); if(!r.ok) return aviso(r.erro||'Não pediu.','erro');
+  aviso('Pedido na fila. Em cerca de 1 minuto a resposta e o print aparecem no histórico.','ok'); S.nav.dados = null; render(); setTimeout(()=>{ if(S.tela==='acessos'){ S.nav.dados=null; render(); } }, 45000); }
+async function navPausar(chave, ativo){ const r = await navChamar('app_pausar', { chave, ativo }); if(!r.ok) return aviso(r.erro||'Não gravou.','erro');
+  aviso(ativo?'Sistema retomado.':'Sistema pausado: o Vini não entra mais nele até você retomar.','ok'); S.nav.dados = null; render(); }
+async function navSalvarRoteiro(chave){ let passos; try{ passos = document.getElementById('navRot').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>JSON.parse(l)); }catch(_){ return aviso('Roteiro com erro: cada linha precisa ser um passo, ex.: {"esperar":5000}','erro'); }
+  const r = await navChamar('app_passos', { chave, passos }); if(!r.ok) return aviso(r.erro||'Não gravou.','erro'); aviso('Roteiro salvo.','ok'); S.nav.roteiro = null; S.nav.dados = null; render(); }
+async function navPrint(id){ const r = await navChamar('app_print', { id }); if(!r.ok || !r.url) return aviso(r.erro||'Sem print.','erro'); window.open(r.url, '_blank', 'noopener'); }
 
 /* ===== v119 (Renato, 20/11/2026): ROBÔ VINI — assistente do Sistema MR no WhatsApp.
    O motor (Baileys) roda na VPS isolado do Ravi e só fala com a função vini-ponte do Supabase do MR.
