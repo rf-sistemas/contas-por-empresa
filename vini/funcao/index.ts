@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v6 (20/11/2026)";
+const VERSAO = "vini-ponte v7 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -244,7 +244,9 @@ async function ferramenta(nome: string, a: any) {
   return { erro: "ferramenta desconhecida" };
 }
 async function conversa(chat: string, contato: any, texto: string, grupo = false) {
-  const { data: hist } = await sb.from("vini_mensagens").select("direcao,texto").eq("chat", chat).order("em", { ascending: false }).limit(8);
+  // v7: o WhatsApp pode usar um id "@lid" na conversa; junta também o que o Vini mandou para o número da pessoa
+  const chats = [chat, ...variantes(so(contato.telefone)).map((v) => v + "@s.whatsapp.net")];
+  const { data: hist } = await sb.from("vini_mensagens").select("direcao,texto").in("chat", grupo ? [chat] : chats).order("em", { ascending: false }).limit(8);
   const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}` }];
   (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
   if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
