@@ -5,7 +5,7 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v9 (20/11/2026)";
+const VERSAO = "vini-ponte v11 (20/11/2026)";
 const J = (o: unknown, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { "Content-Type": "application/json" } });
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
@@ -23,14 +23,28 @@ async function log(direcao: string, chat: string, texto: string, extra: Record<s
 }
 
 /* ---------- IA ---------- */
-async function ia(messages: any[], tools?: any[], json = false) {
-  const body: any = { model: "gpt-5.4-mini", max_completion_tokens: 6000, messages };
-  if (tools) body.tools = tools;
-  if (json) body.response_format = { type: "json_object" };
+// v10: modelo por tarefa + cache da OpenAI (ponto de corte explícito no fim das instruções fixas) + modelo de reserva
+const MODELO_CONVERSA = "gpt-5.6-terra", MODELO_LEITURA = "gpt-5.4-mini", MODELO_RESERVA = "gpt-5.4-mini";
+async function erro(tipo: string, d: Record<string, unknown>) {
+  await sb.from("vini_erros").insert({ tipo, chat: d.chat ?? null, quem: d.quem ?? null, ferramenta: d.ferramenta ?? null, detalhe: String(d.detalhe ?? "").slice(0, 2000), pergunta: String(d.pergunta ?? "").slice(0, 1000) }).then(() => {}, () => {});
+}
+async function chamar(body: any) {
+  if (body.tools && /^gpt-5\.6/.test(body.model)) body = { ...body, reasoning_effort: "none" };   // 5.6 + ferramentas no chat/completions exige reasoning_effort "none"
   const r = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + OPENAI }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error("IA: " + (await r.text()).slice(0, 200));
-  const j = await r.json();
-  if (j?.usage) await sb.from("uso_ia").insert({ robo: "vini", modelo: body.model, tokens_in: j.usage.prompt_tokens || 0, tokens_out: j.usage.completion_tokens || 0 }).then(() => {}, () => {});   // v9: custo de IA no painel
+  return { ok: r.ok, status: r.status, txt: r.ok ? "" : (await r.text()).slice(0, 300), j: r.ok ? await r.json() : null };
+}
+async function ia(messages: any[], tools?: any[], json = false, modelo = MODELO_LEITURA, ctx: any = {}) {
+  const corte = (msgs: any[], usar: boolean) => msgs.map((m, i) => i === 0 && m.role === "system" && typeof m.content === "string" && usar
+    ? { role: "system", content: [{ type: "text", text: m.content, prompt_cache_breakpoint: { mode: "explicit" } }] } : m);
+  const base: any = { max_completion_tokens: 6000 };
+  if (tools) base.tools = tools;
+  if (json) base.response_format = { type: "json_object" };
+  let r = await chamar({ ...base, model: modelo, messages: corte(messages, true) });
+  if (!r.ok && r.status === 400) r = await chamar({ ...base, model: modelo, messages });                 // recusou o ponto de corte
+  if (!r.ok && modelo !== MODELO_RESERVA) { await erro("ia_falhou", { ...ctx, detalhe: `${modelo} ${r.status}: ${r.txt} — usei a reserva` }); modelo = MODELO_RESERVA; r = await chamar({ ...base, model: modelo, messages }); }
+  if (!r.ok) { await erro("ia_falhou", { ...ctx, detalhe: `${modelo} ${r.status}: ${r.txt}` }); throw new Error("IA: " + r.txt.slice(0, 200)); }
+  const j = r.j, u = j?.usage;
+  if (u) await sb.from("uso_ia").insert({ robo: "vini", modelo, tokens_in: u.prompt_tokens || 0, tokens_out: u.completion_tokens || 0, tokens_cache: u.prompt_tokens_details?.cached_tokens || 0 }).then(() => {}, () => {});
   return j?.choices?.[0]?.message;
 }
 
@@ -276,24 +290,51 @@ async function ferramenta(nome: string, a: any) {
   if (nome === "usuarios") { const { data } = await sb.from("perfis").select("nome,papel,ativo").order("papel"); return (data || []).map((p: any) => ({ nome: p.nome, papel: p.papel === "adm1" ? "ADM_Nivel 1" : p.papel, ativo: p.ativo })); }
   return { erro: "ferramenta desconhecida" };
 }
+const FIXO = `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Use as ferramentas para responder com dados reais; nunca invente valores. Nunca diga que fez, lançou ou registrou algo se não usou uma ferramenta para isso. Você NÃO altera nada por conversa: lançamentos só por foto (mapa cirúrgico, ficha, escala) com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Responda sempre em português, só a resposta final (nada de rascunho). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente. Se não souber responder ou fazer o que pediram, NUNCA deixe a pessoa sem resposta: diga que vai passar para a equipe técnica.\n\n${MAPA}`;
+const PALAVRAS_EN = /\b(the|and|with|will|this|that|let me|tool|function|I'll|I am|here is|you)\b/gi;
 async function conversa(chat: string, contato: any, texto: string, grupo = false) {
   // v7: o WhatsApp pode usar um id "@lid" na conversa; junta também o que o Vini mandou para o número da pessoa
   const chats = [chat, ...variantes(so(contato.telefone)).map((v) => v + "@s.whatsapp.net")];
   const { data: hist } = await sb.from("vini_mensagens").select("direcao,texto").in("chat", grupo ? [chat] : chats).order("em", { ascending: false }).limit(8);
-  const msgs: any[] = [{ role: "system", content: `Você é o Vini, assistente do Sistema MR (contas por empresa, escala de anestesia da NAFS e Hospital IDAD) no WhatsApp. Fala português do Brasil, curto e direto, como um funcionário de confiança. Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}. Use as ferramentas para responder com dados reais; nunca invente valores. Você NÃO altera nada por conversa: lançamentos só por foto do mapa cirúrgico com confirmação SIM, o resto é pelo sistema. Formate para WhatsApp (*negrito*, listas curtas). Não assine. Se a pergunta for vaga, use o mês atual. Se o sistema não tiver o dado, diga isso claramente. Se não souber responder ou fazer o que pediram, NUNCA deixe a pessoa sem resposta: diga que vai passar para a equipe técnica.${grupo ? "\n\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado." : ""}\n\n${MAPA}\n\nREGRAS APRENDIDAS:\n${await regras()}` }];
-  (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
-  if (!msgs.length || msgs[msgs.length - 1].content !== texto) msgs.push({ role: "user", content: texto });
   // ferramentas liberadas: grupo só escala; contato com lista própria (vini_contatos.ferramentas) só a lista
   const lista: string[] | null = grupo ? ["escala", "anestesistas"] : (Array.isArray(contato.ferramentas) && contato.ferramentas.length ? contato.ferramentas : null);
   const base = TOOLS.filter((t: any) => !NAVEGA.includes(t.function.name) || (contato.pode_navegar && !grupo));
   const liberadas = lista ? base.filter((t: any) => lista.includes(t.function.name)) : base;
-  if (lista && !grupo) msgs[0].content += `\n\nACESSO RESTRITO: ${contato.nome} só pode consultar: ${lista.join(", ")}. Sobre qualquer outro assunto do sistema (outros CNPJs, NAFS, salários etc.), diga educadamente que essa informação não está liberada para ela/ele.`;
+  // v10 (cache): instruções fixas primeiro; o que muda vai numa mensagem de sistema depois do histórico, antes da pergunta
+  const msgs: any[] = [{ role: "system", content: FIXO }];
+  (hist || []).reverse().forEach((h: any) => h.texto && msgs.push({ role: h.direcao === "entrada" ? "user" : "assistant", content: h.texto.replace(ASSINA, "") }));
+  if (msgs.length > 1 && msgs[msgs.length - 1].role === "user" && msgs[msgs.length - 1].content === texto) msgs.pop();
+  let varia = `Hoje é ${dbr(hojeBahia())}. Está falando com ${contato.nome}.`;
+  if (grupo) varia += "\nATENÇÃO: você está num GRUPO. NUNCA fale de valores, financeiro, pagamentos ou saldos aqui — se perguntarem, diga que isso você só responde no privado.";
+  if (lista && !grupo) varia += `\nACESSO RESTRITO: ${contato.nome} só pode consultar: ${lista.join(", ")}. Sobre qualquer outro assunto do sistema (outros CNPJs, NAFS, salários etc.), diga educadamente que essa informação não está liberada para ela/ele.`;
+  varia += `\n\nREGRAS APRENDIDAS:\n${await regras()}`;
+  msgs.push({ role: "system", content: varia }, { role: "user", content: texto });
+  const ctx = { chat, quem: contato.nome, pergunta: texto };
+  let usouFerramenta = false;
   for (let i = 0; i < 6; i++) {
-    const m = await ia(msgs, liberadas);
-    if (!m?.tool_calls?.length) return String(m?.content || "Não entendi. Pode repetir?");
+    const m = await ia(msgs, liberadas, false, MODELO_CONVERSA, ctx);
+    if (!m?.tool_calls?.length) {
+      const resp = String(m?.content || "Não entendi. Pode repetir?");
+      // v10: o Vini anota os próprios deslizes para a equipe técnica corrigir
+      if (!usouFerramenta && /\b(lancei|lançad[oa]s?|registrei|gravei|atualizei|cadastrei|enviei|marquei|preenchi|corrigi)\b/i.test(resp)) await erro("disse_sem_fazer", { ...ctx, detalhe: resp });
+      if ((resp.match(PALAVRAS_EN) || []).length >= 4) await erro("rascunho_ingles", { ...ctx, detalhe: resp });
+      return resp;
+    }
     msgs.push(m);
-    for (const tc of m.tool_calls) { let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ } msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(!liberadas.some((t: any) => t.function.name === tc.function.name) ? { erro: "não liberado para este contato" } : NAVEGA.includes(tc.function.name) ? await navegar(tc.function.name, a, { chat, contato }) : await ferramenta(tc.function.name, a)).slice(0, 12000) }); }
+    for (const tc of m.tool_calls) {
+      let a = {}; try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* */ }
+      usouFerramenta = true;
+      let res: any;
+      if (!liberadas.some((t: any) => t.function.name === tc.function.name)) res = { erro: "não liberado para este contato" };
+      else {
+        try { res = NAVEGA.includes(tc.function.name) ? await navegar(tc.function.name, a, { chat, contato }) : await ferramenta(tc.function.name, a); }
+        catch (e) { res = { erro: "a consulta falhou" }; await erro("ferramenta_falhou", { ...ctx, ferramenta: tc.function.name, detalhe: `${(e as Error).message} | args: ${JSON.stringify(a).slice(0, 300)}` }); }
+        if (res && !Array.isArray(res) && res.erro && !String(res.erro).startsWith("não liberado")) await erro("ferramenta_erro", { ...ctx, ferramenta: tc.function.name, detalhe: `${res.erro} | args: ${JSON.stringify(a).slice(0, 300)}` });
+      }
+      msgs.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(res).slice(0, 12000) });
+    }
   }
+  await erro("ferramenta_erro", { ...ctx, detalhe: "não fechou a resposta em 6 rodadas" });
   return "Não consegui fechar a resposta. Pode perguntar de outro jeito?";
 }
 
@@ -435,7 +476,7 @@ O QUE VOCE SABE FAZER: (a) lancar a producao num plantao da escala (precisa de u
 REGRAS APRENDIDAS: ${rg}
 Se a RESPOSTA nao tem nada a ver com a pergunta (a pessoa mudou de assunto), use "acao":"outro_assunto".
 Responda SOMENTE JSON: {"acao":"lancar|ignorar|nao_sei|outro_assunto","dia_id":"id da lista ou null","data":"AAAA-MM-DD ou null","hospital":"","regra":"se a resposta ensina algo que vale para os proximos documentos, escreva a regra geral (como reconhecer + o que fazer); senao vazio","resposta":"frase curta para a pessoa"}`;
-  const m = await ia([{ role: "user", content: prompt }], undefined, true);
+  const m = await ia([{ role: "user", content: prompt }], undefined, true, MODELO_CONVERSA, { chat, quem: contato.nome, pergunta: texto });
   let r: any = {}; try { r = JSON.parse(String(m?.content || "{}")); } catch { r = { acao: "nao_sei" }; }
   const agora = new Date().toISOString();
   if (r.acao === "outro_assunto" && !deRenato) return [await conversa(chat, contato, texto, false) + `\n\n_(Ainda espero sua resposta sobre a dúvida #${dv.id}.)_`];
@@ -570,7 +611,7 @@ Deno.serve(async (req) => {
     }
     if (b.acao === "entrada") {
       let resp: string[] = [];
-      try { resp = await entrada(b); } catch (e) { resp = ["Tive um problema aqui e não consegui responder agora. O erro ficou registrado no sistema."]; await sb.from("vini_status").update({ erro: String((e as Error).message).slice(0, 300) }).eq("id", 1); }
+      try { resp = await entrada(b); } catch (e) { resp = ["Tive um problema aqui e não consegui responder agora. O erro ficou registrado e a equipe técnica vai ver."]; await sb.from("vini_status").update({ erro: String((e as Error).message).slice(0, 300) }).eq("id", 1); await erro(/^IA:/.test((e as Error).message) ? "ia_falhou" : "ferramenta_falhou", { chat: b.chat, quem: b.autor_nome || b.autor, pergunta: b.texto, detalhe: (e as Error).stack || (e as Error).message }); }
       for (const t of resp) await log("saida", String(b.chat), t);
       return J({ ok: true, responder: resp.map((t) => t + ASSINA) });
     }
