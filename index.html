@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v134">
+<meta name="rf-versao" content="v135">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -75,6 +75,10 @@
   .ob-cons td{background:#e9f8f0}body[data-tema="escuro"] .ob-cons td{background:#0d2a20}
   .d-cons{background:#13b981;color:#fff}
   .nt-box{border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}.nt-ok{background:#e6f7f1;border:1px solid #13b981}.nt-nao{background:#fff6e0;border:1px solid #f0b429}
+  .rw-p{display:flex;gap:8px;align-items:center;margin:14px 0 6px;font-size:15px}.rw-g{display:flex;gap:8px;flex-wrap:wrap}
+  .rw-chip{border:1px solid var(--linha,#d8dee8);background:var(--card,#fff);border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit;text-align:left;color:inherit}
+  .rw-chip small{display:block;font-size:11.5px;color:var(--fraco)}.rw-chip.on{border-color:#00b8d9;background:linear-gradient(120deg,rgba(19,185,129,.14),rgba(10,108,240,.12));font-weight:700}
+  .rw-big{flex:1;min-width:160px;border:0;border-radius:12px;padding:14px;font:inherit;font-size:17px;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(120deg,#13b981,#00b8d9,#0a6cf0)}.rw-big small{display:block;font-size:12px;font-weight:500;opacity:.9}
   .ob-dest{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
   .ob-dest.ob-filon{outline:2px solid var(--mr-turq)}
   .d-obra{background:#e6f7f1;color:#0d6b4d}.d-pes{background:#efeaff;color:#4b2a9e}.d-cnpj{background:#e7f0fb;color:#1d4f8a}.d-nada{background:var(--btg);color:var(--fraco)}.d-ja{background:#fff3d6;color:#8a5a00}
@@ -243,7 +247,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v134',
+  versao : 'v135',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -5979,6 +5983,7 @@ function telaTerceirizados(){   // v86: painel com 2 botões — Saldo terceiriz
   const T = prodSomar(escDoMes().filter(d=>escTrabalho(d) && d.anestesista_id));
   return '<div class="secao"><b>TERCEIRIZADO · '+esc(escGrupo())+'</b><span>'+escMesNome(S.mes)+'</span></div><div class="bxs">'+
     (veAba('saldo') ? saldoBotao(desc) : '')+
+    '<button type="button" class="bx" onclick="relAssistente()"><div class="ic">📄</div><div><b>Relatórios</b><small>Pagamentos ou produção de cada terceirizado — em PDF ou Excel</small></div><span class="seta">›</span></button>'+
     (veAba('prodgrupo') ? cpeCaixa('prodgrupo','📊','Produção '+escGrupo(),'O que cada anestesista fez em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>') : '')+
   '</div>';
 }
@@ -6019,12 +6024,64 @@ function relPdfRodape(doc){
 }
 const relBRL = v => 'R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
+
+/* ===== v135 (Renato, 21/11/2026: "está confuso, deixa mais didático"): ASSISTENTE DE RELATÓRIOS em 4 passos.
+   1) Qual relatório (Pagamentos = saldo terceirizado · Produção = o que cada um fez)  2) De quem (Todos ou um terceirizado, numa lista)
+   3) Período (atalhos)  4) Formato (PDF para imprimir/mandar · Excel para mexer). Mostra a frase "Vai sair: …" antes de gerar. */
+function mesISO(d){ return d.toISOString().slice(0,7); }
+function relW(){ return S.relW || (S.relW = { qual:'pag', quem:'', per:'mes', mes: mesHoje(), de:'', ate:'' }); }
+function relPessoas(){
+  const w = relW();
+  if(w.qual==='pag'){ const g = {}; (saldoPronto()?saldoCiclo().lista:[]).filter(m=>m.tipo==='saida' && m.recebedor).forEach(m=>{ const k = m.recebedor; (g[k] = g[k] || { nome:k, n:0, v:0 }); g[k].n++; g[k].v += Math.abs(+m.valor||0); });
+    return Object.values(g).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(x=>({ id:x.nome, nome:x.nome, sub: x.n+' pagamento(s) · '+brl(x.v) })); }
+  const mes = w.mes || S.mes, g = {};
+  S.esc.dias.filter(d=>String(d.data).slice(0,7)===mes && escTrabalho(d) && d.anestesista_id).forEach(d=>{ g[d.anestesista_id] = (g[d.anestesista_id]||0)+1; });
+  return S.esc.anes.filter(a=>g[a.id]).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')).map(a=>({ id:a.id, nome:a.nome, sub: g[a.id]+' atendimento(s)' }));
+}
+function relPeriodo(){
+  const w = relW(), h = new Date(), ini = d=>d.toISOString().slice(0,10);
+  if(w.qual==='prod') return { de: w.mes+'-01', ate: w.mes+'-31', txt: escMesNome(w.mes) };
+  if(w.per==='mes'){ const d0 = new Date(h.getFullYear(), h.getMonth(), 1); return { de: ini(d0), ate: hojeISO(), txt:'este mês' }; }
+  if(w.per==='ant'){ const d0 = new Date(h.getFullYear(), h.getMonth()-1, 1), d1 = new Date(h.getFullYear(), h.getMonth(), 0); return { de: ini(d0), ate: ini(d1), txt:'mês passado' }; }
+  if(w.per==='tudo'){ const c = saldoPronto()?saldoCiclo():{}; return { de:'', ate:'', txt:'desde a partida'+(c.inicio?' ('+dataBR(c.inicio)+')':'') }; }
+  return { de: w.de, ate: w.ate, txt: (w.de?dataBR(w.de):'início')+' a '+(w.ate?dataBR(w.ate):'hoje') };
+}
+function relAssistente(qual){
+  const w = relW(); if(qual) { w.qual = qual; w.quem = ''; }
+  if(w.qual==='pag' && !saldoPronto()){ saldoCarregar().then(()=>relAssistente()).catch(e=>aviso('Não abriu o saldo: '+e.message,'erro')); return; }
+  const chip = (on, txt, js, sub) => '<button type="button" class="rw-chip'+(on?' on':'')+'" onclick="'+js+';relAssistente()">'+txt+(sub?'<small>'+sub+'</small>':'')+'</button>';
+  const pes = relPessoas(), per = relPeriodo(), nomeQuem = w.quem ? ((pes.find(x=>x.id===w.quem)||{}).nome || w.quem) : 'todos os terceirizados';
+  let h = '<h2>📄 Relatórios do Terceirizado</h2>';
+  h += '<div class="rw-p"><span class="ob-num">1</span><b>Qual relatório?</b></div><div class="rw-g">'+
+    chip(w.qual==='pag','💵 Pagamentos',"S.relW.qual='pag';S.relW.quem=''",'o que foi pago a cada um (saldo)')+
+    chip(w.qual==='prod','📊 Produção',"S.relW.qual='prod';S.relW.quem=''",'o que cada um fez no mês')+'</div>';
+  h += '<div class="rw-p"><span class="ob-num">2</span><b>De quem?</b></div><div class="rw-g">'+chip(!w.quem,'👥 Todos',"S.relW.quem=''")+
+    (pes.length ? pes.map(x=>chip(w.quem===x.id,'👤 '+esc(x.nome),"S.relW.quem='"+String(x.id).replace(/'/g,"\\'")+"'",x.sub)).join('') : '<span style="color:var(--fraco)">ninguém neste período</span>')+'</div>';
+  h += '<div class="rw-p"><span class="ob-num">3</span><b>De quando?</b></div><div class="rw-g">'+
+    (w.qual==='prod'
+      ? '<input type="month" value="'+w.mes+'" onchange="S.relW.mes=this.value;S.relW.quem=\'\';relAssistente()" style="max-width:200px">'
+      : chip(w.per==='mes','Este mês',"S.relW.per='mes'")+chip(w.per==='ant','Mês passado',"S.relW.per='ant'")+chip(w.per==='tudo','Desde a partida',"S.relW.per='tudo'")+chip(w.per==='esc','Escolher datas',"S.relW.per='esc'")+
+        (w.per==='esc' ? '<div class="lin" style="width:100%"><div><label>De</label><input type="date" value="'+(w.de||'')+'" onchange="S.relW.de=this.value;relAssistente()"></div><div><label>Até</label><input type="date" value="'+(w.ate||'')+'" onchange="S.relW.ate=this.value;relAssistente()"></div></div>' : ''))+'</div>';
+  h += '<div class="aviso" style="margin-top:12px">📝 Vai sair: <b>'+(w.qual==='pag'?'Pagamentos':'Produção')+'</b> de <b>'+esc(nomeQuem)+'</b> · <b>'+esc(per.txt)+'</b></div>';
+  h += '<div class="rw-p"><span class="ob-num">4</span><b>Em qual formato?</b></div><div class="rw-g">'+
+    '<button type="button" class="rw-big" onclick="relAssistenteGerar(\'pdf\')">📄 PDF<small>para imprimir ou mandar</small></button>'+
+    '<button type="button" class="rw-big" onclick="relAssistenteGerar(\'xlsx\')">📊 Excel<small>para mexer na planilha</small></button></div>'+
+    '<div style="margin-top:14px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>';
+  abrirModal(h);
+}
+async function relAssistenteGerar(tipo){
+  const w = relW(), per = relPeriodo();
+  if(w.qual==='pag'){ S.relSaldo = { de: per.de, ate: per.ate, quem: w.quem }; return relSaldoGerar(tipo, true); }
+  const mesAnt = S.mes, prodAnt = Object.assign({}, S.prod);
+  S.mes = w.mes; S.prod.anes = w.quem; S.prod.hosp = '';
+  try{ await relProdGerar(tipo); } finally { S.mes = mesAnt; S.prod = prodAnt; }
+}
 /* ---------- Saldo terceirizado ---------- */
 S.relSaldo = S.relSaldo || { de:'', ate:'', quem:'' };
 function relSaldoFiltro(){
   const c = saldoCiclo(), f = S.relSaldo, q = permNorm(f.quem||'').toUpperCase();
   const linhas = c.lista.filter(m=>(!f.de || String(m.data)>=f.de) && (!f.ate || String(m.data)<=f.ate) &&
-    (!q || permNorm((m.recebedor||'')+' '+(m.pagador||'')+' '+(m.descricao||'')).toUpperCase().indexOf(q)>=0));
+    (!q || (m.recebedor===f.quem) || permNorm((m.recebedor||'')+' '+(m.pagador||'')+' '+(m.descricao||'')).toUpperCase().indexOf(q)>=0) && (!q || m.tipo==='saida' || !f.quem));
   return { c, linhas };
 }
 const SALDO_TIPO = { partida:'Partida', aporte:'Aporte', entrada:'Entrada', saida:'Saída', ajuste:'Ajuste' };
@@ -6035,8 +6092,8 @@ function relSaldoAbrir(){
     '<label>Recebedor / anestesista (opcional)</label><input id="rs-quem" value="'+esc(S.relSaldo.quem||'')+'" placeholder="ex.: Leonardo">'+
     '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="bt" onclick="relSaldoGerar(\'pdf\')">📄 Gerar PDF</button><button class="bt" onclick="relSaldoGerar(\'xlsx\')">📊 Gerar Excel</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
 }
-async function relSaldoGerar(tipo){
-  S.relSaldo = { de: val('rs-de'), ate: val('rs-ate'), quem: val('rs-quem').trim() };
+async function relSaldoGerar(tipo, pronto){
+  if(!pronto) S.relSaldo = { de: val('rs-de'), ate: val('rs-ate'), quem: val('rs-quem').trim() };
   const { c, linhas } = relSaldoFiltro(); if(!linhas.length) return aviso('Nada nesse filtro.','erro');
   const saidas = linhas.filter(m=>m.tipo==='saida'), soma = l=>l.reduce((s,m)=>s+Math.abs(+m.valor||0),0);
   const per = (S.relSaldo.de?dataBR(S.relSaldo.de):(c.inicio?dataBR(c.inicio):'início'))+' a '+(S.relSaldo.ate?dataBR(S.relSaldo.ate):dataBR(hojeISO()));
@@ -6048,8 +6105,8 @@ async function relSaldoGerar(tipo){
       await fichXlsxLib();
       const rows = [['Data','Hora','Tipo','Quem (recebedor/pagador)','Documento','Descrição','ID da transação','Valor','Saldo após']]
         .concat(linhas.map(m=>[relSerie(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), (m.tipo==='saida'?m.recebedor_doc:m.pagador_doc)||'', m.descricao||'', m.id_transacao||'', saldoSinal(m), m._saldo]));
-      rows.push([]); rows.push(['','','','Valor de partida','','','',c.partida]); rows.push(['','','','Aportes e entradas','','','',c.mais]);
-      rows.push(['','','','Saídas no período ('+saidas.length+')','','','',-soma(saidas)]); rows.push(['','','','SALDO ATUAL','','','',c.saldo]);
+      rows.push([]); if(S.relSaldo.quem) rows.push(['','','','Total pago a '+S.relSaldo.quem+' no período','','','',-soma(saidas)]); else { rows.push(['','','','Valor de partida','','','',c.partida]); rows.push(['','','','Aportes e entradas','','','',c.mais]);
+      rows.push(['','','','Saídas no período ('+saidas.length+')','','','',-soma(saidas)]); rows.push(['','','','SALDO ATUAL','','','',c.saldo]); }
       const ws = XLSX.utils.aoa_to_sheet(rows);
       for(let r=1;r<rows.length;r++){ const a = ws['A'+(r+1)]; if(a && a.t==='n') a.z='dd/mm/yyyy'; ['H','I'].forEach(k=>{ const x = ws[k+(r+1)]; if(x && x.t==='n') x.z='"R$" #,##0.00;[Red]-"R$" #,##0.00'; }); }
       ws['!cols'] = [11,7,9,34,22,36,36,14,14].map(w=>({wch:w})); ws['!autofilter'] = { ref:'A1:I'+(linhas.length+1) };
@@ -6058,7 +6115,8 @@ async function relSaldoGerar(tipo){
     } else {
       await relPdfLib();
       const doc = relPdfNovo('Saldo terceirizado · '+escGrupo(), 'Período: '+per+(S.relSaldo.quem?' · Recebedor: '+S.relSaldo.quem:''), true);
-      doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:10 }, body:[['Valor de partida', relBRL(c.partida), 'Aportes e entradas', relBRL(c.mais), 'Saídas no período ('+saidas.length+')', '- '+relBRL(soma(saidas)), 'SALDO ATUAL', relBRL(c.saldo)]],
+      if(S.relSaldo.quem) doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:11 }, body:[['Total pago a '+S.relSaldo.quem+' no período ('+saidas.length+' pagamento'+(saidas.length===1?'':'s')+')', relBRL(soma(saidas))]], columnStyles:{ 1:{fontStyle:'bold', textColor:[10,108,240]} } });
+      else doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:10 }, body:[['Valor de partida', relBRL(c.partida), 'Aportes e entradas', relBRL(c.mais), 'Saídas no período ('+saidas.length+')', '- '+relBRL(soma(saidas)), 'SALDO ATUAL', relBRL(c.saldo)]],
         columnStyles:{ 1:{fontStyle:'bold'}, 3:{fontStyle:'bold'}, 5:{fontStyle:'bold', textColor:[200,40,40]}, 7:{fontStyle:'bold', textColor: c.saldo>=0?[13,140,90]:[200,40,40]} } });
       doc.autoTable({ startY: doc.lastAutoTable.finalY+3, head:[['Data','Hora','Tipo','Quem','Descrição','ID da transação','Valor','Saldo após']],
         body: linhas.map(m=>[dataBR(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), String(m.descricao||'').slice(0,60), m.id_transacao||'', (saldoSinal(m)<0?'- ':'+ ')+relBRL(Math.abs(saldoSinal(m))), relBRL(m._saldo)]),
@@ -6124,7 +6182,7 @@ function telaProdGrupo(){
   '<div class="kpis">'+kpi('Atendimentos', T.n)+kpi('Validados', T.val+' de '+T.n)+kpi('Produzido (validado)', brl(T.total))+
     kpi('Já pago', brl(T.pago))+kpi('A pagar', brl(T.total-T.pago))+kpi('Aguardando validação', T.pend+(T.aguard?' · '+brl(T.aguard):''))+'</div>'+
   '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Só entra em "Produzido" o atendimento que o anestesista validou (e a equipe aprovou, quando foi ele quem lançou). O que ainda espera validação aparece à parte.</div>'+
-    '<div class="acoes" style="margin-top:10px"><button class="bt g" onclick="relProdGerar(\'pdf\')">📄 Relatório PDF</button><button class="bt g" onclick="relProdGerar(\'xlsx\')">📊 Excel</button></div></div>';
+    '<div class="acoes" style="margin-top:10px"><button class="bt" onclick="S.relW=Object.assign(relW(),{qual:\'prod\',mes:S.mes,quem:S.prod.anes||\'\'});relAssistente()">📄 Relatórios (PDF / Excel)</button></div></div>';
   if(!lista.length) return h+'<div class="vazio">Nenhum atendimento com anestesista em '+escMesNome(S.mes)+(S.prod.anes||S.prod.hosp?' com esse filtro':'')+'.</div>';
   // por anestesista
   const g = {}; lista.forEach(d=>{ (g[d.anestesista_id] = g[d.anestesista_id] || []).push(d); });
@@ -6217,7 +6275,7 @@ function telaSaldo(){
       (c.saldo<0 ? '<b style="color:var(--vermelho)">Saldo negativo — gastou mais do que o valor de partida.</b>' : pct.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% do valor ainda disponível')+'</div></div>'+
   (!podeEditarSaldo() ? '' : '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
     '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>');
-  h += '<div class="acoes"><button class="bt g" onclick="relSaldoAbrir()">📄 Relatório PDF / 📊 Excel</button></div>';   // v134
+  h += '<div class="acoes"><button class="bt" onclick="relAssistente(\'pag\')">📄 Relatórios (PDF / Excel)</button></div>';   // v134
   h += '<div class="card"><h3>MOVIMENTOS</h3>'+ c.lista.slice().reverse().map(saldoLinha).join('')+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Toque num movimento para ver o comprovante, corrigir ou excluir. O mesmo comprovante não entra duas vezes (o sistema confere o ID da transação).</div></div>';
   if(c.ant.length) h += '<div class="card"><h3 style="cursor:pointer" onclick="S.saldo.verAnt=!S.saldo.verAnt;render()">'+(S.saldo.verAnt?'▲':'▼')+' SALDOS ANTERIORES ('+c.ant.length+' movimento'+(c.ant.length===1?'':'s')+')</h3>'+
