@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v127">
+<meta name="rf-versao" content="v128">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -240,7 +240,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v127',
+  versao : 'v128',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -471,7 +471,10 @@ function veSub(g, k){   // v86: 'prodgrupo' (tela Produção NAFS) segue a marca
 function veGrupo(g){ if(papel()==='mestre') return true; const a = minhasAbas(); if(!a) return true; return a.indexOf(g)>=0 || a.some(x=>x.indexOf(g+':')===0); }
 /* v127 (Renato, 21/11/2026): Cartões e compras só para Renato, Vinicius e Neuza ("tira Carol"). */
 const ORIGENS_IDS = ['2b001670-3aae-4655-9278-5f35bff4cee5','33cbfca4-e51e-452d-8535-fd2485cb70b9','8bf230df-942c-4338-8fa7-d6cf67876576'];
-function veCartoes(){ return !!(S.user && ORIGENS_IDS.indexOf(S.user.id)>=0); }
+/* v128 (Renato, 21/11/2026): a Carol (Carolina Moreira) só VÊ Cartões e compras — não altera nada. */
+const ORIGENS_SO_VER = ['90f0c975-8a8d-4fb0-97d6-247fdf979799'];
+function veCartoes(){ return !!(S.user && (ORIGENS_IDS.indexOf(S.user.id)>=0 || ORIGENS_SO_VER.indexOf(S.user.id)>=0)); }
+function cartoesEdita(){ return !!(S.user && ORIGENS_IDS.indexOf(S.user.id)>=0) && podeEditar(); }
 function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true;
   if(k==='nafs' || k==='anestesia') return veGrupo(k);
   if(SUB_GRUPO.indexOf(k)>=0) return veSub(escGrupo().toLowerCase(), k);
@@ -1004,7 +1007,7 @@ function telaOrigens(){
   h += '<div class="card"><h3>CONTAS E CAIXAS</h3>'+
     '<div class="aviso">As origens nascem conforme aparecem no extrato — não precisa cadastrar antes. '+
     'Podem ser de terceiros (familiares), e é por elas que se descobre quem pagou.</div>'+
-    (podeEditar()? '<button class="bt" onclick="abrirOrigem()">+ Nova origem</button> '+
+    (cartoesEdita()? '<button class="bt" onclick="abrirOrigem()">+ Nova origem</button> '+
       '<button class="bt g" onclick="abrirExtrato()">📎 Importar extrato</button>':'');
   if(!S.origens.length) return h+'<div class="vazio">Nenhuma origem ainda.</div></div>';
   h += '<table style="margin-top:12px"><thead><tr><th>Nome</th><th>Tipo</th><th>Banco</th><th>Final / conta</th><th>Titular</th>'+
@@ -1012,7 +1015,7 @@ function telaOrigens(){
     S.origens.map(o=>'<tr><td><b>'+esc(o.nome)+'</b></td><td>'+esc(o.tipo||'')+'</td><td>'+esc(cartaoBanco(o)||'—')+'</td>'+
       '<td>'+esc(o.identificador||'—')+'</td><td>'+esc(o.titular||'—')+'</td>'+
       '<td>'+(o.empresa_id? esc(nomeEmpresa(o.empresa_id)) : '—')+'</td>'+
-      '<td>'+(podeEditar()? '<button class="bt g mini" onclick="abrirOrigem(\''+o.id+'\')">editar</button>':'')+'</td></tr>').join('')+
+      '<td>'+(cartoesEdita()? '<button class="bt g mini" onclick="abrirOrigem(\''+o.id+'\')">editar</button>':'')+'</td></tr>').join('')+
     '</tbody></table></div>';
   return h;
 }
@@ -4665,7 +4668,7 @@ function obraAbas(cards){
       '<span class="ob-bco">'+(bco ? esc(bco) : '<span style="color:#d97706">banco ?</span>')+(o.identificador ? ' · final '+esc(o.identificador) : '')+'</span>', esc(sub), S.idad.obraAba===o.id);
   });
   h += ab('lista','🏦 Contas e caixas','cadastro de todas as origens',S.idad.obraAba==='lista');
-  if(podeEditar()) h += '<div class="ob-aba ob-mais" onclick="obraCartoesEditar()">＋ Cartão<small>incluir / tirar / banco</small></div>';
+  if(cartoesEdita()) h += '<div class="ob-aba ob-mais" onclick="obraCartoesEditar()">＋ Cartão<small>incluir / tirar / banco</small></div>';
   return h+'</div>';
 }
 function obraIrAba(id){ S.idad.obraAba = id; S.idad.obraSel = {}; S.idad.obraFat = null; S.idad.obraFil = 'sem'; render(); }
@@ -4688,14 +4691,15 @@ function obraCartaoTela(o){
     (venc ? '<span class="ob-tag er">vencida</span>' : '')+
     '<span style="flex:1"></span>'+
     (fat && fat.pdf_path ? '<button class="bt g" onclick="verAnexo(\''+fat.pdf_path+'\')">📎 PDF da fatura</button>' : '')+
-    (podeEditar() ? '<button class="bt" onclick="obraImportarFatura(\''+o.id+'\')">⬆ Importar fatura</button>' : '')+
+    (cartoesEdita() ? '<button class="bt" onclick="obraImportarFatura(\''+o.id+'\')">⬆ Importar fatura</button>' : '')+
     '</div>';
+  if(!cartoesEdita()) h += '<div class="aviso" style="margin-bottom:10px">👁️ <b>Só visualização</b> — você pode ver os cartões e as compras, mas não pode alterar nada.</div>';
   if(!todas.length) return h+'<div class="vazio">Nenhuma compra deste cartão ainda. Toque em <b>Importar fatura</b> (PDF do banco) ou mande o PDF para o Vini no WhatsApp.</div>';
   const fil = S.idad.obraFil || 'sem', cont = k => daFat.filter(m=>obraDestino(m).k===k).length;
   const lista = daFat.filter(m=>fil==='dir' ? obraDestino(m).k!=='sem' : obraDestino(m).k==='sem')   // v127: compra direcionada sai do cartão e vai para o destino.sort((a,b)=>String(a.data_movimento).localeCompare(String(b.data_movimento)));
   const sel = S.idad.obraSel || (S.idad.obraSel = {}), nSel = Object.keys(sel).filter(id=>sel[id] && lista.some(m=>m.id===id));
   const vSel = nSel.reduce((s,id)=>{ const m = todas.find(x=>x.id===id); return s+(m? (m.tipo==='entrada'?-1:1)*(+m.valor||0):0); },0);
-  if(podeEditar()){
+  if(cartoesEdita()){
     const areas = pesMinhas(), dono = obraDonoArea(o);
     const dis = nSel.length ? '' : ' disabled';
     h += '<div class="ob-barra ob-2p'+(nSel.length?'':' off')+'"><div class="ob-2t"><b>'+(nSel.length? nSel.length+' compra(s) marcada(s) · '+brl(vSel) : 'Marque as compras na lista')+'</b></div>'+
@@ -4718,10 +4722,10 @@ function obraCartaoTela(o){
       '<span>Compra direcionada sai daqui e aparece no destino (Obra do IDAD, CNPJ ou Pessoal).</span>'+
     '</div>'+
     '<table><thead><tr>'+
-    (podeEditar()?'<th style="width:34px"><input type="checkbox" class="ob-cx"'+(todosMarc?' checked':'')+' onchange="obraMarcarTodas(this.checked)" title="Marcar todas da lista"></th>':'')+
+    (cartoesEdita()?'<th style="width:34px"><input type="checkbox" class="ob-cx"'+(todosMarc?' checked':'')+' onchange="obraMarcarTodas(this.checked)" title="Marcar todas da lista"></th>':'')+
     '<th>Data</th><th>Compra</th><th>Parcela</th><th style="text-align:right">Valor</th><th>Vai para</th></tr></thead><tbody>'+
     (lista.length ? lista.map(m=>{ const d = obraDestino(m), on = !!sel[m.id];
-      return '<tr'+(on?' class="ob-on"':'')+'>'+(podeEditar()?'<td><input type="checkbox" class="ob-cx"'+(on?' checked':'')+' onchange="obraMarcar(\''+m.id+'\',this.checked)"></td>':'')+
+      return '<tr'+(on?' class="ob-on"':'')+'>'+(cartoesEdita()?'<td><input type="checkbox" class="ob-cx"'+(on?' checked':'')+' onchange="obraMarcar(\''+m.id+'\',this.checked)"></td>':'')+
         '<td style="white-space:nowrap">'+dataBR(m.data_movimento).slice(0,5)+'</td><td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.fornecedor && m.descricao && m.descricao!==m.fornecedor?'<br><small style="color:var(--fraco)">'+esc(String(m.descricao).slice(0,70))+'</small>':'')+'</td>'+
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
@@ -4748,7 +4752,7 @@ function obraAplicar(){   // v126: 1) de quem é o dinheiro  2) para quem foi o 
   const [k, alvo] = g.split(':'); obraDirecionar(k, alvo || null, din);
 }
 async function obraDirecionar(dest, alvo, dinheiro){
-  if(!podeEditar()) return;
+  if(!cartoesEdita()) return;
   const o = obraCartoes().find(x=>x.id===S.idad.obraAba), ids = Object.keys(S.idad.obraSel||{}).filter(k=>S.idad.obraSel[k]);
   if(!o || !ids.length) return aviso('Marque as compras primeiro.','erro');
   const ie = idadEmpresa();
