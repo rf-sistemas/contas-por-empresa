@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v132">
+<meta name="rf-versao" content="v133">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -243,7 +243,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v132',
+  versao : 'v133',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4721,7 +4721,7 @@ function obraCartaoTela(o){
         S.empresas.map(e=>'<option value="cnpj:'+e.id+'">🏢 '+esc(e.apelido||e.razao_social)+'</option>').join('')+
         '<optgroup label="Pessoal">'+areas.map(a=>'<option value="pes:'+a.dono_id+'">👤 '+(dono&&a.dono_id===dono.dono_id?'⭐ ':'')+esc(a.nome)+'</option>').join('')+'</optgroup></select></div></div>'+
       '<div class="ob-2d">Exemplo: o Vinicius pagou no cartão dele, mas o dinheiro é da <b>NAFS</b> (passo 1) e a dívida é do <b>IDAD</b> (passo 2). Se o dinheiro é do próprio dono do cartão, deixe o passo 1 como está.</div>'+
-      '<div class="ob-2b"><button class="bt"'+dis+' onclick="obraAplicar()">✔ Aplicar</button><button class="bt g"'+dis+' onclick="obraDirecionar(\'tirar\')">↩ Tirar destino</button></div></div>';
+      '<div class="ob-2b">'+(S.idad.obraDesfazer && S.idad.obraDesfazer.ate > Date.now() ? '<button class="bt g" onclick="obraDesfazer()" title="Volta as compras para onde estavam antes da última ação">⟲ Desfazer última ('+S.idad.obraDesfazer.n+' compra(s), '+S.idad.obraDesfazer.hora+')</button>' : '')+'<button class="bt"'+dis+' onclick="obraAplicar()">✔ Aplicar</button><button class="bt g"'+dis+' onclick="obraConfirmar(\'tirar\')">↩ Tirar destino</button></div></div>';
   }
   const todosMarc = lista.length && lista.every(m=>sel[m.id]);
   h += '<div class="card" style="overflow-x:auto;padding:6px 10px">'+
@@ -4760,12 +4760,50 @@ function obraMarcarTodas(on){
 function obraAplicar(){   // v126: 1) de quem é o dinheiro  2) para quem foi o gasto
   const g = val('ob-gas'), din = val('ob-din') || null;
   if(!g) return aviso('Escolha no passo 2 para quem foi o gasto.','erro');
-  const [k, alvo] = g.split(':'); obraDirecionar(k, alvo || null, din);
+  const [k, alvo] = g.split(':'); obraConfirmar(k, alvo || null, din);
+}
+
+/* ===== v133 (Renato, 21/11/2026): "esses erros temos que registrar e não deixar acontecer".
+   - Ação em lote (mais de 5 compras ou mais de R$ 5.000) pede CONFIRMAÇÃO mostrando o que vai acontecer;
+     tirar destino de compras que JÁ tinham destino pede para digitar o número de compras.
+   - Toda ação guarda o "antes" e mostra ⟲ Desfazer última por 30 min.
+   - O robô Vigia das Ações (banco) registra ação em massa como exceção e avisa o Renato pelo Vini. */
+function obraIdsMarcados(){ return Object.keys(S.idad.obraSel||{}).filter(k=>S.idad.obraSel[k]); }
+function obraConfirmar(dest, alvo, dinheiro){
+  const ids = obraIdsMarcados(); if(!ids.length) return aviso('Marque as compras primeiro.','erro');
+  const ms = ids.map(id=>S.movimentos.find(x=>x.id===id)).filter(Boolean);
+  const tot = ms.reduce((s,m)=>s+(m.tipo==='entrada'?-1:1)*(+m.valor||0),0), comDestino = ms.filter(m=>obraDestino(m).k!=='sem');
+  const para = dest==='obra' ? '🏗️ Obra do IDAD' : dest==='pes' ? '👤 Pessoal — '+pesNome(alvo) : dest==='cnpj' ? '🏢 '+nomeEmpresa(alvo) : '⏳ SEM DESTINO (volta para "A direcionar")';
+  if(ms.length <= 5 && Math.abs(tot) < 5000 && !(dest==='tirar' && comDestino.length > 1)) return obraDirecionar(dest, alvo, dinheiro);
+  const deOnde = {}; comDestino.forEach(m=>{ const k = obraDestino(m).t; deOnde[k] = (deOnde[k]||0) + 1; });
+  const forte = dest==='tirar' && comDestino.length > 5;
+  S._conf = { dest, alvo, dinheiro };
+  abrirModal('<h2>'+(forte?'⚠️ ':'')+'Confirme a ação</h2>'+
+    '<div class="aviso'+(forte?' er':'')+'" style="'+(forte?'background:#fdecec;border-color:#e5484d':'')+'"><b>'+ms.length+' compra(s) · '+brl(tot)+'</b> vão para <b>'+esc(para)+'</b>'+(dinheiro?'<br>Dinheiro de: <b>'+esc(nomeEmpresa(dinheiro))+'</b>':'')+
+    (comDestino.length ? '<br><br>Hoje estão em:<br>'+Object.entries(deOnde).map(([k,n])=>'• '+esc(k)+' — '+n).join('<br>') : '')+'</div>'+
+    (forte ? '<label style="margin-top:12px">Para confirmar, digite o número de compras ('+ms.length+')</label><input id="cf-n" inputmode="numeric" autocomplete="off">' : '')+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="obraConfirmado('+(forte?ms.length:0)+')">Sim, fazer</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+function obraConfirmado(n){
+  if(n && String(val('cf-n')).trim() !== String(n)) return aviso('O número não confere — nada foi feito.','erro');
+  const c = S._conf || {}; S.modal = null; obraDirecionar(c.dest, c.alvo, c.dinheiro);
+}
+async function obraDesfazer(){
+  const d = S.idad.obraDesfazer; if(!d) return;
+  if(!confirm('Desfazer a última ação ('+d.n+' compra(s), '+d.hora+')? Elas voltam para onde estavam.')) return;
+  let ok = 0;
+  for(const a of d.antes){
+    const r = await sb.from('movimentos').update({ empresa_id:a.empresa_id, pessoal:a.pessoal, pessoa_id:a.pessoa_id, categoria:a.categoria, dinheiro_empresa_id:a.dinheiro_empresa_id||null }).eq('id', a.id).select().maybeSingle();
+    if(!r.error && r.data){ const m = S.movimentos.find(x=>x.id===a.id); if(m) Object.assign(m, r.data); ok++; }
+  }
+  S.idad.obraDesfazer = null; aviso(ok+' compra(s) voltaram para onde estavam.','ok');
 }
 async function obraDirecionar(dest, alvo, dinheiro){
   if(!cartoesEdita()) return;
   const o = obraCartoes().find(x=>x.id===S.idad.obraAba), ids = Object.keys(S.idad.obraSel||{}).filter(k=>S.idad.obraSel[k]);
   if(!o || !ids.length) return aviso('Marque as compras primeiro.','erro');
+  S.idad.obraDesfazer = { ate: Date.now()+30*60e3, hora: new Date().toTimeString().slice(0,5), n: ids.length,
+    antes: ids.map(id=>S.movimentos.find(x=>x.id===id)).filter(Boolean).map(m=>({ id:m.id, empresa_id:m.empresa_id, pessoal:!!m.pessoal, pessoa_id:m.pessoa_id, categoria:m.categoria, dinheiro_empresa_id:m.dinheiro_empresa_id||null })) };   // v133
   const ie = idadEmpresa();
   if(dest==='obra' && !ie) return aviso('O CNPJ do IDAD não está cadastrado em Empresas.','erro');
   let ok = 0; const erros = [];
