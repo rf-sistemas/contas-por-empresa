@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v135">
+<meta name="rf-versao" content="v136">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -247,7 +247,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v135',
+  versao : 'v136',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -6062,6 +6062,7 @@ function relAssistente(qual){
       ? '<input type="month" value="'+w.mes+'" onchange="S.relW.mes=this.value;S.relW.quem=\'\';relAssistente()" style="max-width:200px">'
       : chip(w.per==='mes','Este mês',"S.relW.per='mes'")+chip(w.per==='ant','Mês passado',"S.relW.per='ant'")+chip(w.per==='tudo','Desde a partida',"S.relW.per='tudo'")+chip(w.per==='esc','Escolher datas',"S.relW.per='esc'")+
         (w.per==='esc' ? '<div class="lin" style="width:100%"><div><label>De</label><input type="date" value="'+(w.de||'')+'" onchange="S.relW.de=this.value;relAssistente()"></div><div><label>Até</label><input type="date" value="'+(w.ate||'')+'" onchange="S.relW.ate=this.value;relAssistente()"></div></div>' : ''))+'</div>';
+  if(w.qual==='pag') h += '<label style="display:flex;gap:8px;align-items:center;margin:12px 0 0;text-transform:none;font-size:13.5px"><input type="checkbox" style="width:auto"'+(w.interno?' checked':'')+' onchange="S.relW.interno=this.checked;relAssistente()"> Uso interno: mostrar o saldo da NAFS (partida e saldo após cada pagamento). <b>Deixe desmarcado para mandar ao terceirizado.</b></label>';
   h += '<div class="aviso" style="margin-top:12px">📝 Vai sair: <b>'+(w.qual==='pag'?'Pagamentos':'Produção')+'</b> de <b>'+esc(nomeQuem)+'</b> · <b>'+esc(per.txt)+'</b></div>';
   h += '<div class="rw-p"><span class="ob-num">4</span><b>Em qual formato?</b></div><div class="rw-g">'+
     '<button type="button" class="rw-big" onclick="relAssistenteGerar(\'pdf\')">📄 PDF<small>para imprimir ou mandar</small></button>'+
@@ -6071,7 +6072,7 @@ function relAssistente(qual){
 }
 async function relAssistenteGerar(tipo){
   const w = relW(), per = relPeriodo();
-  if(w.qual==='pag'){ S.relSaldo = { de: per.de, ate: per.ate, quem: w.quem }; return relSaldoGerar(tipo, true); }
+  if(w.qual==='pag'){ S.relSaldo = { de: per.de, ate: per.ate, quem: w.quem, interno: !!w.interno }; return relSaldoGerar(tipo, true); }
   const mesAnt = S.mes, prodAnt = Object.assign({}, S.prod);
   S.mes = w.mes; S.prod.anes = w.quem; S.prod.hosp = '';
   try{ await relProdGerar(tipo); } finally { S.mes = mesAnt; S.prod = prodAnt; }
@@ -6103,6 +6104,15 @@ async function relSaldoGerar(tipo, pronto){
   try{
     if(tipo==='xlsx'){
       await fichXlsxLib();
+      if(!S.relSaldo.interno){
+        const rp = [['Data','Hora','Recebedor','Documento','Descrição','ID da transação','Valor pago']].concat(saidas.map(m=>[relSerie(m.data), m.hora||'', m.recebedor||'', m.recebedor_doc||'', m.descricao||'', m.id_transacao||'', Math.abs(+m.valor||0)]));
+        rp.push([]); rp.push(['','','Total pago','','','',soma(saidas)]);
+        const wp = XLSX.utils.aoa_to_sheet(rp);
+        for(let r=1;r<rp.length;r++){ const a = wp['A'+(r+1)]; if(a && a.t==='n') a.z='dd/mm/yyyy'; const g = wp['G'+(r+1)]; if(g && g.t==='n') g.z='"R$" #,##0.00'; }
+        wp['!cols'] = [11,7,30,20,36,36,14].map(w=>({wch:w}));
+        const wbp = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wbp, wp, 'Pagamentos');
+        return await relEntregar(nome.replace('Saldo terceirizado','Pagamentos'), new Blob([XLSX.write(wbp,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'xlsx', saidas.length+' pagamento(s)');
+      }
       const rows = [['Data','Hora','Tipo','Quem (recebedor/pagador)','Documento','Descrição','ID da transação','Valor','Saldo após']]
         .concat(linhas.map(m=>[relSerie(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), (m.tipo==='saida'?m.recebedor_doc:m.pagador_doc)||'', m.descricao||'', m.id_transacao||'', saldoSinal(m), m._saldo]));
       rows.push([]); if(S.relSaldo.quem) rows.push(['','','','Total pago a '+S.relSaldo.quem+' no período','','','',-soma(saidas)]); else { rows.push(['','','','Valor de partida','','','',c.partida]); rows.push(['','','','Aportes e entradas','','','',c.mais]);
@@ -6114,16 +6124,19 @@ async function relSaldoGerar(tipo, pronto){
       await relEntregar(nome, new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'xlsx', linhas.length+' movimento(s)');
     } else {
       await relPdfLib();
-      const doc = relPdfNovo('Saldo terceirizado · '+escGrupo(), 'Período: '+per+(S.relSaldo.quem?' · Recebedor: '+S.relSaldo.quem:''), true);
-      if(S.relSaldo.quem) doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:11 }, body:[['Total pago a '+S.relSaldo.quem+' no período ('+saidas.length+' pagamento'+(saidas.length===1?'':'s')+')', relBRL(soma(saidas))]], columnStyles:{ 1:{fontStyle:'bold', textColor:[10,108,240]} } });
+      const doc = relPdfNovo((S.relSaldo.interno?'Saldo terceirizado · ':'Pagamentos · ')+escGrupo(), 'Período: '+per+(S.relSaldo.quem?' · Recebedor: '+S.relSaldo.quem:''), true);
+      const INT = !!S.relSaldo.interno;
+      if(!INT || S.relSaldo.quem) doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:11 }, body:[['Total pago'+(S.relSaldo.quem?' a '+S.relSaldo.quem:'')+' no período ('+saidas.length+' pagamento'+(saidas.length===1?'':'s')+')', relBRL(soma(saidas))]], columnStyles:{ 1:{fontStyle:'bold', textColor:[10,108,240]} } });
       else doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:10 }, body:[['Valor de partida', relBRL(c.partida), 'Aportes e entradas', relBRL(c.mais), 'Saídas no período ('+saidas.length+')', '- '+relBRL(soma(saidas)), 'SALDO ATUAL', relBRL(c.saldo)]],
         columnStyles:{ 1:{fontStyle:'bold'}, 3:{fontStyle:'bold'}, 5:{fontStyle:'bold', textColor:[200,40,40]}, 7:{fontStyle:'bold', textColor: c.saldo>=0?[13,140,90]:[200,40,40]} } });
-      doc.autoTable({ startY: doc.lastAutoTable.finalY+3, head:[['Data','Hora','Tipo','Quem','Descrição','ID da transação','Valor','Saldo após']],
-        body: linhas.map(m=>[dataBR(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), String(m.descricao||'').slice(0,60), m.id_transacao||'', (saldoSinal(m)<0?'- ':'+ ')+relBRL(Math.abs(saldoSinal(m))), relBRL(m._saldo)]),
+      const LP = INT ? linhas : saidas;   // para o terceirizado: só os pagamentos, sem partida e sem saldo
+      doc.autoTable({ startY: doc.lastAutoTable.finalY+3, head:[INT?['Data','Hora','Tipo','Quem','Descrição','ID da transação','Valor','Saldo após']:['Data','Hora','Recebedor','Descrição','ID da transação','Valor pago']],
+        body: LP.map(m=>INT?[dataBR(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), String(m.descricao||'').slice(0,60), m.id_transacao||'', (saldoSinal(m)<0?'- ':'+ ')+relBRL(Math.abs(saldoSinal(m))), relBRL(m._saldo)]
+                                 :[dataBR(m.data), m.hora||'', quem(m), String(m.descricao||'').slice(0,60), m.id_transacao||'', relBRL(Math.abs(+m.valor||0))]),
         styles:{ fontSize:8.2, cellPadding:1.6 }, headStyles:{ fillColor:[10,108,240] }, alternateRowStyles:{ fillColor:[244,248,252] },
-        columnStyles:{ 6:{halign:'right'}, 7:{halign:'right', fontStyle:'bold'}, 5:{fontSize:6.8} } });
+        columnStyles: INT ? { 6:{halign:'right'}, 7:{halign:'right', fontStyle:'bold'}, 5:{fontSize:6.8} } : { 5:{halign:'right', fontStyle:'bold'}, 4:{fontSize:6.8} } });
       relPdfRodape(doc);
-      await relEntregar(nome, doc.output('blob'), 'pdf', linhas.length+' movimento(s)');
+      await relEntregar(INT?nome:nome.replace('Saldo terceirizado','Pagamentos'), doc.output('blob'), 'pdf', (INT?linhas.length+' movimento(s)':saidas.length+' pagamento(s)'));
     }
   }catch(e){ aviso('Não gerou: '+(e.message||e),'erro'); }
 }
