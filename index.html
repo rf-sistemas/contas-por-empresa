@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v133">
+<meta name="rf-versao" content="v134">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -243,7 +243,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v133',
+  versao : 'v134',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -5982,6 +5982,132 @@ function telaTerceirizados(){   // v86: painel com 2 botões — Saldo terceiriz
     (veAba('prodgrupo') ? cpeCaixa('prodgrupo','📊','Produção '+escGrupo(),'O que cada anestesista fez em '+escMesNome(S.mes)+': '+T.n+' atendimento'+(T.n===1?'':'s')+' · a pagar <b>'+brl(T.total-T.pago)+'</b>') : '')+
   '</div>';
 }
+
+/* ===== v134 (Renato/Neuza, 21/11/2026): RELATÓRIOS DO TERCEIRIZADO em PDF e Excel
+   - Saldo terceirizado: período (de/até) e recebedor; partida, aportes, cada saída com ID do Pix e o saldo após cada lançamento.
+   - Produção do grupo: mesmos filtros da tela (mês, anestesista, hospital); um atendimento por linha + totais por anestesista.
+   O arquivo sobe para o armazenamento e abre por link (funciona no app Android, iPhone e computador — mesma solução do Fichário v110). */
+var _relLink = '';
+function relLib(src, teste){ if(teste()) return Promise.resolve(); return new Promise((ok,nok)=>{ const s = document.createElement('script'); s.src = src; s.onload = ()=>ok(); s.onerror = ()=>nok(new Error('não carregou o gerador — verifique a internet')); document.head.appendChild(s); }); }
+async function relPdfLib(){ await relLib('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', ()=>!!window.jspdf); await relLib('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', ()=>!!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable)); }
+const relSerie = d=>{ if(!d) return null; const p = String(d).slice(0,10).split('-').map(Number); return (Date.UTC(p[0],p[1]-1,p[2]) - Date.UTC(1899,11,30))/86400000; };
+async function relEntregar(nome, blob, ext, info){
+  const limpo = nome.normalize('NFD').replace(/[̀-ͯ]/g,''), arq = limpo.replace(/[^\w.\- ]/g,'').replace(/\s+/g,'_')+'.'+ext;
+  const path = 'relatorios/'+Date.now()+'-'+arq;
+  const up = await sb.storage.from('notas').upload(path, blob, { upsert:false });
+  if(up.error) throw new Error(up.error.message);
+  const { data, error } = await sb.storage.from('notas').createSignedUrl(path, 3600, { download: limpo+'.'+ext });
+  if(error || !data) throw new Error(error ? error.message : 'sem link');
+  _relLink = data.signedUrl; S.msg = null;
+  abrirModal('<h2 style="margin:0 0 6px">⬇ '+(ext==='pdf'?'PDF':'Excel')+' pronto</h2><div style="color:var(--fraco);font-size:13.5px;margin-bottom:12px">'+esc(nome)+'.'+ext+' · '+esc(info)+'</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="bt" onclick="relAbrir()">⬇ Baixar o '+(ext==='pdf'?'PDF':'Excel')+'</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-top:10px">O arquivo vai para a pasta Downloads do aparelho. O link vale por 1 hora.</div>');
+}
+function relAbrir(){ const u = _relLink; if(!u) return; const w = window.open(u,'_blank'); if(!w) location.href = u; setTimeout(fecharModal, 500); }
+function relPdfNovo(titulo, sub, paisagem){
+  const doc = new window.jspdf.jsPDF({ orientation: paisagem?'landscape':'portrait', unit:'mm', format:'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(19,185,129); doc.rect(0,0,W/3,3,'F'); doc.setFillColor(0,184,217); doc.rect(W/3,0,W/3,3,'F'); doc.setFillColor(10,108,240); doc.rect(2*W/3,0,W/3,3,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(10,108,240); doc.text('MR', 14, 14);
+  doc.setTextColor(20,30,45); doc.setFontSize(13); doc.text(titulo, 26, 14);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(90,100,115); doc.text(sub, 26, 19.5);
+  return doc;
+}
+function relPdfRodape(doc){
+  const n = doc.getNumberOfPages(), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  for(let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120); doc.text('Sistema MR · RF Sistemas · '+SISTEMA.codigo+' '+SISTEMA.versao+' · gerado em '+new Date().toLocaleString('pt-BR'), 14, H-7); doc.text('página '+i+' de '+n, W-14, H-7, { align:'right' }); }
+}
+const relBRL = v => 'R$ '+(+v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ---------- Saldo terceirizado ---------- */
+S.relSaldo = S.relSaldo || { de:'', ate:'', quem:'' };
+function relSaldoFiltro(){
+  const c = saldoCiclo(), f = S.relSaldo, q = permNorm(f.quem||'').toUpperCase();
+  const linhas = c.lista.filter(m=>(!f.de || String(m.data)>=f.de) && (!f.ate || String(m.data)<=f.ate) &&
+    (!q || permNorm((m.recebedor||'')+' '+(m.pagador||'')+' '+(m.descricao||'')).toUpperCase().indexOf(q)>=0));
+  return { c, linhas };
+}
+const SALDO_TIPO = { partida:'Partida', aporte:'Aporte', entrada:'Entrada', saida:'Saída', ajuste:'Ajuste' };
+function relSaldoAbrir(){
+  const c = saldoCiclo();
+  abrirModal('<h2>📄 Relatório do saldo terceirizado</h2><div class="aviso">Saldo '+esc(escGrupo())+' · ciclo desde '+(c.inicio?dataBR(c.inicio):'—')+'. Deixe em branco para sair tudo.</div>'+
+    '<div class="lin"><div><label>De</label><input type="date" id="rs-de" value="'+(S.relSaldo.de||'')+'"></div><div><label>Até</label><input type="date" id="rs-ate" value="'+(S.relSaldo.ate||'')+'"></div></div>'+
+    '<label>Recebedor / anestesista (opcional)</label><input id="rs-quem" value="'+esc(S.relSaldo.quem||'')+'" placeholder="ex.: Leonardo">'+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="bt" onclick="relSaldoGerar(\'pdf\')">📄 Gerar PDF</button><button class="bt" onclick="relSaldoGerar(\'xlsx\')">📊 Gerar Excel</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function relSaldoGerar(tipo){
+  S.relSaldo = { de: val('rs-de'), ate: val('rs-ate'), quem: val('rs-quem').trim() };
+  const { c, linhas } = relSaldoFiltro(); if(!linhas.length) return aviso('Nada nesse filtro.','erro');
+  const saidas = linhas.filter(m=>m.tipo==='saida'), soma = l=>l.reduce((s,m)=>s+Math.abs(+m.valor||0),0);
+  const per = (S.relSaldo.de?dataBR(S.relSaldo.de):(c.inicio?dataBR(c.inicio):'início'))+' a '+(S.relSaldo.ate?dataBR(S.relSaldo.ate):dataBR(hojeISO()));
+  const nome = 'Saldo terceirizado '+escGrupo()+' - '+per.replace(/\//g,'-')+(S.relSaldo.quem?' - '+S.relSaldo.quem:'');
+  const quem = m => m.tipo==='saida' ? (m.recebedor||'') : (m.pagador||m.recebedor||'');
+  aviso('Preparando o '+(tipo==='pdf'?'PDF':'Excel')+'…','ok');
+  try{
+    if(tipo==='xlsx'){
+      await fichXlsxLib();
+      const rows = [['Data','Hora','Tipo','Quem (recebedor/pagador)','Documento','Descrição','ID da transação','Valor','Saldo após']]
+        .concat(linhas.map(m=>[relSerie(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), (m.tipo==='saida'?m.recebedor_doc:m.pagador_doc)||'', m.descricao||'', m.id_transacao||'', saldoSinal(m), m._saldo]));
+      rows.push([]); rows.push(['','','','Valor de partida','','','',c.partida]); rows.push(['','','','Aportes e entradas','','','',c.mais]);
+      rows.push(['','','','Saídas no período ('+saidas.length+')','','','',-soma(saidas)]); rows.push(['','','','SALDO ATUAL','','','',c.saldo]);
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      for(let r=1;r<rows.length;r++){ const a = ws['A'+(r+1)]; if(a && a.t==='n') a.z='dd/mm/yyyy'; ['H','I'].forEach(k=>{ const x = ws[k+(r+1)]; if(x && x.t==='n') x.z='"R$" #,##0.00;[Red]-"R$" #,##0.00'; }); }
+      ws['!cols'] = [11,7,9,34,22,36,36,14,14].map(w=>({wch:w})); ws['!autofilter'] = { ref:'A1:I'+(linhas.length+1) };
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Saldo');
+      await relEntregar(nome, new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'xlsx', linhas.length+' movimento(s)');
+    } else {
+      await relPdfLib();
+      const doc = relPdfNovo('Saldo terceirizado · '+escGrupo(), 'Período: '+per+(S.relSaldo.quem?' · Recebedor: '+S.relSaldo.quem:''), true);
+      doc.autoTable({ startY: 25, theme:'plain', styles:{ fontSize:10 }, body:[['Valor de partida', relBRL(c.partida), 'Aportes e entradas', relBRL(c.mais), 'Saídas no período ('+saidas.length+')', '- '+relBRL(soma(saidas)), 'SALDO ATUAL', relBRL(c.saldo)]],
+        columnStyles:{ 1:{fontStyle:'bold'}, 3:{fontStyle:'bold'}, 5:{fontStyle:'bold', textColor:[200,40,40]}, 7:{fontStyle:'bold', textColor: c.saldo>=0?[13,140,90]:[200,40,40]} } });
+      doc.autoTable({ startY: doc.lastAutoTable.finalY+3, head:[['Data','Hora','Tipo','Quem','Descrição','ID da transação','Valor','Saldo após']],
+        body: linhas.map(m=>[dataBR(m.data), m.hora||'', SALDO_TIPO[m.tipo]||m.tipo, quem(m), String(m.descricao||'').slice(0,60), m.id_transacao||'', (saldoSinal(m)<0?'- ':'+ ')+relBRL(Math.abs(saldoSinal(m))), relBRL(m._saldo)]),
+        styles:{ fontSize:8.2, cellPadding:1.6 }, headStyles:{ fillColor:[10,108,240] }, alternateRowStyles:{ fillColor:[244,248,252] },
+        columnStyles:{ 6:{halign:'right'}, 7:{halign:'right', fontStyle:'bold'}, 5:{fontSize:6.8} } });
+      relPdfRodape(doc);
+      await relEntregar(nome, doc.output('blob'), 'pdf', linhas.length+' movimento(s)');
+    }
+  }catch(e){ aviso('Não gerou: '+(e.message||e),'erro'); }
+}
+
+/* ---------- Produção do grupo ---------- */
+async function relProdGerar(tipo){
+  const lista = prodLista().slice().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  if(!lista.length) return aviso('Nenhum atendimento nesse filtro.','erro');
+  const anesNome = id => (S.esc.anes.find(a=>a.id===id)||{}).nome || '—';
+  const filtro = [escMesNome(S.mes), S.prod.anes?anesNome(S.prod.anes):'', S.prod.hosp||''].filter(Boolean).join(' · ');
+  const nome = 'Producao '+escGrupo()+' - '+filtro.replace(/[\/·]/g,'-');
+  const linha = d=>{ const l = escLocal(d.local_id), sit = prodSit(d)[0].replace(/^[^\wÀ-ú]+/,''); return [d.data, escHospNome(l), d.turno||'', anesNome(d.anestesista_id), d.servico||d.cirurgiao||'', +d.valor||0, sit, escValidado(d)?(d.pago?'Pago':'A pagar'):'—']; };
+  const porAnes = {}; lista.forEach(d=>{ const k = anesNome(d.anestesista_id), x = porAnes[k] = porAnes[k] || { n:0, val:0, total:0, pago:0 }; x.n++; if(escValidado(d)){ x.val++; x.total += +d.valor||0; if(d.pago) x.pago += +d.valor||0; } });
+  const T = prodSomar(lista);
+  aviso('Preparando o '+(tipo==='pdf'?'PDF':'Excel')+'…','ok');
+  try{
+    if(tipo==='xlsx'){
+      await fichXlsxLib();
+      const rows = [['Data','Hospital','Turno','Anestesista','Serviço / cirurgião','Valor','Situação','Pagamento']].concat(lista.map(d=>{ const r = linha(d); r[0] = relSerie(r[0]); return r; }));
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      for(let r=1;r<rows.length;r++){ const a = ws['A'+(r+1)]; if(a) a.z='dd/mm/yyyy'; const v = ws['F'+(r+1)]; if(v) v.z='"R$" #,##0.00'; }
+      ws['!cols'] = [11,30,7,28,28,13,24,11].map(w=>({wch:w})); ws['!autofilter'] = { ref:'A1:H'+rows.length };
+      const r2 = [['Anestesista','Atendimentos','Validados','Produzido (validado)','Pago','A pagar']].concat(Object.entries(porAnes).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([k,x])=>[k,x.n,x.val,x.total,x.pago,x.total-x.pago]));
+      r2.push(['TOTAL', T.n, T.val, T.total, T.pago, T.total-T.pago]);
+      const ws2 = XLSX.utils.aoa_to_sheet(r2); for(let r=1;r<r2.length;r++) ['D','E','F'].forEach(k=>{ const x = ws2[k+(r+1)]; if(x) x.z='"R$" #,##0.00'; }); ws2['!cols'] = [30,13,11,20,14,14].map(w=>({wch:w}));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws2, 'Por anestesista'); XLSX.utils.book_append_sheet(wb, ws, 'Atendimentos');
+      await relEntregar(nome, new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'xlsx', lista.length+' atendimento(s)');
+    } else {
+      await relPdfLib();
+      const doc = relPdfNovo('Produção '+escGrupo(), filtro+' · só o validado conta como produzido', true);
+      doc.autoTable({ startY: 25, head:[['Anestesista','Atendimentos','Validados','Produzido','Pago','A pagar']],
+        body: Object.entries(porAnes).sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).map(([k,x])=>[k, x.n, x.val, relBRL(x.total), relBRL(x.pago), relBRL(x.total-x.pago)]),
+        foot: [['TOTAL', T.n, T.val, relBRL(T.total), relBRL(T.pago), relBRL(T.total-T.pago)]],
+        styles:{ fontSize:9 }, headStyles:{ fillColor:[10,108,240] }, footStyles:{ fillColor:[230,240,250], textColor:20, fontStyle:'bold' }, columnStyles:{ 1:{halign:'right'},2:{halign:'right'},3:{halign:'right'},4:{halign:'right'},5:{halign:'right',fontStyle:'bold'} } });
+      doc.autoTable({ startY: doc.lastAutoTable.finalY+6, head:[['Data','Hospital','Turno','Anestesista','Serviço / cirurgião','Valor','Situação','Pagamento']],
+        body: lista.map(d=>{ const r = linha(d); r[0] = dataBR(r[0]); r[5] = relBRL(r[5]); return r; }),
+        styles:{ fontSize:8, cellPadding:1.5 }, headStyles:{ fillColor:[0,150,180] }, alternateRowStyles:{ fillColor:[244,248,252] }, columnStyles:{ 5:{halign:'right'} } });
+      relPdfRodape(doc);
+      await relEntregar(nome, doc.output('blob'), 'pdf', lista.length+' atendimento(s)');
+    }
+  }catch(e){ aviso('Não gerou: '+(e.message||e),'erro'); }
+}
 function telaProdGrupo(){
   if(!S.esc.carregado){ escCarregar().then(render).catch(e=>{ S.esc.carregado=true; aviso('Erro ao carregar a produção: '+e.message,'erro'); }); return '<div class="vazio">Carregando a produção…</div>'; }
   const lista = prodLista(), T = prodSomar(lista);
@@ -5997,7 +6123,8 @@ function telaProdGrupo(){
   '</div>'+
   '<div class="kpis">'+kpi('Atendimentos', T.n)+kpi('Validados', T.val+' de '+T.n)+kpi('Produzido (validado)', brl(T.total))+
     kpi('Já pago', brl(T.pago))+kpi('A pagar', brl(T.total-T.pago))+kpi('Aguardando validação', T.pend+(T.aguard?' · '+brl(T.aguard):''))+'</div>'+
-  '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Só entra em "Produzido" o atendimento que o anestesista validou (e a equipe aprovou, quando foi ele quem lançou). O que ainda espera validação aparece à parte.</div></div>';
+  '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Só entra em "Produzido" o atendimento que o anestesista validou (e a equipe aprovou, quando foi ele quem lançou). O que ainda espera validação aparece à parte.</div>'+
+    '<div class="acoes" style="margin-top:10px"><button class="bt g" onclick="relProdGerar(\'pdf\')">📄 Relatório PDF</button><button class="bt g" onclick="relProdGerar(\'xlsx\')">📊 Excel</button></div></div>';
   if(!lista.length) return h+'<div class="vazio">Nenhum atendimento com anestesista em '+escMesNome(S.mes)+(S.prod.anes||S.prod.hosp?' com esse filtro':'')+'.</div>';
   // por anestesista
   const g = {}; lista.forEach(d=>{ (g[d.anestesista_id] = g[d.anestesista_id] || []).push(d); });
@@ -6090,6 +6217,7 @@ function telaSaldo(){
       (c.saldo<0 ? '<b style="color:var(--vermelho)">Saldo negativo — gastou mais do que o valor de partida.</b>' : pct.toLocaleString('pt-BR',{maximumFractionDigits:1})+'% do valor ainda disponível')+'</div></div>'+
   (!podeEditarSaldo() ? '' : '<div class="acoes"><button class="bt" onclick="saldoAbrirLeitura()">📷 Ler comprovante / extrato</button><button class="bt g" onclick="saldoAbrirManual()">✍️ Lançar à mão</button>'+
     '<button class="bt g" onclick="saldoAbrirManual(null,\'aporte\')">➕ Novo aporte</button><button class="bt g" onclick="saldoRecomecar()">🔁 Recomeçar saldo</button></div>');
+  h += '<div class="acoes"><button class="bt g" onclick="relSaldoAbrir()">📄 Relatório PDF / 📊 Excel</button></div>';   // v134
   h += '<div class="card"><h3>MOVIMENTOS</h3>'+ c.lista.slice().reverse().map(saldoLinha).join('')+
     '<div style="font-size:12px;color:var(--fraco);margin-top:8px">Toque num movimento para ver o comprovante, corrigir ou excluir. O mesmo comprovante não entra duas vezes (o sistema confere o ID da transação).</div></div>';
   if(c.ant.length) h += '<div class="card"><h3 style="cursor:pointer" onclick="S.saldo.verAnt=!S.saldo.verAnt;render()">'+(S.saldo.verAnt?'▲':'▼')+' SALDOS ANTERIORES ('+c.ant.length+' movimento'+(c.ant.length===1?'':'s')+')</h3>'+
