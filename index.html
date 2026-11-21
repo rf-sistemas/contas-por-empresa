@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v136">
+<meta name="rf-versao" content="v137">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -79,6 +79,7 @@
   .rw-chip{border:1px solid var(--linha,#d8dee8);background:var(--card,#fff);border-radius:10px;padding:8px 12px;cursor:pointer;font:inherit;text-align:left;color:inherit}
   .rw-chip small{display:block;font-size:11.5px;color:var(--fraco)}.rw-chip.on{border-color:#00b8d9;background:linear-gradient(120deg,rgba(19,185,129,.14),rgba(10,108,240,.12));font-weight:700}
   .rw-big{flex:1;min-width:160px;border:0;border-radius:12px;padding:14px;font:inherit;font-size:17px;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(120deg,#13b981,#00b8d9,#0a6cf0)}.rw-big small{display:block;font-size:12px;font-weight:500;opacity:.9}
+  .pes-trab{font-size:11.5px;color:#9a5b00;margin-top:3px;font-weight:700}
   .ob-dest{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
   .ob-dest.ob-filon{outline:2px solid var(--mr-turq)}
   .d-obra{background:#e6f7f1;color:#0d6b4d}.d-pes{background:#efeaff;color:#4b2a9e}.d-cnpj{background:#e7f0fb;color:#1d4f8a}.d-nada{background:var(--btg);color:var(--fraco)}.d-ja{background:#fff3d6;color:#8a5a00}
@@ -247,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v136',
+  versao : 'v137',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -703,8 +704,8 @@ function tabelaMovimentos(movs){
 /* ---------- v72 (Renato, 09/11/2026): DESPESAS PESSOAIS do Vinicius ----------
    Ficam na mesma tabela "movimentos" com pessoal = true e sem CNPJ: não entram no resumo dos CNPJs nem na fila.
    Chegam de dois jeitos: da fila "Apontar depois" (opção 👤 Despesa pessoal) ou lançadas à mão aqui. */
-const PES_CATS = ['Casa','Alimentação','Saúde','Educação','Transporte / carro','Lazer','Viagem','Vestuário','Contas e serviços','Impostos e taxas','Outros'];
-const PES_COR = ['#13B981','#00B8D9','#0A6CF0','#7C5CFF','#F59E0B','#EC4899','#14B8A6','#8B5CF6','#64748B','#EF4444','#94A3B8'];
+const PES_CATS = ['Casa','Alimentação','Saúde','Educação','Transporte / carro','Lazer','Viagem','Vestuário','Contas e serviços','Impostos e taxas','Família','Empréstimo','Outros'];
+const PES_COR = ['#13B981','#00B8D9','#0A6CF0','#7C5CFF','#F59E0B','#EC4899','#14B8A6','#8B5CF6','#64748B','#EF4444','#F97316','#A855F7','#94A3B8'];
 S.pesCat = '';
 function pesCategorias(){ const x = PES_CATS.slice(); pessoais().forEach(m=>{ const c=(m.categoria||'').trim(); if(c && x.indexOf(c)<0) x.push(c); }); return x; }
 function pesCatDe(m){ const c = (m.categoria||'').trim(); return pesCategorias().indexOf(c)>=0 ? c : null; }
@@ -766,19 +767,24 @@ function telaPessoais(){
   '</div>';
 
   // lista
-  const lista = doPer.filter(m=>!S.pesCat || ((m.categoria||'').trim()||'Sem categoria')===S.pesCat)
+  const lista = doPer.filter(m=>!S.pesCat || (S.pesCat==='__trab' ? pesTrabalho(m) : ((m.categoria||'').trim()||'Sem categoria')===S.pesCat))
     .sort((a,b)=>(b.data_movimento||'').localeCompare(a.data_movimento||''));
   const cs = pesCategorias();
+  const trab = doPer.filter(pesTrabalho);
+  if(trab.length) h += '<div class="card" style="border:1px solid #f0b429;background:#fff8e6"><b>⚠️ '+trab.length+' lançamento(s) parecem de TRABALHO</b> ('+brl(trab.reduce((s,m)=>s+(+m.valor||0),0))+') — categoria anestesista, enfermeiro, técnico ou salário. '+
+    'Se não são pessoais, toque em <b>➡ mandar para…</b> em cada um e escolha o CNPJ. <a href="#" onclick="S.pesCat=\'__trab\';render();return false">ver só esses</a></div>';
   h += '<div class="card"><h3 style="margin:0 0 8px">LANÇAMENTOS</h3><datalist id="pes-cats">'+cs.map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
-    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Categoria é livre: escolha uma da lista ou digite uma nova — ela passa a aparecer nas sugestões.</div><table class="pestab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+    '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">A <b>categoria</b> só organiza o seu pessoal — <b>não manda o lançamento para lugar nenhum</b>. Se não é pessoal (anestesista, enfermeiro, técnico, salário…), toque em <b>➡ mandar para…</b> e escolha o CNPJ.</div><table class="pestab"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Origem</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
     lista.map(m=>{ const ent = m.tipo==='entrada';
       return '<tr><td>'+dataBR(m.data_movimento)+'</td>'+
         '<td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.descricao&&m.fornecedor?'<div style="color:var(--fraco);font-size:12px">'+esc(m.descricao)+'</div>':'')+'</td>'+
-        '<td>'+(podeEditar()? '<input list="pes-cats" style="min-width:150px" placeholder="digite ou escolha" value="'+esc(m.categoria||'')+'" onchange="pesSetCat(\''+m.id+'\',this.value.trim())">' : esc(m.categoria||'—'))+'</td>'+
+        '<td>'+(podeEditar()? '<select style="min-width:150px" onchange="pesSetCat(\''+m.id+'\',this.value)"><option value="">escolha…</option>'+PES_CATS.map(c=>'<option'+(m.categoria===c?' selected':'')+'>'+esc(c)+'</option>').join('')+
+            (m.categoria && PES_CATS.indexOf(m.categoria)<0 ? '<option selected value="'+esc(m.categoria)+'">'+esc(m.categoria)+' (antiga)</option>' : '')+'</select>' : esc(m.categoria||'—'))+
+          (pesTrabalho(m) ? '<div class="pes-trab">⚠️ parece de trabalho — mandar para o CNPJ?</div>' : '')+'</td>'+
         '<td>'+esc(nomeOrigem(m.origem_id))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;color:'+(ent?'var(--verde)':'inherit')+'"><b>'+(ent?'+ ':'')+brl(m.valor)+'</b></td>'+
         '<td style="white-space:nowrap">'+
-          (podeEditar()? '<button class="bt g mini" onclick="editarMov(\''+m.id+'\')">editar</button> <button class="bt g mini" title="Não é pessoal: volta para a fila Apontar depois" onclick="pesDevolver(\''+m.id+'\')">↩ fila</button> ' : '')+
+          (podeEditar()? '<button class="bt g mini" onclick="editarMov(\''+m.id+'\')">editar</button> <button class="bt mini" title="Não é pessoal: manda direto para um CNPJ ou para a Obra do IDAD" onclick="pesMandar(\''+m.id+'\')">➡ mandar para…</button> <button class="bt g mini" title="Não é pessoal: volta para a fila Apontar depois" onclick="pesDevolver(\''+m.id+'\')">↩ fila</button> ' : '')+
           (m.anexo_path? '<button class="bt g mini" onclick="verAnexo(\''+m.anexo_path+'\')">nota</button> ' : '')+
           (podeApagar()? '<button class="bt g mini" onclick="excluirMov(\''+m.id+'\')">✕</button>' : '')+
         '</td></tr>'; }).join('')+
@@ -823,6 +829,33 @@ function pesArquivo(inp){
   try{ const dt = new DataTransfer(); dt.items.add(f); alvo.files = dt.files; }catch(e){}
   inp.value = '';
   if(alvo && alvo.files && alvo.files[0]) lerDocumento(); else lerDocumentoArquivo(f);
+}
+
+/* ===== v137 (Renato, 21/11/2026): "por que as alterações dela não foram para onde ela enviou?" — a categoria só organiza.
+   Agora: categoria em LISTA (sem texto livre), aviso de lançamento que parece de trabalho, e "➡ mandar para…" (CNPJ ou Obra do IDAD) direto do pessoal. */
+function pesTrabalho(m){ return /ANESTES|ENFERM|T[EÉ]CNIC|SAL[AÁ]RIO|PLANT[AÃ]O|M[EÉ]DICO/i.test(m.categoria||''); }
+function pesMandar(id){
+  const m = S.movimentos.find(x=>x.id===id); if(!m) return;
+  abrirModal('<h2>➡ Mandar para…</h2><div class="aviso"><b>'+esc(m.fornecedor||m.descricao||'Lançamento')+'</b> · '+brl(+m.valor)+' · '+dataBR(m.data_movimento)+'<br>Sai do seu pessoal e vai para o destino escolhido.</div>'+
+    '<label>Para quem foi o gasto?</label><select id="pm-dest"><option value="">escolha…</option><option value="obra">🏗️ Obra do IDAD</option>'+
+      S.empresas.map(e=>'<option value="'+e.id+'">🏢 '+esc(e.apelido||e.razao_social||e.nome)+'</option>').join('')+'</select>'+
+    '<label style="margin-top:10px">Categoria no CNPJ (opcional)</label><input id="pm-cat" value="'+esc(pesTrabalho(m)?m.categoria:'')+'" placeholder="ex.: Anestesista, Enfermeiro…">'+
+    '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="pesMandarOk(\''+id+'\')">Mandar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function pesMandarOk(id){
+  const m = S.movimentos.find(x=>x.id===id), d = val('pm-dest'); if(!m) return; if(!d) return aviso('Escolha para onde vai.','erro');
+  const ie = idadEmpresa(), obra = d==='obra';
+  if(obra && !ie) return aviso('O CNPJ do IDAD não está cadastrado.','erro');
+  const upd = { pessoal:false, pessoa_id:null, empresa_id: obra ? ie.id : d, categoria: obra ? OBRA_CAT_MOV : (val('pm-cat').trim()||null) };
+  const r = await sb.from('movimentos').update(upd).eq('id', id).select().maybeSingle();
+  if(r.error) return aviso('Não mandou: '+r.error.message,'erro');
+  Object.assign(m, r.data || upd);
+  if(obra && !(S.idad.obra||[]).some(x=>x.movimento_id===id)){
+    const ri = await sb.from('idad_obra').insert({ data: m.data_movimento, descricao: String(m.descricao||m.fornecedor||'Compra').slice(0,200), categoria:'Outros', fornecedor: m.fornecedor||null,
+      valor: (m.tipo==='entrada'?-1:1)*(+m.valor||0), forma_pag: nomeOrigem(m.origem_id), pago: !!m.pago, obs:'[Veio do pessoal de '+esc((S.perfil&&S.perfil.nome)||'')+']', movimento_id: id }).select().maybeSingle();
+    if(!ri.error && ri.data && S.idad.obra) S.idad.obra.unshift(ri.data);
+  }
+  S.modal = null; aviso('Mandado para '+(obra?'Obra do IDAD':nomeEmpresa(d))+' ✅ — saiu do pessoal.','ok');
 }
 function pesFiltro(i){ const c = (S._pesCats||[])[i]||''; S.pesCat = S.pesCat===c ? '' : c; render(); }
 async function pesSetCat(id, c){
