@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v125">
+<meta name="rf-versao" content="v126">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -62,6 +62,16 @@
   .ob-barra.off{opacity:.6}.ob-barra button:disabled,.ob-barra select:disabled{opacity:.55;cursor:not-allowed}
   .ob-cx{width:18px;height:18px;cursor:pointer;accent-color:#16a3a0}
   tr.ob-on td{background:rgba(0,184,217,.08)}
+  .ob-2p{display:grid;grid-template-columns:1fr auto 1fr;gap:10px 14px;align-items:stretch}
+  .ob-2t,.ob-2b,.ob-2d{grid-column:1/-1}.ob-2b{display:flex;gap:8px;justify-content:flex-end}
+  .ob-2d{font-size:13px;color:var(--fraco);margin-top:-4px}
+  .ob-passo{display:flex;gap:10px;align-items:flex-start;background:var(--card,#fff);border:1px solid rgba(0,184,217,.35);border-radius:10px;padding:10px 12px}
+  .ob-passo>div{flex:1;min-width:0}.ob-passo label{display:block;font-size:15px;font-weight:800;text-transform:none;margin:0;color:var(--txt,#13263d)}
+  .ob-passo small{display:block;color:var(--fraco);font-size:12.5px;margin:1px 0 6px}.ob-passo select{width:100%}
+  .ob-num{flex:0 0 28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#13b981,#00b8d9,#0a6cf0);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .ob-seta{align-self:center;font-size:26px;font-weight:800;color:var(--mr-turq,#00b8d9)}
+  .d-din{background:#fff0e0;color:#9a4a00}body[data-tema="escuro"] .d-din{background:#3a2208;color:#ffc58a}
+  @media(max-width:760px){.ob-2p{grid-template-columns:1fr}.ob-seta{transform:rotate(90deg);justify-self:center}}
   .ob-dest{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
   .ob-dest.ob-filon{outline:2px solid var(--mr-turq)}
   .d-obra{background:#e6f7f1;color:#0d6b4d}.d-pes{background:#efeaff;color:#4b2a9e}.d-cnpj{background:#e7f0fb;color:#1d4f8a}.d-nada{background:var(--btg);color:var(--fraco)}.d-ja{background:#fff3d6;color:#8a5a00}
@@ -230,7 +240,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v125',
+  versao : 'v126',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4684,13 +4694,18 @@ function obraCartaoTela(o){
   const vSel = nSel.reduce((s,id)=>{ const m = todas.find(x=>x.id===id); return s+(m? (m.tipo==='entrada'?-1:1)*(+m.valor||0):0); },0);
   if(podeEditar()){
     const areas = pesMinhas(), dono = obraDonoArea(o);
-    h += '<div class="ob-barra'+(nSel.length?'':' off')+'"><b>'+(nSel.length? nSel.length+' selecionada(s) · '+brl(vSel) : 'Marque as compras')+'</b> Direcionar para:'+
-      '<button class="bt"'+(nSel.length?'':' disabled')+' onclick="obraDirecionar(\'obra\')">🏗️ Obra do IDAD</button>'+
-      '<select id="ob-pes" style="width:auto"'+(nSel.length?'':' disabled')+' onchange="if(this.value){obraDirecionar(\'pes\',this.value);this.value=\'\'}"><option value="">👤 Pessoal…</option>'+
-        areas.map(a=>'<option value="'+a.dono_id+'">'+(dono&&a.dono_id===dono.dono_id?'⭐ ':'')+esc(a.nome)+'</option>').join('')+'</select>'+
-      '<select id="ob-cnpj" style="width:auto"'+(nSel.length?'':' disabled')+' onchange="if(this.value){obraDirecionar(\'cnpj\',this.value);this.value=\'\'}"><option value="">🏢 CNPJ…</option>'+
-        S.empresas.map(e=>'<option value="'+e.id+'">'+esc(e.apelido||e.razao_social)+'</option>').join('')+'</select>'+
-      '<button class="bt g"'+(nSel.length?'':' disabled')+' onclick="obraDirecionar(\'tirar\')">↩ Tirar destino</button></div>';
+    const dis = nSel.length ? '' : ' disabled';
+    h += '<div class="ob-barra ob-2p'+(nSel.length?'':' off')+'"><div class="ob-2t"><b>'+(nSel.length? nSel.length+' compra(s) marcada(s) · '+brl(vSel) : 'Marque as compras na lista')+'</b></div>'+
+      '<div class="ob-passo"><span class="ob-num">1</span><div><label>De quem é o dinheiro?</label><small>quem paga esta compra</small>'+
+        '<select id="ob-din"'+dis+'><option value="">💳 '+esc(cartaoPessoa(o)||'Dono do cartão')+' (do próprio cartão)</option>'+
+        S.empresas.map(e=>'<option value="'+e.id+'">🏢 '+esc(e.apelido||e.razao_social)+'</option>').join('')+'</select></div></div>'+
+      '<div class="ob-seta">→</div>'+
+      '<div class="ob-passo"><span class="ob-num">2</span><div><label>Para quem foi o gasto?</label><small>de quem é a dívida</small>'+
+        '<select id="ob-gas"'+dis+'><option value="">escolha…</option><option value="obra:">🏗️ Obra do IDAD</option>'+
+        S.empresas.map(e=>'<option value="cnpj:'+e.id+'">🏢 '+esc(e.apelido||e.razao_social)+'</option>').join('')+
+        '<optgroup label="Pessoal">'+areas.map(a=>'<option value="pes:'+a.dono_id+'">👤 '+(dono&&a.dono_id===dono.dono_id?'⭐ ':'')+esc(a.nome)+'</option>').join('')+'</optgroup></select></div></div>'+
+      '<div class="ob-2d">Exemplo: o Vinicius pagou no cartão dele, mas o dinheiro é da <b>NAFS</b> (passo 1) e a dívida é do <b>IDAD</b> (passo 2). Se o dinheiro é do próprio dono do cartão, deixe o passo 1 como está.</div>'+
+      '<div class="ob-2b"><button class="bt"'+dis+' onclick="obraAplicar()">✔ Aplicar</button><button class="bt g"'+dis+' onclick="obraDirecionar(\'tirar\')">↩ Tirar destino</button></div></div>';
   }
   const todosMarc = lista.length && lista.every(m=>sel[m.id]);
   h += '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr>'+
@@ -4701,7 +4716,7 @@ function obraCartaoTela(o){
         '<td style="white-space:nowrap">'+dataBR(m.data_movimento).slice(0,5)+'</td><td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.fornecedor && m.descricao && m.descricao!==m.fornecedor?'<br><small style="color:var(--fraco)">'+esc(String(m.descricao).slice(0,70))+'</small>':'')+'</td>'+
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
-        '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td></tr>'; }).join('')
+        '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td></tr>'; }).join('')
       : '<tr><td colspan="6" class="vazio">Nada neste filtro.</td></tr>')+
     '</tbody></table>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0 4px;font-size:12.5px;color:var(--fraco)">Filtro: '+
@@ -4722,7 +4737,12 @@ function obraMarcarTodas(on){
   if(on) S.movimentos.filter(m=>m.origem_id===o.id && (fv==='todas' || m.vencimento===fv || ja.indexOf(m.id)>=0) && (fil==='todos' || obraDestino(m).k===fil)).forEach(m=>S.idad.obraSel[m.id]=true);
   render();
 }
-async function obraDirecionar(dest, alvo){
+function obraAplicar(){   // v126: 1) de quem é o dinheiro  2) para quem foi o gasto
+  const g = val('ob-gas'), din = val('ob-din') || null;
+  if(!g) return aviso('Escolha no passo 2 para quem foi o gasto.','erro');
+  const [k, alvo] = g.split(':'); obraDirecionar(k, alvo || null, din);
+}
+async function obraDirecionar(dest, alvo, dinheiro){
   if(!podeEditar()) return;
   const o = obraCartoes().find(x=>x.id===S.idad.obraAba), ids = Object.keys(S.idad.obraSel||{}).filter(k=>S.idad.obraSel[k]);
   if(!o || !ids.length) return aviso('Marque as compras primeiro.','erro');
@@ -4736,6 +4756,7 @@ async function obraDirecionar(dest, alvo){
     else if(dest==='pes') upd = { pessoal:true, pessoa_id: alvo, empresa_id:null, categoria: m.categoria===OBRA_CAT_MOV ? null : m.categoria };
     else if(dest==='cnpj') upd = { empresa_id: alvo, pessoal:false, pessoa_id:null, categoria: m.categoria===OBRA_CAT_MOV ? null : m.categoria };
     else upd = { empresa_id:null, pessoal:false, pessoa_id:null, categoria: m.categoria===OBRA_CAT_MOV ? null : m.categoria };
+    upd.dinheiro_empresa_id = dest==='tirar' ? null : (dinheiro || null);   // v126: de quem é o dinheiro
     const r = await sb.from('movimentos').update(upd).eq('id', id).select().maybeSingle();
     if(r.error || !r.data){ erros.push((m.fornecedor||m.descricao||'compra')+': '+(r.error ? r.error.message : 'sem permissão')); continue; }
     Object.assign(m, r.data); ok++;
@@ -4754,7 +4775,7 @@ async function obraDirecionar(dest, alvo){
   }
   S.idad.obraSel = {};
   const nome = dest==='obra' ? 'Obra do IDAD' : dest==='pes' ? 'Pessoal — '+pesNome(alvo) : dest==='cnpj' ? nomeEmpresa(alvo) : '"Apontar depois"';
-  aviso(ok+' compra(s) direcionada(s) para '+nome+'.'+(erros.length?' '+erros.length+' não foram: '+erros.slice(0,2).join('; '):''), erros.length?'erro':'ok');
+  aviso(ok+' compra(s): '+(dinheiro?'dinheiro de '+nomeEmpresa(dinheiro)+' → ':'')+'gasto de '+nome+'.'+(erros.length?' '+erros.length+' não foram: '+erros.slice(0,2).join('; '):''), erros.length?'erro':'ok');
 }
 function obraCartoesEditar(){   // v125: cartões nas abas de Cartões e compras + banco de cada um
   const cs = S.origens.filter(o=>o.tipo==='cartao').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
