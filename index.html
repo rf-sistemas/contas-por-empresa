@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v137">
+<meta name="rf-versao" content="v138">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v137',
+  versao : 'v138',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4935,14 +4935,35 @@ function notaCandidatas(nota){
 function cartaoAnexarNota(){
   if(!cartoesEdita()) return;
   abrirModal('<h2>🧾 Anexar nota</h2><div class="aviso">Mande a nota (foto ou PDF). O sistema lê e procura a compra em <b>todos os cartões</b>. Achou → a compra fica <b style="color:#0d6b4d">verde, consolidada</b>.</div>'+
-    '<input type="file" id="nt-arq" accept="image/*,application/pdf" multiple style="margin:12px 0">'+
+    '<input type="file" id="nt-arq" accept="image/*,application/pdf,.zip,application/zip" multiple style="margin:12px 0">'+
+    '<div style="font-size:12.5px;color:var(--fraco)">Pode ser uma nota, várias, ou uma <b>pasta compactada (.zip)</b> — inclusive a conversa exportada do WhatsApp: o sistema abre e lê cada foto e PDF de dentro.</div>'+
     '<div id="nt-res"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="cartaoLerNotas()">Ler e consolidar</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
 }
 async function cartaoLerNotas(){
-  const fs = [...(document.getElementById('nt-arq').files||[])]; if(!fs.length) return aviso('Escolha a nota.','erro');
+  let fs = [...(document.getElementById('nt-arq').files||[])]; if(!fs.length) return aviso('Escolha a nota.','erro');
   const res = document.getElementById('nt-res'); let html = '';
-  for(const f of fs){
-    res.innerHTML = html+'<p>Lendo '+esc(f.name)+'…</p>';
+  // v138: .zip — abre no próprio aparelho (sem limite de tamanho do WhatsApp) e lê cada foto/PDF de dentro
+  const zips = fs.filter(f=>/\.zip$/i.test(f.name) || /zip/i.test(f.type));
+  if(zips.length){
+    try{ await relLib('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js', ()=>!!window.fflate); }catch(e){ return aviso('Não consegui abrir o .zip: '+e.message,'erro'); }
+    const MIME = { pdf:'application/pdf', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp' };
+    let ign = 0;
+    for(const z of zips){
+      res.innerHTML = '<p>📦 Abrindo '+esc(z.name)+'…</p>';
+      const arqs = window.fflate.unzipSync(new Uint8Array(await z.arrayBuffer()));
+      Object.keys(arqs).filter(n=>!n.endsWith('/') && !/(^|\/)(__MACOSX|\.)/.test(n)).forEach(n=>{
+        const ext = (n.split('.').pop()||'').toLowerCase();
+        if(!MIME[ext] || arqs[n].length < 15000){ ign++; return; }   // figurinha/miniatura do WhatsApp fica de fora
+        fs.push(new File([arqs[n]], n.split('/').pop(), { type: MIME[ext] }));
+      });
+    }
+    fs = fs.filter(f=>zips.indexOf(f)<0);
+    html += '<div class="nt-box" style="background:#eef6ff;border:1px solid #9cc4f2">📦 Abri a pasta: <b>'+fs.length+'</b> foto(s)/PDF(s) para ler'+(ign?' · '+ign+' arquivo(s) ignorados (texto da conversa, figurinhas, áudios)':'')+'.</div>';
+  }
+  let i = 0;
+  for(const f of fs){ i++;
+    if(fs.length > 1) res.innerHTML = html+'<p>Lendo '+i+' de '+fs.length+'…</p>';
+    res.innerHTML = html+'<p>Lendo '+(fs.length>1?i+' de '+fs.length+' — ':'')+esc(f.name)+'…</p>';
     const up = await subirAnexo(f);
     let lido; try{ lido = await lerPorIA(f); }catch(e){ lido = null; }
     if(!lido || !(+lido.valor>0)){   // v131: nenhuma nota se perde — fica como "não lida"
