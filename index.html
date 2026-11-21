@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v131">
+<meta name="rf-versao" content="v132">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -243,7 +243,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v131',
+  versao : 'v132',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4709,7 +4709,7 @@ function obraCartaoTela(o){
   const sel = S.idad.obraSel || (S.idad.obraSel = {}), nSel = Object.keys(sel).filter(id=>sel[id] && lista.some(m=>m.id===id));
   const vSel = nSel.reduce((s,id)=>{ const m = todas.find(x=>x.id===id); return s+(m? (m.tipo==='entrada'?-1:1)*(+m.valor||0):0); },0);
   if(cartoesEdita()){
-    const areas = pesMinhas(), dono = obraDonoArea(o);
+    const areas = cartoesEdita() ? (S.pesAreas||[]).slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR')) : pesMinhas(), dono = obraDonoArea(o);   // v132: quem consolida (Renato, Vinicius, Neuza) vê todos os pessoais para direcionar
     const dis = nSel.length ? '' : ' disabled';
     h += '<div class="ob-barra ob-2p'+(nSel.length?'':' off')+'"><div class="ob-2t"><b>'+(nSel.length? nSel.length+' compra(s) marcada(s) · '+brl(vSel) : 'Marque as compras na lista')+'</b></div>'+
       '<div class="ob-passo"><span class="ob-num">1</span><div><label>De quem é o dinheiro?</label><small>quem paga esta compra</small>'+
@@ -4769,6 +4769,14 @@ async function obraDirecionar(dest, alvo, dinheiro){
   const ie = idadEmpresa();
   if(dest==='obra' && !ie) return aviso('O CNPJ do IDAD não está cadastrado em Empresas.','erro');
   let ok = 0; const erros = [];
+  if(dest==='pes'){   // v132: pelo banco (Neuza direciona para o pessoal sem ver as Despesas pessoais)
+    const r = await sb.rpc('cpe_direcionar_pessoal', { p_ids: ids, p_pessoa: alvo, p_dinheiro: dinheiro || null });
+    if(r.error) return aviso('Não direcionou: '+r.error.message,'erro');
+    ids.forEach(id=>{ const m = S.movimentos.find(x=>x.id===id); if(m) Object.assign(m, { pessoal:true, pessoa_id: alvo, empresa_id:null, categoria: m.categoria===OBRA_CAT_MOV ? null : m.categoria, dinheiro_empresa_id: dinheiro||null }); });
+    S.idad.obra = S.idad.obra.filter(x=>ids.indexOf(x.movimento_id)<0);
+    S.idad.obraSel = {};
+    return aviso(r.data+' compra(s): '+(dinheiro?'dinheiro de '+nomeEmpresa(dinheiro)+' → ':'')+'gasto de Pessoal — '+pesNome(alvo)+'.'+(r.data<ids.length?' '+(ids.length-r.data)+' não foram (já estavam no pessoal de outra pessoa).':''), r.data<ids.length?'erro':'ok');
+  }
   for(const id of ids){
     const m = S.movimentos.find(x=>x.id===id); if(!m) continue;
     let upd;
