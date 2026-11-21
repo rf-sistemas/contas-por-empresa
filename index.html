@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v126">
+<meta name="rf-versao" content="v127">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -240,7 +240,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v126',
+  versao : 'v127',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -469,7 +469,10 @@ function veSub(g, k){   // v86: 'prodgrupo' (tela Produção NAFS) segue a marca
   return a.indexOf(ant)>=0 && a.indexOf(g)>=0;
 }
 function veGrupo(g){ if(papel()==='mestre') return true; const a = minhasAbas(); if(!a) return true; return a.indexOf(g)>=0 || a.some(x=>x.indexOf(g+':')===0); }
-function veAba(k){ if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true;
+/* v127 (Renato, 21/11/2026): Cartões e compras só para Renato, Vinicius e Neuza ("tira Carol"). */
+const ORIGENS_IDS = ['2b001670-3aae-4655-9278-5f35bff4cee5','33cbfca4-e51e-452d-8535-fd2485cb70b9','8bf230df-942c-4338-8fa7-d6cf67876576'];
+function veCartoes(){ return !!(S.user && ORIGENS_IDS.indexOf(S.user.id)>=0); }
+function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) return vePessoais(); if(papel()==='mestre') return true;
   if(k==='nafs' || k==='anestesia') return veGrupo(k);
   if(SUB_GRUPO.indexOf(k)>=0) return veSub(escGrupo().toLowerCase(), k);
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
@@ -4578,7 +4581,7 @@ function telaIdadObra(){
     kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+'</div></div>';
   // v125: os cartões e as compras foram para Financeiro › Cartões e compras (de lá cada compra vai para a obra, pessoal ou CNPJ)
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:220px">💳 As faturas dos cartões e a separação das compras (obra / pessoal / CNPJ) ficam em <b>Financeiro › Cartões e compras</b>. O que for marcado como obra aparece aqui.</span>'+
-    '<button class="bt" onclick="S.idad.obraAba=null;irPara(\'origens\')">Abrir Cartões e compras</button></div>';
+    (veCartoes()?'<button class="bt" onclick="S.idad.obraAba=null;irPara(\'origens\')">Abrir Cartões e compras</button>':'')+'</div>';
   const l = all.filter(x=>!f || [x.descricao,x.categoria,x.etapa,x.fornecedor,x.pago_por].some(v=>permNorm(v).indexOf(f)>=0));
   const porCat = {}; all.forEach(x=>{ const k=x.categoria||'Sem categoria'; porCat[k]=(porCat[k]||0)+(+x.valor||0); });
   h += '<div class="card"><div class="kpis">'+kpi('Pago', brl(t.p))+kpi('A pagar', brl(t.ap))+kpi('Lançamentos', String(all.length))+'</div>'+
@@ -4689,7 +4692,7 @@ function obraCartaoTela(o){
     '</div>';
   if(!todas.length) return h+'<div class="vazio">Nenhuma compra deste cartão ainda. Toque em <b>Importar fatura</b> (PDF do banco) ou mande o PDF para o Vini no WhatsApp.</div>';
   const fil = S.idad.obraFil || 'sem', cont = k => daFat.filter(m=>obraDestino(m).k===k).length;
-  const lista = daFat.filter(m=>fil==='todos' || obraDestino(m).k===fil).sort((a,b)=>String(a.data_movimento).localeCompare(String(b.data_movimento)));
+  const lista = daFat.filter(m=>fil==='dir' ? obraDestino(m).k!=='sem' : obraDestino(m).k==='sem')   // v127: compra direcionada sai do cartão e vai para o destino.sort((a,b)=>String(a.data_movimento).localeCompare(String(b.data_movimento)));
   const sel = S.idad.obraSel || (S.idad.obraSel = {}), nSel = Object.keys(sel).filter(id=>sel[id] && lista.some(m=>m.id===id));
   const vSel = nSel.reduce((s,id)=>{ const m = todas.find(x=>x.id===id); return s+(m? (m.tipo==='entrada'?-1:1)*(+m.valor||0):0); },0);
   if(podeEditar()){
@@ -4708,7 +4711,13 @@ function obraCartaoTela(o){
       '<div class="ob-2b"><button class="bt"'+dis+' onclick="obraAplicar()">✔ Aplicar</button><button class="bt g"'+dis+' onclick="obraDirecionar(\'tirar\')">↩ Tirar destino</button></div></div>';
   }
   const todosMarc = lista.length && lista.every(m=>sel[m.id]);
-  h += '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr>'+
+  h += '<div class="card" style="overflow-x:auto;padding:6px 10px">'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 8px;font-size:12.5px;color:var(--fraco)">'+
+      '<span class="ob-dest d-nada'+(fil!=='dir'?' ob-filon':'')+'" style="cursor:pointer" onclick="S.idad.obraFil=\'sem\';S.idad.obraSel={};render()">⏳ A direcionar ('+cont('sem')+')</span>'+
+      '<span class="ob-dest d-cnpj'+(fil==='dir'?' ob-filon':'')+'" style="cursor:pointer" onclick="S.idad.obraFil=\'dir\';S.idad.obraSel={};render()" title="Só para conferir ou desfazer — elas já estão no destino">✔ Já foram para o destino ('+(daFat.length-cont('sem'))+')</span>'+
+      '<span>Compra direcionada sai daqui e aparece no destino (Obra do IDAD, CNPJ ou Pessoal).</span>'+
+    '</div>'+
+    '<table><thead><tr>'+
     (podeEditar()?'<th style="width:34px"><input type="checkbox" class="ob-cx"'+(todosMarc?' checked':'')+' onchange="obraMarcarTodas(this.checked)" title="Marcar todas da lista"></th>':'')+
     '<th>Data</th><th>Compra</th><th>Parcela</th><th style="text-align:right">Valor</th><th>Vai para</th></tr></thead><tbody>'+
     (lista.length ? lista.map(m=>{ const d = obraDestino(m), on = !!sel[m.id];
@@ -4717,12 +4726,8 @@ function obraCartaoTela(o){
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
         '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td></tr>'; }).join('')
-      : '<tr><td colspan="6" class="vazio">Nada neste filtro.</td></tr>')+
+      : '<tr><td colspan="6" class="vazio">'+(fil==='dir'?'Nenhuma compra direcionada ainda.':'Tudo direcionado ✓ — nada pendente neste cartão.')+'</td></tr>')+
     '</tbody></table>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:10px 0 4px;font-size:12.5px;color:var(--fraco)">Filtro: '+
-      [['sem','Sem destino','d-nada'],['obra','Obra','d-obra'],['pes','Pessoal','d-pes'],['cnpj','CNPJ','d-cnpj'],['todos','Todas','d-nada']].map(([k,t,c])=>
-        '<span class="ob-dest '+c+(fil===k?' ob-filon':'')+'" style="cursor:pointer" onclick="S.idad.obraFil=\''+k+'\';render()">'+t+' ('+(k==='todos'?daFat.length:cont(k))+')</span>').join('')+
-    '</div>'+
     '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;color:var(--fraco);font-size:12.5px;margin-bottom:6px"><span>Mostrando '+lista.length+' de '+daFat.length+' compras</span><span>'+
       [['obra','Obra'],['pes','Pessoal'],['cnpj','CNPJ'],['sem','Sem destino']].map(([k,t])=>t+' '+brl(daFat.filter(m=>obraDestino(m).k===k).reduce((s,m)=>s+(m.tipo==='entrada'?-1:1)*(+m.valor||0),0))).join(' · ')+'</span></div></div>';
   return h;
@@ -4734,7 +4739,7 @@ function obraMarcarTodas(on){
   const fv = S.idad.obraFat, fil = S.idad.obraFil || 'sem';
   S.idad.obraSel = {};
   const fat = (S.idad.faturas||[]).find(f=>f.origem_id===o.id && f.vencimento===fv), ja = fat && Array.isArray(fat.movs_existentes) ? fat.movs_existentes : [];
-  if(on) S.movimentos.filter(m=>m.origem_id===o.id && (fv==='todas' || m.vencimento===fv || ja.indexOf(m.id)>=0) && (fil==='todos' || obraDestino(m).k===fil)).forEach(m=>S.idad.obraSel[m.id]=true);
+  if(on) S.movimentos.filter(m=>m.origem_id===o.id && (fv==='todas' || m.vencimento===fv || ja.indexOf(m.id)>=0) && (fil==='dir' ? obraDestino(m).k!=='sem' : obraDestino(m).k==='sem')).forEach(m=>S.idad.obraSel[m.id]=true);
   render();
 }
 function obraAplicar(){   // v126: 1) de quem é o dinheiro  2) para quem foi o gasto
