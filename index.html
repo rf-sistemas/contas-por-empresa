@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v128">
+<meta name="rf-versao" content="v129">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -240,7 +240,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v128',
+  versao : 'v129',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4655,7 +4655,9 @@ function obraDestino(m){
   if(ie && m.empresa_id===ie.id && m.categoria===OBRA_CAT_MOV) return { k:'obra', t:'🏗️ Obra do IDAD', c:'d-obra' };
   return { k:'cnpj', t:'🏢 '+nomeEmpresa(m.empresa_id)+(m.categoria?' · '+m.categoria:''), c:'d-cnpj' };
 }
-function obraParcela(d){ const p = String(d||'').match(/PARC\w*\s*(\d{1,2})\s*\/\s*(\d{1,2})/i); return p ? (+p[1])+' de '+(+p[2]) : ''; }
+function obraParcelaNum(d){ const p = String(d||'').match(/PARC\w*\.?\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i); return p && +p[2]>1 ? [+p[1], +p[2]] : null; }   // v129: aceita "Parc. 2/6" e "PARC 02/06"
+function obraParcela(d){ const p = obraParcelaNum(d); return p ? p[0]+' de '+p[1] : ''; }
+function obraTotalCompra(m){ const p = obraParcelaNum(m.descricao); return p ? Math.round((+m.valor||0)*p[1]*100)/100 : null; }   // v129: valor da parcela × nº de parcelas
 function obraAbas(cards){
   const ab = (id, tit, sub, sel) => '<div class="ob-aba'+(sel?' on':'')+'" onclick="obraIrAba(\''+id+'\')">'+tit+'<small>'+sub+'</small></div>';
   let h = '<div class="ob-abas">';
@@ -4723,14 +4725,15 @@ function obraCartaoTela(o){
     '</div>'+
     '<table><thead><tr>'+
     (cartoesEdita()?'<th style="width:34px"><input type="checkbox" class="ob-cx"'+(todosMarc?' checked':'')+' onchange="obraMarcarTodas(this.checked)" title="Marcar todas da lista"></th>':'')+
-    '<th>Data</th><th>Compra</th><th>Parcela</th><th style="text-align:right">Valor</th><th>Vai para</th></tr></thead><tbody>'+
+    '<th>Data</th><th>Compra</th><th>Parcela</th><th style="text-align:right">Valor</th><th>Vai para</th><th style="text-align:right" title="Compra parcelada: valor da parcela × número de parcelas">Total da compra</th></tr></thead><tbody>'+
     (lista.length ? lista.map(m=>{ const d = obraDestino(m), on = !!sel[m.id];
       return '<tr'+(on?' class="ob-on"':'')+'>'+(cartoesEdita()?'<td><input type="checkbox" class="ob-cx"'+(on?' checked':'')+' onchange="obraMarcar(\''+m.id+'\',this.checked)"></td>':'')+
         '<td style="white-space:nowrap">'+dataBR(m.data_movimento).slice(0,5)+'</td><td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.fornecedor && m.descricao && m.descricao!==m.fornecedor?'<br><small style="color:var(--fraco)">'+esc(String(m.descricao).slice(0,70))+'</small>':'')+'</td>'+
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
-        '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td></tr>'; }).join('')
-      : '<tr><td colspan="6" class="vazio">'+(fil==='dir'?'Nenhuma compra direcionada ainda.':'Tudo direcionado ✓ — nada pendente neste cartão.')+'</td></tr>')+
+        '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td>'+
+        (function(){ const tc = obraTotalCompra(m), pn = obraParcelaNum(m.descricao); return '<td style="text-align:right;white-space:nowrap">'+(tc!=null ? '<b>'+brl(tc)+'</b><br><small style="color:var(--fraco)">'+pn[1]+'× '+brl(+m.valor)+'</small>' : '<span style="color:var(--fraco)">—</span>')+'</td>'; })()+'</tr>'; }).join('')
+      : '<tr><td colspan="7" class="vazio">'+(fil==='dir'?'Nenhuma compra direcionada ainda.':'Tudo direcionado ✓ — nada pendente neste cartão.')+'</td></tr>')+
     '</tbody></table>'+
     '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;color:var(--fraco);font-size:12.5px;margin-bottom:6px"><span>Mostrando '+lista.length+' de '+daFat.length+' compras</span><span>'+
       [['obra','Obra'],['pes','Pessoal'],['cnpj','CNPJ'],['sem','Sem destino']].map(([k,t])=>t+' '+brl(daFat.filter(m=>obraDestino(m).k===k).reduce((s,m)=>s+(m.tipo==='entrada'?-1:1)*(+m.valor||0),0))).join(' · ')+'</span></div></div>';
