@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v124">
+<meta name="rf-versao" content="v125">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -53,6 +53,7 @@
   .ob-aba{background:var(--carta);border:1px solid var(--linha);border-radius:11px;padding:9px 13px;min-width:160px;cursor:pointer;font-weight:600}
   .ob-aba small{display:block;color:var(--fraco);font-size:11.5px;margin-top:2px;font-weight:400}
   .ob-aba.on{border:2px solid transparent;background:linear-gradient(var(--carta),var(--carta)) padding-box,linear-gradient(120deg,var(--mr-verde),var(--mr-turq),var(--mr-azul)) border-box}
+  .ob-bco{display:block;font-size:12.5px;font-weight:600;color:var(--texto);opacity:.8;margin-top:1px}
   .ob-aba.ob-mais{border-style:dashed;color:var(--fraco);min-width:120px}
   .ob-pend{background:#fff3d6;color:#8a5a00;border-radius:20px;font-size:11px;padding:1px 7px;font-weight:700;margin-left:4px}
   .ob-ok{background:var(--ok-bg);color:var(--ok-tx);border-radius:20px;font-size:11px;padding:1px 7px;font-weight:700;margin-left:4px}
@@ -229,7 +230,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v124',
+  versao : 'v125',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -402,7 +403,7 @@ function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
    que enxerga (um, vários ou todos). perfis.abas = null → todas as abas do papel; perfis.hospitais = null/vazio → todos.
    O banco também trava (RLS em esc_locais/esc_dias por hospital). Mestre vê tudo sempre. */
 const CPE_ABAS = [
-  ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
+  ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e compras'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
   ['HOSPITAL IDAD', [['idad','🏥','Hospital IDAD']]],
   ['FICHÁRIO', [['fichario','🗂️','Fichário']]],
   ['CADASTROS',  [['empresas','🏛️','Empresas']]]
@@ -974,16 +975,28 @@ async function apontarIds(ids, sufixo){
 }
 
 /* ---------- ORIGENS ---------- */
+/* v125 (Renato/Vinicius, 21/11/2026): CARTÕES E COMPRAS — o fluxo dos cartões saiu da Obra do IDAD e veio para cá.
+   "De lá ele dispara para todos os lugares": cada cartão numa aba (pessoa · banco · final), fatura, e cada compra com
+   caixinha para direcionar: Obra do IDAD, pessoal de alguém ou um CNPJ. A aba "Contas e caixas" é o cadastro de antes. */
 function telaOrigens(){
-  let h = '<div class="card"><h3>CARTÕES E CONTAS</h3>'+
+  if(!S.idad.faturas && !S.idad._cfc){ S.idad._cfc = true; sb.from('cartao_faturas').select('*').order('vencimento',{ascending:false}).then(f=>{ S.idad.faturas = f.data||[]; if(S.tela==='origens') render(); }, ()=>{ S.idad.faturas = []; }); }
+  const cards = obraCartoes(), movC = S.movimentos.filter(m=>cards.some(o=>o.id===m.origem_id));
+  const aPagarC = movC.filter(m=>!m.pago && m.tipo==='saida').reduce((s,m)=>s+(+m.valor||0),0);
+  let h = '<div class="secao"><b>CARTÕES E COMPRAS</b><span>Cada cartão numa aba — a fatura entra no cartão certo e cada compra vai para onde você mandar</span></div>';
+  h += '<div class="card"><div class="kpis">'+kpi('A pagar nos cartões (todas as parcelas)', brl(aPagarC))+
+    kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+'</div></div>';
+  if(!S.idad.obraAba || S.idad.obraAba==='gastos') S.idad.obraAba = cards.length ? cards[0].id : 'lista';
+  h += obraAbas(cards);
+  if(S.idad.obraAba!=='lista'){ const o = cards.find(x=>x.id===S.idad.obraAba); if(o) return h+obraCartaoTela(o); S.idad.obraAba='lista'; }
+  h += '<div class="card"><h3>CONTAS E CAIXAS</h3>'+
     '<div class="aviso">As origens nascem conforme aparecem no extrato — não precisa cadastrar antes. '+
     'Podem ser de terceiros (familiares), e é por elas que se descobre quem pagou.</div>'+
     (podeEditar()? '<button class="bt" onclick="abrirOrigem()">+ Nova origem</button> '+
       '<button class="bt g" onclick="abrirExtrato()">📎 Importar extrato</button>':'');
   if(!S.origens.length) return h+'<div class="vazio">Nenhuma origem ainda.</div></div>';
-  h += '<table style="margin-top:12px"><thead><tr><th>Nome</th><th>Tipo</th><th>Final / conta</th><th>Titular</th>'+
+  h += '<table style="margin-top:12px"><thead><tr><th>Nome</th><th>Tipo</th><th>Banco</th><th>Final / conta</th><th>Titular</th>'+
        '<th>Empresa padrão</th><th></th></tr></thead><tbody>'+
-    S.origens.map(o=>'<tr><td><b>'+esc(o.nome)+'</b></td><td>'+esc(o.tipo||'')+'</td>'+
+    S.origens.map(o=>'<tr><td><b>'+esc(o.nome)+'</b></td><td>'+esc(o.tipo||'')+'</td><td>'+esc(cartaoBanco(o)||'—')+'</td>'+
       '<td>'+esc(o.identificador||'—')+'</td><td>'+esc(o.titular||'—')+'</td>'+
       '<td>'+(o.empresa_id? esc(nomeEmpresa(o.empresa_id)) : '—')+'</td>'+
       '<td>'+(podeEditar()? '<button class="bt g mini" onclick="abrirOrigem(\''+o.id+'\')">editar</button>':'')+'</td></tr>').join('')+
@@ -3770,7 +3783,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
    Financeiro: caixa "CNPJs" (abre as empresas) + Apontar depois, Cartões e contas, Nomes.
    Escala: caixa "Escala" → dentro: NAFS (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
 const CPE_TELAS = {
-  painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
+  painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e compras', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
   producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
@@ -3824,7 +3837,7 @@ function telaInicio(){
   const nf = fila().length, ne = S.empresas.length;
   const fin = (veAba('painel')? cpeCaixa('painel','🏢','CNPJs', ne+' empresa'+(ne===1?'':'s')+': entradas, saídas, contas a pagar e saldo do mês'):'')+
     (veAba('fila')? cpeCaixa('fila','📌','Apontar depois','Lançamentos que ainda falta dizer de qual CNPJ são', nf||''):'')+
-    (veAba('origens')? cpeCaixa('origens','💳','Cartões e contas','Cartões, contas bancárias e importação de extrato / fatura'):'')+
+    (veAba('origens')? cpeCaixa('origens','💳','Cartões e compras','Uma aba por cartão: fatura, compras e o destino de cada uma (obra, pessoal ou CNPJ)'):'')+
     (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'')+
     (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais',''):'');
   let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
@@ -4553,8 +4566,9 @@ function telaIdadObra(){
   const aPagarC = movC.filter(m=>!m.pago && m.tipo==='saida').reduce((s,m)=>s+(+m.valor||0),0);
   h += '<div class="card"><div class="kpis">'+kpi('Total na obra', brl(t.t))+kpi('A pagar nos cartões (todas as parcelas)', brl(aPagarC))+
     kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+'</div></div>';
-  h += obraAbas(cards);
-  if(S.idad.obraAba && S.idad.obraAba!=='gastos'){ const o = cards.find(x=>x.id===S.idad.obraAba); if(o) return h+obraCartaoTela(o); S.idad.obraAba='gastos'; }
+  // v125: os cartões e as compras foram para Financeiro › Cartões e compras (de lá cada compra vai para a obra, pessoal ou CNPJ)
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:220px">💳 As faturas dos cartões e a separação das compras (obra / pessoal / CNPJ) ficam em <b>Financeiro › Cartões e compras</b>. O que for marcado como obra aparece aqui.</span>'+
+    '<button class="bt" onclick="S.idad.obraAba=null;irPara(\'origens\')">Abrir Cartões e compras</button></div>';
   const l = all.filter(x=>!f || [x.descricao,x.categoria,x.etapa,x.fornecedor,x.pago_por].some(v=>permNorm(v).indexOf(f)>=0));
   const porCat = {}; all.forEach(x=>{ const k=x.categoria||'Sem categoria'; porCat[k]=(porCat[k]||0)+(+x.valor||0); });
   h += '<div class="card"><div class="kpis">'+kpi('Pago', brl(t.p))+kpi('A pagar', brl(t.ap))+kpi('Lançamentos', String(all.length))+'</div>'+
@@ -4614,6 +4628,10 @@ async function obraExcluir(id){ if(!confirm('Excluir este gasto da obra?')) retu
 const OBRA_CAT_MOV = 'Obra do IDAD';
 function obraCartoes(){ return S.origens.filter(o=>o.obra).sort((a,b)=>(a.obra_ordem||99)-(b.obra_ordem||99) || String(a.nome).localeCompare(String(b.nome),'pt-BR')); }
 function obraCartaoNome(o){ return String(o.nome||'').replace(/^Cart[ãa]o\s+/i,'').replace(/\s*\(identificar o dono\)/i,'').replace(/\s+final\s+/i,' · '); }
+// v125: rótulo da aba = nome da pessoa + banco (+ final)
+const CART_BANCOS = [['UNICRED','Unicred'],['OUROCARD','Banco do Brasil'],['BANCO DO BRASIL','Banco do Brasil'],['BB','Banco do Brasil'],['ITAU','Itaú'],['BRADESCO','Bradesco'],['SANTANDER','Santander'],['NUBANK','Nubank'],['INTER','Inter'],['CAIXA','Caixa'],['SICOOB','Sicoob'],['SICREDI','Sicredi'],['C6','C6 Bank'],['XP','XP'],['BTG','BTG']];
+function cartaoBanco(o){ if(o.banco) return o.banco; const n = ' '+permNorm(o.nome).toUpperCase()+' '; const b = CART_BANCOS.find(k=>n.indexOf(' '+k[0]+' ')>=0); return b ? b[1] : ''; }
+function cartaoPessoa(o){ if(o.titular) return String(o.titular).trim().split(/\s+/)[0]; const n = obraCartaoNome(o).split(' · ')[0].trim(); return /^final\b/i.test(n) || !n ? '' : n.split(/\s+/)[0]; }
 function obraDestino(m){
   if(m.pessoal) return { k:'pes', t:'👤 Pessoal — '+pesNome(m.pessoa_id), c:'d-pes' };
   if(!m.empresa_id) return { k:'sem', t:'sem destino', c:'d-nada' };
@@ -4623,16 +4641,18 @@ function obraDestino(m){
 }
 function obraParcela(d){ const p = String(d||'').match(/PARC\w*\s*(\d{1,2})\s*\/\s*(\d{1,2})/i); return p ? (+p[1])+' de '+(+p[2]) : ''; }
 function obraAbas(cards){
-  S.idad.obraAba = S.idad.obraAba || 'gastos';
   const ab = (id, tit, sub, sel) => '<div class="ob-aba'+(sel?' on':'')+'" onclick="obraIrAba(\''+id+'\')">'+tit+'<small>'+sub+'</small></div>';
-  let h = '<div class="ob-abas">'+ab('gastos','📋 Gastos da obra','lista geral',S.idad.obraAba==='gastos');
+  let h = '<div class="ob-abas">';
   cards.forEach(o=>{
     const ms = S.movimentos.filter(m=>m.origem_id===o.id), sem = ms.filter(m=>obraDestino(m).k==='sem').length;
     const fat = (S.idad.faturas||[]).find(f=>f.origem_id===o.id);
     const sub = !ms.length ? 'aguardando 1ª fatura' : fat ? 'venc. '+dataBR(fat.vencimento).slice(0,5) : ms.length+' compra(s)';
-    h += ab(o.id, '💳 '+esc(obraCartaoNome(o))+(sem?' <span class="ob-pend">'+sem+'</span>':(ms.length?' <span class="ob-ok">✓</span>':' <span class="ob-pend">novo</span>')), esc(sub), S.idad.obraAba===o.id);
+    const pes = cartaoPessoa(o), bco = cartaoBanco(o);
+    h += ab(o.id, '💳 '+(pes ? esc(pes) : '<i style="font-weight:600;opacity:.75">Dono a identificar</i>')+(sem?' <span class="ob-pend">'+sem+'</span>':(ms.length?' <span class="ob-ok">✓</span>':' <span class="ob-pend">novo</span>'))+
+      '<span class="ob-bco">'+(bco ? esc(bco) : '<span style="color:#d97706">banco ?</span>')+(o.identificador ? ' · final '+esc(o.identificador) : '')+'</span>', esc(sub), S.idad.obraAba===o.id);
   });
-  if(podeEditar()) h += '<div class="ob-aba ob-mais" onclick="obraCartoesEditar()">＋ Cartão<small>incluir / tirar</small></div>';
+  h += ab('lista','🏦 Contas e caixas','cadastro de todas as origens',S.idad.obraAba==='lista');
+  if(podeEditar()) h += '<div class="ob-aba ob-mais" onclick="obraCartoesEditar()">＋ Cartão<small>incluir / tirar / banco</small></div>';
   return h+'</div>';
 }
 function obraIrAba(id){ S.idad.obraAba = id; S.idad.obraSel = {}; S.idad.obraFat = null; S.idad.obraFil = 'sem'; render(); }
@@ -4736,28 +4756,34 @@ async function obraDirecionar(dest, alvo){
   const nome = dest==='obra' ? 'Obra do IDAD' : dest==='pes' ? 'Pessoal — '+pesNome(alvo) : dest==='cnpj' ? nomeEmpresa(alvo) : '"Apontar depois"';
   aviso(ok+' compra(s) direcionada(s) para '+nome+'.'+(erros.length?' '+erros.length+' não foram: '+erros.slice(0,2).join('; '):''), erros.length?'erro':'ok');
 }
-function obraCartoesEditar(){
+function obraCartoesEditar(){   // v125: cartões nas abas de Cartões e compras + banco de cada um
   const cs = S.origens.filter(o=>o.tipo==='cartao').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  abrirModal('<h2>Cartões da obra</h2><div class="aviso">Marque os cartões que aparecem como aba na Obra do IDAD. Cartão novo (ainda sem fatura) você cadastra aqui e o final entra na 1ª importação.</div>'+
-    cs.map(o=>'<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;margin:8px 0"><input type="checkbox" class="ob-cc" value="'+o.id+'" style="width:auto"'+(o.obra?' checked':'')+'> '+esc(o.nome)+(o.identificador?' <small style="color:var(--fraco)">·'+esc(o.identificador)+'</small>':'')+'</label>').join('')+
-    '<label>Novo cartão (opcional)</label><div class="lin"><div><input id="ob-cn-nome" placeholder="Ex.: Cartão Vinicius Unicred"></div><div><input id="ob-cn-tit" placeholder="Titular (ex.: Vinicius)"></div></div>'+
+  abrirModal('<h2>Cartões nas abas</h2><div class="aviso">Marque os cartões que aparecem como aba em Cartões e compras e confira o <b>banco</b> de cada um. Cartão novo (ainda sem fatura) você cadastra aqui e o final entra na 1ª importação.</div>'+
+    cs.map(o=>'<div style="display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap"><label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;flex:1;min-width:200px;margin:0"><input type="checkbox" class="ob-cc" value="'+o.id+'" style="width:auto"'+(o.obra?' checked':'')+'> '+esc(o.nome)+(o.identificador?' <small style="color:var(--fraco)">final '+esc(o.identificador)+'</small>':'')+'</label>'+
+      '<input class="ob-cb" data-id="'+o.id+'" list="ob-bancos" placeholder="Banco" value="'+esc(cartaoBanco(o))+'" style="width:160px"></div>').join('')+
+    '<datalist id="ob-bancos">'+[...new Set(CART_BANCOS.map(k=>k[1]))].map(b=>'<option value="'+esc(b)+'">').join('')+'</datalist>'+
+    '<label>Novo cartão (opcional)</label><div class="lin"><div><input id="ob-cn-nome" placeholder="Ex.: Cartão Vinicius Unicred"></div><div><input id="ob-cn-tit" placeholder="Titular (ex.: Vinicius)"></div><div><input id="ob-cn-bco" list="ob-bancos" placeholder="Banco"></div></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="obraCartoesSalvar()">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
 }
 async function obraCartoesSalvar(){
   const marc = [...document.querySelectorAll('.ob-cc')].map(x=>({ id:x.value, on:x.checked }));
+  const bcos = {}; document.querySelectorAll('.ob-cb').forEach(x=>{ bcos[x.dataset.id] = x.value.trim(); });
   let ordem = Math.max(0, ...S.origens.filter(o=>o.obra).map(o=>o.obra_ordem||0));
   for(const c of marc){
-    const o = S.origens.find(x=>x.id===c.id); if(!o || !!o.obra===c.on) continue;
-    const upd = { obra:c.on, obra_ordem: c.on ? (o.obra_ordem || ++ordem) : o.obra_ordem };
+    const o = S.origens.find(x=>x.id===c.id); if(!o) continue;
+    const upd = {};
+    if(!!o.obra!==c.on){ upd.obra = c.on; upd.obra_ordem = c.on ? (o.obra_ordem || ++ordem) : o.obra_ordem; }
+    if((bcos[o.id]||'') !== (o.banco||'') && (bcos[o.id]||'') !== cartaoBanco(o)) upd.banco = bcos[o.id] || null;
+    if(!Object.keys(upd).length) continue;
     const r = await sb.from('origens').update(upd).eq('id', o.id).select().maybeSingle();
     if(r.error) return aviso('Não salvou: '+r.error.message,'erro'); Object.assign(o, r.data);
   }
-  const nome = val('ob-cn-nome').trim(), tit = val('ob-cn-tit').trim();
+  const nome = val('ob-cn-nome').trim(), tit = val('ob-cn-tit').trim(), bco = val('ob-cn-bco').trim();
   if(nome){
-    const r = await sb.from('origens').insert({ nome, tipo:'cartao', titular: tit||null, obra:true, obra_ordem: ++ordem, observacao:'Criado na Obra do IDAD (v124); o final entra na 1ª fatura' }).select().maybeSingle();
+    const r = await sb.from('origens').insert({ nome, tipo:'cartao', titular: tit||null, banco: bco||null, obra:true, obra_ordem: ++ordem, observacao:'Criado em Cartões e compras (v125); o final entra na 1ª fatura' }).select().maybeSingle();
     if(r.error) return aviso('Não criou o cartão: '+r.error.message,'erro'); S.origens.push(r.data);
   }
-  S.modal = null; aviso('Cartões da obra atualizados.','ok');
+  S.modal = null; aviso('Cartões atualizados.','ok');
 }
 var _exObra = null;   // v124: fatura importada pela aba de um cartão da obra
 function obraImportarFatura(oid){ abrirExtrato(null, oid); }
