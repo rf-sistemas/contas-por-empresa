@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v129">
+<meta name="rf-versao" content="v130">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -72,6 +72,9 @@
   .ob-seta{align-self:center;font-size:26px;font-weight:800;color:var(--mr-turq,#00b8d9)}
   .d-din{background:#fff0e0;color:#9a4a00}body[data-tema="escuro"] .d-din{background:#3a2208;color:#ffc58a}
   @media(max-width:760px){.ob-2p{grid-template-columns:1fr}.ob-seta{transform:rotate(90deg);justify-self:center}}
+  .ob-cons td{background:#e9f8f0}body[data-tema="escuro"] .ob-cons td{background:#0d2a20}
+  .d-cons{background:#13b981;color:#fff}
+  .nt-box{border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}.nt-ok{background:#e6f7f1;border:1px solid #13b981}.nt-nao{background:#fff6e0;border:1px solid #f0b429}
   .ob-dest{border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap;display:inline-block}
   .ob-dest.ob-filon{outline:2px solid var(--mr-turq)}
   .d-obra{background:#e6f7f1;color:#0d6b4d}.d-pes{background:#efeaff;color:#4b2a9e}.d-cnpj{background:#e7f0fb;color:#1d4f8a}.d-nada{background:var(--btg);color:var(--fraco)}.d-ja{background:#fff3d6;color:#8a5a00}
@@ -240,7 +243,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v129',
+  versao : 'v130',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -995,6 +998,7 @@ async function apontarIds(ids, sufixo){
    "De lá ele dispara para todos os lugares": cada cartão numa aba (pessoa · banco · final), fatura, e cada compra com
    caixinha para direcionar: Obra do IDAD, pessoal de alguém ou um CNPJ. A aba "Contas e caixas" é o cadastro de antes. */
 function telaOrigens(){
+  if(!S.cartNotas && !S._cnt){ S._cnt = true; sb.from('cartao_notas').select('*').order('criado_em',{ascending:false}).then(f=>{ S.cartNotas = f.data||[]; if(S.tela==='origens') render(); }, ()=>{ S.cartNotas = []; }); }
   if(!S.idad.faturas && !S.idad._cfc){ S.idad._cfc = true; sb.from('cartao_faturas').select('*').order('vencimento',{ascending:false}).then(f=>{ S.idad.faturas = f.data||[]; if(S.tela==='origens') render(); }, ()=>{ S.idad.faturas = []; }); }
   const cards = obraCartoes(), movC = S.movimentos.filter(m=>cards.some(o=>o.id===m.origem_id));
   const aPagarC = movC.filter(m=>!m.pago && m.tipo==='saida').reduce((s,m)=>s+(+m.valor||0),0);
@@ -4693,7 +4697,7 @@ function obraCartaoTela(o){
     (venc ? '<span class="ob-tag er">vencida</span>' : '')+
     '<span style="flex:1"></span>'+
     (fat && fat.pdf_path ? '<button class="bt g" onclick="verAnexo(\''+fat.pdf_path+'\')">📎 PDF da fatura</button>' : '')+
-    (cartoesEdita() ? '<button class="bt" onclick="obraImportarFatura(\''+o.id+'\')">⬆ Importar fatura</button>' : '')+
+    (cartoesEdita() ? '<button class="bt g" onclick="cartaoAnexarNota()">🧾 Anexar nota</button> ' : '')+(cartoesEdita() ? '<button class="bt" onclick="obraImportarFatura(\''+o.id+'\')">⬆ Importar fatura</button>' : '')+
     '</div>';
   if(!cartoesEdita()) h += '<div class="aviso" style="margin-bottom:10px">👁️ <b>Só visualização</b> — você pode ver os cartões e as compras, mas não pode alterar nada.</div>';
   if(!todas.length) return h+'<div class="vazio">Nenhuma compra deste cartão ainda. Toque em <b>Importar fatura</b> (PDF do banco) ou mande o PDF para o Vini no WhatsApp.</div>';
@@ -4721,17 +4725,18 @@ function obraCartaoTela(o){
     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0 8px;font-size:12.5px;color:var(--fraco)">'+
       '<span class="ob-dest d-nada'+(fil!=='dir'?' ob-filon':'')+'" style="cursor:pointer" onclick="S.idad.obraFil=\'sem\';S.idad.obraSel={};render()">⏳ A direcionar ('+cont('sem')+')</span>'+
       '<span class="ob-dest d-cnpj'+(fil==='dir'?' ob-filon':'')+'" style="cursor:pointer" onclick="S.idad.obraFil=\'dir\';S.idad.obraSel={};render()" title="Só para conferir ou desfazer — elas já estão no destino">✔ Já foram para o destino ('+(daFat.length-cont('sem'))+')</span>'+
-      '<span>Compra direcionada sai daqui e aparece no destino (Obra do IDAD, CNPJ ou Pessoal).</span>'+
+      '<span class="ob-dest d-cons">✅ Consolidadas com nota: '+daFat.filter(m=>m.nota_id).length+' de '+daFat.length+'</span>'+'<span>Compra direcionada sai daqui e aparece no destino (Obra do IDAD, CNPJ ou Pessoal).</span>'+
     '</div>'+
     '<table><thead><tr>'+
     (cartoesEdita()?'<th style="width:34px"><input type="checkbox" class="ob-cx"'+(todosMarc?' checked':'')+' onchange="obraMarcarTodas(this.checked)" title="Marcar todas da lista"></th>':'')+
     '<th>Data</th><th>Compra</th><th>Parcela</th><th style="text-align:right">Valor</th><th>Vai para</th><th style="text-align:right" title="Compra parcelada: valor da parcela × número de parcelas">Total da compra</th></tr></thead><tbody>'+
     (lista.length ? lista.map(m=>{ const d = obraDestino(m), on = !!sel[m.id];
-      return '<tr'+(on?' class="ob-on"':'')+'>'+(cartoesEdita()?'<td><input type="checkbox" class="ob-cx"'+(on?' checked':'')+' onchange="obraMarcar(\''+m.id+'\',this.checked)"></td>':'')+
+      const nt = notaDe(m);
+      return '<tr class="'+(on?'ob-on ':'')+(nt?'ob-cons':'')+'">'+(cartoesEdita()?'<td><input type="checkbox" class="ob-cx"'+(on?' checked':'')+' onchange="obraMarcar(\''+m.id+'\',this.checked)"></td>':'')+
         '<td style="white-space:nowrap">'+dataBR(m.data_movimento).slice(0,5)+'</td><td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.fornecedor && m.descricao && m.descricao!==m.fornecedor?'<br><small style="color:var(--fraco)">'+esc(String(m.descricao).slice(0,70))+'</small>':'')+'</td>'+
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
-        '<td><span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td>'+
+        '<td>'+(nt?'<span class="ob-dest d-cons" style="cursor:pointer" onclick="'+(nt.path?'verAnexo(\''+esc(nt.path)+'\')':'')+'" title="Nota anexada e casada com esta compra">✅ Consolidada'+(nt.numero?' · NF '+esc(nt.numero):'')+'</span> ':'')+'<span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td>'+
         (function(){ const tc = obraTotalCompra(m), pn = obraParcelaNum(m.descricao); return '<td style="text-align:right;white-space:nowrap">'+(tc!=null ? '<b>'+brl(tc)+'</b><br><small style="color:var(--fraco)">'+pn[1]+'× '+brl(+m.valor)+'</small>' : '<span style="color:var(--fraco)">—</span>')+'</td>'; })()+'</tr>'; }).join('')
       : '<tr><td colspan="7" class="vazio">'+(fil==='dir'?'Nenhuma compra direcionada ainda.':'Tudo direcionado ✓ — nada pendente neste cartão.')+'</td></tr>')+
     '</tbody></table>'+
@@ -4818,6 +4823,65 @@ async function obraCartoesSalvar(){
   }
   S.modal = null; aviso('Cartões atualizados.','ok');
 }
+
+/* ===== v130 (Renato, 21/11/2026): CONSOLIDAÇÃO — "anexar nota e o sistema lê e casa com a dívida do cartão".
+   - Botão 🧾 Anexar nota em Cartões e compras (e o Vini pelo WhatsApp): lê a nota (ler-nota) e procura a compra em TODOS os cartões.
+   - Casa quando: mesmo valor (à vista) ou parcela × nº de parcelas = valor da nota (tolerância de centavos de arredondamento),
+     data da compra até 5 dias da emissão, e o nome do fornecedor parecido (ajuda a desempatar).
+   - Casou → todas as parcelas daquela compra ficam VERDES "Consolidada · NF nº" (movimentos.nota_id → cartao_notas).
+   - Não casou → a nota fica guardada em "Notas sem compra" e o sistema tenta de novo a cada fatura nova. */
+function notaTol(v){ return Math.max(0.10, Math.abs(+v||0)*0.002); }   // até 10 centavos ou 0,2% (arredondamento de parcela)
+function notaNomeParecido(a,b){ const n = s=>permNorm(String(s||'')).replace(/[^A-Z0-9 ]/gi,' ').toUpperCase().split(/\s+/).filter(w=>w.length>=3 && !/^(LTDA|COM|MAT|PARC|FEIRA|SANT|SAN|DE|DA|DO)$/.test(w));
+  const A = n(a), B = n(b); return A.some(w=>B.some(x=>x.indexOf(w)===0 || w.indexOf(x)===0)); }
+function notaCandidatas(nota){
+  const cartoes = S.origens.filter(o=>o.tipo==='cartao').map(o=>o.id), vNota = +nota.valor||0, dN = Date.parse(nota.data||'');
+  const grupos = {};
+  S.movimentos.filter(m=>cartoes.indexOf(m.origem_id)>=0 && !m.nota_id && m.tipo!=='entrada').forEach(m=>{
+    const pn = obraParcelaNum(m.descricao), total = pn ? (+m.valor||0)*pn[1] : (+m.valor||0);
+    if(Math.abs(total - vNota) > notaTol(vNota)) return;
+    if(dN && Math.abs(Date.parse(m.data_movimento) - dN) > 5*864e5) return;
+    const base = String(m.fornecedor||m.descricao||'').replace(/\s*PARC\w*\.?\s*\d+\s*(\/|DE)\s*\d+.*$/i,'').trim();
+    const k = m.origem_id+'|'+base+'|'+(pn?pn[1]:1)+'|'+(+m.valor).toFixed(2);
+    (grupos[k] = grupos[k] || { origem_id:m.origem_id, nome:base, parcelas: pn?pn[1]:1, valor:+m.valor, total, movs:[], nomeOk: notaNomeParecido(base, nota.emitente) }).movs.push(m);
+  });
+  return Object.values(grupos).sort((a,b)=>(b.nomeOk-a.nomeOk) || (Math.abs(a.total-vNota)-Math.abs(b.total-vNota)));
+}
+function cartaoAnexarNota(){
+  if(!cartoesEdita()) return;
+  abrirModal('<h2>🧾 Anexar nota</h2><div class="aviso">Mande a nota (foto ou PDF). O sistema lê e procura a compra em <b>todos os cartões</b>. Achou → a compra fica <b style="color:#0d6b4d">verde, consolidada</b>.</div>'+
+    '<input type="file" id="nt-arq" accept="image/*,application/pdf" multiple style="margin:12px 0">'+
+    '<div id="nt-res"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="cartaoLerNotas()">Ler e consolidar</button><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+async function cartaoLerNotas(){
+  const fs = [...(document.getElementById('nt-arq').files||[])]; if(!fs.length) return aviso('Escolha a nota.','erro');
+  const res = document.getElementById('nt-res'); let html = '';
+  for(const f of fs){
+    res.innerHTML = html+'<p>Lendo '+esc(f.name)+'…</p>';
+    let lido; try{ lido = await lerPorIA(f); }catch(e){ html += '<p class="ob-tag er">'+esc(f.name)+': não consegui ler ('+esc(e.message)+')</p>'; continue; }
+    const up = await subirAnexo(f);
+    const nota = { emitente: lido.fornecedor||null, cnpj_emitente: lido.cnpjPagador||null, numero: (String(lido.descricao||'').match(/\d[\d.]*/)||[''])[0]||null,
+      data: lido.data||null, valor: +lido.valor||0, path: up?up.path:null, nome: f.name, via:'tela', criado_por: S.user.id };
+    html += await cartaoConsolidar(nota);
+    res.innerHTML = html;
+  }
+}
+async function cartaoConsolidar(nota){
+  const cands = notaCandidatas(nota), c = cands[0];
+  const forte = c && (cands.length===1 || (c.nomeOk && !cands[1].nomeOk));
+  nota.status = forte ? 'casada' : 'sem_compra';
+  const rn = await sb.from('cartao_notas').insert(nota).select().maybeSingle();
+  if(rn.error) return '<p class="ob-tag er">Não guardei a nota: '+esc(rn.error.message)+'</p>';
+  S.cartNotas = (S.cartNotas||[]); S.cartNotas.unshift(rn.data);
+  const cab = '<b>'+esc(nota.emitente||'Nota')+'</b>'+(nota.numero?' · NF '+esc(nota.numero):'')+' · '+brl(nota.valor)+(nota.data?' · '+dataBR(nota.data):'');
+  if(!forte) return '<div class="nt-box nt-nao">⏳ '+cab+'<br><small>'+(cands.length ? cands.length+' compras parecidas — escolha na lista "Notas sem compra".' : 'Ainda não achei a compra em nenhum cartão. Fica guardada e o sistema tenta de novo quando chegar fatura nova.')+'</small></div>';
+  for(const m of c.movs){ const r = await sb.from('movimentos').update({ nota_id: rn.data.id }).eq('id', m.id).select().maybeSingle(); if(!r.error && r.data) Object.assign(m, r.data); }
+  await sb.from('cartao_notas').update({ movimento_ids: c.movs.map(m=>m.id) }).eq('id', rn.data.id);
+  const o = S.origens.find(x=>x.id===c.origem_id) || {};
+  render();
+  return '<div class="nt-box nt-ok">✅ '+cab+'<br><small>Casou com <b>'+esc(c.nome)+'</b> no cartão <b>'+esc((cartaoPessoa(o)||'')+' '+(cartaoBanco(o)||'')+(o.identificador?' · final '+o.identificador:''))+'</b> — '+
+    (c.parcelas>1 ? c.parcelas+'× '+brl(c.valor)+' = '+brl(c.total) : brl(c.total))+(Math.abs(c.total-nota.valor)>=0.005?' (diferença de '+brl(Math.abs(c.total-nota.valor))+' de arredondamento)':'')+'. Consolidada.</small></div>';
+}
+function notaDe(m){ return m.nota_id ? (S.cartNotas||[]).find(n=>n.id===m.nota_id) || { id:m.nota_id } : null; }
 var _exObra = null;   // v124: fatura importada pela aba de um cartão da obra
 function obraImportarFatura(oid){ abrirExtrato(null, oid); }
 async function obraGuardarFatura(origemId){   // v124: cabeçalho da fatura (total impresso + PDF) e o final do cartão novo
