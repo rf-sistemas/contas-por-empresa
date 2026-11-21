@@ -6,7 +6,8 @@
 // v12 (21/11/2026): ÁUDIO — o Vini ouve (transcreve) e responde também em nota de voz; lê PDF como lê foto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const VERSAO = "vini-ponte v20 (21/11/2026)";
+const VERSAO = "vini-ponte v21 (21/11/2026)";
+// v21 (21/11/2026): nenhuma nota se perde — nota sem valor legível fica como "não lida"; a nota guarda o chat para o robô avisar quando casar depois; fatura nova re-casa as notas guardadas.
 // v20 (21/11/2026): NOTA FISCAL de compra → o Vini procura a compra em todos os cartões e consolida (mesma regra do CPE v130).
 // v19 (21/11/2026): pedido do Renato/Vinicius — a equipe diz ao Vini (texto ou áudio) de qual CNPJ / obra / pessoal é cada conta ou compra e o Vini EXECUTA direto e avisa; "desfaz" volta a última.
 // v18 (21/11/2026): lançamento direto só para fatura em PDF com vencimento (print do app é pedaço da fatura → pede SIM); separação aponta Financeiro › Cartões e compras (CPE v125).
@@ -570,10 +571,10 @@ async function lerDoc(b64: string, mime: string, legenda: string, rg: string) {
 /* ---------- v20: CONSOLIDAÇÃO — nota fiscal casa com a compra do cartão (regra igual à do CPE v130) ---------- */
 const parcNum = (d: string) => { const p = String(d || "").match(/PARC\w*\.?\s*(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})/i); return p && +p[2] > 1 ? [+p[1], +p[2]] : null; };
 const nomeParecido = (a: string, b: string) => { const n = (s: string) => norm(s).split(" ").filter((w) => w.length >= 3 && !/^(LTDA|COM|MAT|PARC|FEIRA|SANT|SAN|DE|DA|DO)$/.test(w)); const A = n(a), B = n(b); return A.some((w) => B.some((x) => x.startsWith(w) || w.startsWith(x))); };
-async function consolidarNota(n: any, foto: string, autor: string): Promise<string> {
+async function consolidarNota(n: any, foto: string, autor: string, chat = ""): Promise<string> {
   const valor = Math.round((+n.valor || 0) * 100) / 100, data = n.data, tol = Math.max(0.10, valor * 0.002);
   const rot = `*${n.emitente || "Nota"}*${n.numero ? " · NF " + n.numero : ""} · ${brl(valor)}${data ? " · " + dbr(data) : ""}`;
-  if (!valor) return `❓ ${rot}: não consegui ler o valor da nota.`;
+  if (!valor) { await sb.from("cartao_notas").insert({ status: "nao_lida", path: foto, nome: "nota pelo WhatsApp", via: "vini", chat: chat || null, emitente: n.emitente || null, numero: n.numero ? String(n.numero) : null, data: data || null }); return `❓ ${rot}: não consegui ler o valor. Guardei a nota em *Cartões e compras › Notas* para digitar o valor — ela não se perde.`; }
   const { data: cartoes } = await sb.from("origens").select("id,nome,titular,banco,identificador").eq("tipo", "cartao");
   const ids = (cartoes || []).map((o: any) => o.id);
   let q = sb.from("movimentos").select("id,origem_id,descricao,fornecedor,valor,data_movimento,tipo,nota_id").in("origem_id", ids).is("nota_id", null).neq("tipo", "entrada");
@@ -590,10 +591,10 @@ async function consolidarNota(n: any, foto: string, autor: string): Promise<stri
   }
   const c = Object.values(g).sort((a: any, b: any) => (b.finalOk - a.finalOk) || (b.nomeOk - a.nomeOk) || (Math.abs(a.total - valor) - Math.abs(b.total - valor)));
   const top: any = c[0], forte = top && (c.length === 1 || (top.finalOk && !(c[1] as any).finalOk) || (top.nomeOk && !(c[1] as any).nomeOk));
-  const reg: any = { emitente: n.emitente || null, cnpj_emitente: so(n.cnpj_emitente) || null, numero: n.numero ? String(n.numero) : null, data: data || null, valor, final_cartao: so(n.final_cartao).slice(-4) || null, path: foto, nome: "nota pelo WhatsApp", via: "vini", status: forte ? "casada" : "sem_compra" };
+  const reg: any = { emitente: n.emitente || null, cnpj_emitente: so(n.cnpj_emitente) || null, numero: n.numero ? String(n.numero) : null, data: data || null, valor, final_cartao: so(n.final_cartao).slice(-4) || null, path: foto, nome: "nota pelo WhatsApp", via: "vini", chat: chat || null, status: forte ? "casada" : "sem_compra" };
   const { data: nt, error } = await sb.from("cartao_notas").insert(reg).select("id").single();
   if (error) return `⚠️ ${rot}: não consegui guardar a nota (${error.message}).`;
-  if (!forte) return `⏳ ${rot}: ${c.length ? c.length + " compras parecidas nos cartões — confira em Cartões e compras." : "ainda não achei a compra em nenhum cartão. Guardei a nota e tento de novo quando chegar fatura nova."}`;
+  if (!forte) return `⏳ ${rot}: ${c.length ? c.length + " compras parecidas nos cartões — confira em Cartões e compras." : "ainda não achei a compra em nenhum cartão. Guardei a nota; tento de novo a cada 15 min e quando chegar fatura nova, e te aviso quando casar."}`;
   await sb.from("movimentos").update({ nota_id: nt.id }).in("id", top.movs.map((m: any) => m.id));
   await sb.from("cartao_notas").update({ movimento_ids: top.movs.map((m: any) => m.id) }).eq("id", nt.id);
   const cart = `${top.o.titular || top.o.nome || "cartão"}${top.o.banco ? " " + top.o.banco : ""}${top.o.identificador ? " final " + top.o.identificador : ""}`;
@@ -639,7 +640,7 @@ async function processarLote(chat: string, autor: string, contato: any) {
     const data = /^\d{4}-\d{2}-\d{2}$/.test(d?.data || "") ? d.data : null;
     if (d.tipo === "fatura") { faturas.push({ f, b64 }); continue; }   // v14: fatura de cartão tem fluxo próprio
     if (d.tipo === "nota" && d.nota && (contato.pode_lancar || contato.pode_fatura || contato.pode_direcionar)) {   // v20
-      try { linhasNotas.push(await consolidarNota({ ...d.nota, data }, f.foto_path, autor)); } catch (e) { linhasNotas.push(`⚠️ Nota: ${(e as Error).message}`); }
+      try { linhasNotas.push(await consolidarNota({ ...d.nota, data }, f.foto_path, autor, chat)); } catch (e) { linhasNotas.push(`⚠️ Nota: ${(e as Error).message}`); }
       continue;
     }
     if (d.tipo === "escala" && Array.isArray(d.escala) && data) {

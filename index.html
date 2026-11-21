@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v130">
+<meta name="rf-versao" content="v131">
 <meta name="rf-data" content="2026-11-21">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -243,7 +243,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v130',
+  versao : 'v131',
   data   : '21/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -1007,6 +1007,7 @@ function telaOrigens(){
     kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+'</div></div>';
   if(!S.idad.obraAba || S.idad.obraAba==='gastos') S.idad.obraAba = cards.length ? cards[0].id : 'lista';
   h += obraAbas(cards);
+  if(S.idad.obraAba==='notas') return h+telaNotas();
   if(S.idad.obraAba!=='lista'){ const o = cards.find(x=>x.id===S.idad.obraAba); if(o) return h+obraCartaoTela(o); S.idad.obraAba='lista'; }
   h += '<div class="card"><h3>CONTAS E CAIXAS</h3>'+
     '<div class="aviso">As origens nascem conforme aparecem no extrato — não precisa cadastrar antes. '+
@@ -4673,6 +4674,8 @@ function obraAbas(cards){
     h += ab(o.id, '💳 '+(pes ? esc(pes) : '<i style="font-weight:600;opacity:.75">Dono a identificar</i>')+(sem?' <span class="ob-pend">'+sem+'</span>':(ms.length?' <span class="ob-ok">✓</span>':' <span class="ob-pend">novo</span>'))+
       '<span class="ob-bco">'+(bco ? esc(bco) : '<span style="color:#d97706">banco ?</span>')+(o.identificador ? ' · final '+esc(o.identificador) : '')+'</span>', esc(sub), S.idad.obraAba===o.id);
   });
+  { const pn = (S.cartNotas||[]).filter(n=>n.status==='sem_compra'||n.status==='nao_lida').length, cs = semNotaGrupos().length;
+    h += ab('notas','🧾 Notas'+((pn+cs)?' <span class="ob-pend">'+(pn+cs)+'</span>':' <span class="ob-ok">✓</span>'),(pn?pn+' nota(s) pendente(s) · ':'')+cs+' compra(s) sem nota',S.idad.obraAba==='notas'); }
   h += ab('lista','🏦 Contas e caixas','cadastro de todas as origens',S.idad.obraAba==='lista');
   if(cartoesEdita()) h += '<div class="ob-aba ob-mais" onclick="obraCartoesEditar()">＋ Cartão<small>incluir / tirar / banco</small></div>';
   return h+'</div>';
@@ -4736,7 +4739,7 @@ function obraCartaoTela(o){
         '<td style="white-space:nowrap">'+dataBR(m.data_movimento).slice(0,5)+'</td><td><b>'+esc(m.fornecedor||m.descricao||'—')+'</b>'+(m.fornecedor && m.descricao && m.descricao!==m.fornecedor?'<br><small style="color:var(--fraco)">'+esc(String(m.descricao).slice(0,70))+'</small>':'')+'</td>'+
         '<td style="color:var(--fraco);font-size:12.5px;white-space:nowrap">'+(obraParcela(m.descricao)||(m.categoria==='Encargos do cartão'?'encargo':'—'))+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:700">'+(m.tipo==='entrada'?'+ ':'')+brl(+m.valor)+'</td>'+
-        '<td>'+(nt?'<span class="ob-dest d-cons" style="cursor:pointer" onclick="'+(nt.path?'verAnexo(\''+esc(nt.path)+'\')':'')+'" title="Nota anexada e casada com esta compra">✅ Consolidada'+(nt.numero?' · NF '+esc(nt.numero):'')+'</span> ':'')+'<span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td>'+
+        '<td>'+(m.sem_nota_ok&&!nt?'<span class="ob-dest d-nada" title="'+esc(m.sem_nota_motivo||'')+'">📄 sem nota (autorizada)</span> ':'')+(nt?'<span class="ob-dest d-cons" style="cursor:pointer" onclick="'+(nt.path?'verAnexo(\''+esc(nt.path)+'\')':'')+'" title="Nota anexada e casada com esta compra">✅ Consolidada'+(nt.numero?' · NF '+esc(nt.numero):'')+'</span> ':'')+'<span class="ob-dest '+d.c+'">'+esc(d.t)+'</span>'+(m.dinheiro_empresa_id?' <span class="ob-dest d-din" title="O dinheiro desta compra é deste CNPJ (pago no cartão de '+esc(cartaoPessoa(o)||'outra pessoa')+')">💰 dinheiro: '+esc(nomeEmpresa(m.dinheiro_empresa_id))+'</span>':'')+(jaIds.indexOf(m.id)>=0?' <span class="ob-dest d-ja" title="Esta parcela já estava no sistema antes da fatura; não foi lançada de novo">♻️ já estava</span>':'')+'</td>'+
         (function(){ const tc = obraTotalCompra(m), pn = obraParcelaNum(m.descricao); return '<td style="text-align:right;white-space:nowrap">'+(tc!=null ? '<b>'+brl(tc)+'</b><br><small style="color:var(--fraco)">'+pn[1]+'× '+brl(+m.valor)+'</small>' : '<span style="color:var(--fraco)">—</span>')+'</td>'; })()+'</tr>'; }).join('')
       : '<tr><td colspan="7" class="vazio">'+(fil==='dir'?'Nenhuma compra direcionada ainda.':'Tudo direcionado ✓ — nada pendente neste cartão.')+'</td></tr>')+
     '</tbody></table>'+
@@ -4857,8 +4860,13 @@ async function cartaoLerNotas(){
   const res = document.getElementById('nt-res'); let html = '';
   for(const f of fs){
     res.innerHTML = html+'<p>Lendo '+esc(f.name)+'…</p>';
-    let lido; try{ lido = await lerPorIA(f); }catch(e){ html += '<p class="ob-tag er">'+esc(f.name)+': não consegui ler ('+esc(e.message)+')</p>'; continue; }
     const up = await subirAnexo(f);
+    let lido; try{ lido = await lerPorIA(f); }catch(e){ lido = null; }
+    if(!lido || !(+lido.valor>0)){   // v131: nenhuma nota se perde — fica como "não lida"
+      const rn = await sb.from('cartao_notas').insert({ status:'nao_lida', path: up?up.path:null, nome: f.name, via:'tela', criado_por: S.user.id }).select().maybeSingle();
+      if(!rn.error && rn.data){ S.cartNotas = S.cartNotas||[]; S.cartNotas.unshift(rn.data); }
+      html += '<div class="nt-box nt-nao">❓ <b>'+esc(f.name)+'</b>: não consegui ler o valor. Guardei a nota em <b>Notas › não lidas</b> — digite o valor e a data lá.</div>'; res.innerHTML = html; continue;
+    }
     const nota = { emitente: lido.fornecedor||null, cnpj_emitente: lido.cnpjPagador||null, numero: (String(lido.descricao||'').match(/\d[\d.]*/)||[''])[0]||null,
       data: lido.data||null, valor: +lido.valor||0, path: up?up.path:null, nome: f.name, via:'tela', criado_por: S.user.id };
     html += await cartaoConsolidar(nota);
@@ -4882,6 +4890,101 @@ async function cartaoConsolidar(nota){
     (c.parcelas>1 ? c.parcelas+'× '+brl(c.valor)+' = '+brl(c.total) : brl(c.total))+(Math.abs(c.total-nota.valor)>=0.005?' (diferença de '+brl(Math.abs(c.total-nota.valor))+' de arredondamento)':'')+'. Consolidada.</small></div>';
 }
 function notaDe(m){ return m.nota_id ? (S.cartNotas||[]).find(n=>n.id===m.nota_id) || { id:m.nota_id } : null; }
+
+/* ===== v131 (Renato, 21/11/2026): NENHUMA NOTA SE PERDE + ROBÔ DAS NOTAS.
+   - Nota que não deu para ler fica guardada como "não lida" (alguém digita valor e data).
+   - Nota que não casou fica em "Notas sem compra": o robô (Fiscal das Notas) tenta de novo a cada 15 min e quando entra fatura;
+     aqui dá para casar na mão ("É esta") ou descartar com motivo.
+   - Compra de cartão sem nota (desde 01/11/2026, fora encargos): o robô cobra a NEUZA todo dia pelo WhatsApp;
+     só sai da cobrança com nota ou com "Autorizar sem nota" (Renato, Vinicius ou Neuza, com motivo). */
+const SEM_NOTA_DESDE = '2026-11-01';
+function ehEncargo(m){ return m.categoria==='Encargos do cartão' || /IOF|ANUIDADE|JUROS|ENCARGO|MULTA|TARIFA|ESTORNO|PAGAMENTO/i.test(m.descricao||''); }
+function semNotaGrupos(){
+  const cartoes = S.origens.filter(o=>o.tipo==='cartao').map(o=>o.id), lim = new Date(Date.now()-5*864e5).toISOString().slice(0,10), g = {};
+  S.movimentos.filter(m=>cartoes.indexOf(m.origem_id)>=0 && !m.nota_id && !m.sem_nota_ok && m.tipo!=='entrada' && !ehEncargo(m) && String(m.data_movimento)>=SEM_NOTA_DESDE && String(m.data_movimento)<lim).forEach(m=>{
+    const pn = obraParcelaNum(m.descricao), base = String(m.fornecedor||m.descricao||'').replace(/\s*PARC\w*\.?\s*\d+\s*(\/|DE)\s*\d+.*$/i,'').trim();
+    const k = m.origem_id+'|'+base.toUpperCase()+'|'+(pn?pn[1]:1)+'|'+(+m.valor).toFixed(2);
+    (g[k] = g[k] || { origem_id:m.origem_id, nome:base, parcelas:pn?pn[1]:1, valor:+m.valor, total:(+m.valor)*(pn?pn[1]:1), data:m.data_movimento, movs:[] }).movs.push(m);
+  });
+  return Object.values(g).sort((a,b)=>b.total-a.total);
+}
+function cartRot(oid){ const o = S.origens.find(x=>x.id===oid)||{}; return (cartaoPessoa(o)||o.nome||'')+' '+(cartaoBanco(o)||'')+(o.identificador?' · final '+o.identificador:''); }
+function telaNotas(){
+  const ns = S.cartNotas||[], sem = ns.filter(n=>n.status==='sem_compra'), nl = ns.filter(n=>n.status==='nao_lida'), cas = ns.filter(n=>n.status==='casada'), cs = semNotaGrupos();
+  const ed = cartoesEdita();
+  let h = '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:240px">🤖 <b>Fiscal das Notas</b> tenta casar de novo a cada 15 min e quando entra fatura. Todo dia (seg a sáb, 7h43) cobra a <b>Neuza</b> no WhatsApp das pendências abaixo.</span>'+
+    (ed?'<button class="bt" onclick="cartaoAnexarNota()">🧾 Anexar nota</button>':'')+'</div>';
+  if(!ed) h += '<div class="aviso" style="margin-bottom:10px">👁️ <b>Só visualização</b>.</div>';
+  h += '<div class="kpis" style="margin-bottom:10px">'+kpi('✅ Notas casadas', String(cas.length))+kpi('⏳ Notas sem compra', String(sem.length))+kpi('❓ Notas não lidas', String(nl.length))+kpi('📄 Compras sem nota', cs.length+' · '+brl(cs.reduce((s,c)=>s+c.total,0)))+'</div>';
+  // não lidas
+  h += '<div class="card"><h3>❓ NOTAS QUE NÃO DERAM PARA LER</h3>'+(nl.length ? nl.map(n=>'<div class="nt-box nt-nao"><b>'+esc(n.nome||'arquivo')+'</b> · chegou '+dataBR(String(n.criado_em).slice(0,10))+' ('+esc(n.via||'')+') '+
+      (n.path?'<button class="bt g mini" onclick="verAnexo(\''+esc(n.path)+'\')">abrir</button> ':'')+
+      (ed?'<button class="bt mini" onclick="notaDigitar(\''+n.id+'\')">digitar valor e data</button> <button class="bt g mini" onclick="notaDescartar(\''+n.id+'\')">descartar</button>':'')+'</div>').join('') : '<div class="vazio">Nenhuma ✓</div>')+'</div>';
+  // sem compra
+  h += '<div class="card"><h3>⏳ NOTAS SEM COMPRA</h3>'+(sem.length ? sem.map(n=>{ const cands = notaCandidatas(n).slice(0,4);
+      return '<div class="nt-box nt-nao"><b>'+esc(n.emitente||'Nota')+'</b>'+(n.numero?' · NF '+esc(n.numero):'')+' · '+brl(+n.valor)+(n.data?' · '+dataBR(n.data):'')+' <small>(tentei '+(n.tentativas||1)+'×)</small> '+
+        (n.path?'<button class="bt g mini" onclick="verAnexo(\''+esc(n.path)+'\')">abrir</button> ':'')+
+        (ed?'<button class="bt mini" onclick="notaCasarManual(\''+n.id+'\')">🔎 procurar a compra</button> <button class="bt g mini" onclick="notaDescartar(\''+n.id+'\')">descartar</button>':'')+
+        (cands.length?'<div style="margin-top:6px"><small>Parecidas:</small> '+cands.map(c=>'<span class="ob-dest d-nada">'+esc(c.nome)+' · '+(c.parcelas>1?c.parcelas+'× '+brl(c.valor):brl(c.total))+' · '+esc(cartRot(c.origem_id))+'</span>'+(ed?' <button class="bt mini" onclick="notaLigar(\''+n.id+'\',\''+c.movs.map(m=>m.id).join(',')+'\')">É esta</button>':'')).join(' ')+'</div>':'')+'</div>'; }).join('') : '<div class="vazio">Nenhuma ✓</div>')+'</div>';
+  // compras sem nota
+  h += '<div class="card" style="overflow-x:auto"><h3>📄 COMPRAS SEM NOTA <small style="font-weight:400;color:var(--fraco)">(desde '+dataBR(SEM_NOTA_DESDE)+', com mais de 5 dias, fora encargos)</small></h3>'+
+    (cs.length ? '<table><thead><tr><th>Data</th><th>Compra</th><th>Cartão</th><th style="text-align:right">Total da compra</th><th></th></tr></thead><tbody>'+cs.map(c=>
+      '<tr><td>'+dataBR(c.data).slice(0,5)+'</td><td><b>'+esc(c.nome)+'</b></td><td>'+esc(cartRot(c.origem_id))+'</td><td style="text-align:right;white-space:nowrap"><b>'+brl(c.total)+'</b>'+(c.parcelas>1?'<br><small style="color:var(--fraco)">'+c.parcelas+'× '+brl(c.valor)+'</small>':'')+'</td>'+
+      '<td style="white-space:nowrap">'+(ed?'<button class="bt g mini" onclick="autorizarSemNota(\''+c.movs.map(m=>m.id).join(',')+'\',\''+esc(c.nome).replace(/'/g,'')+'\')">Autorizar sem nota</button>':'')+'</td></tr>').join('')+'</tbody></table>' : '<div class="vazio">Nenhuma ✓ — toda compra tem nota ou foi autorizada.</div>')+'</div>';
+  return h;
+}
+async function notaLigar(nid, idsTxt){
+  const n = (S.cartNotas||[]).find(x=>x.id===nid), ids = idsTxt.split(',').filter(Boolean); if(!n || !ids.length) return;
+  const r = await sb.from('movimentos').update({ nota_id: nid }).in('id', ids).select();
+  if(r.error) return aviso('Não casou: '+r.error.message,'erro');
+  (r.data||[]).forEach(d=>{ const m = S.movimentos.find(x=>x.id===d.id); if(m) Object.assign(m,d); });
+  const u = await sb.from('cartao_notas').update({ status:'casada', movimento_ids: ids, casada_em: new Date().toISOString(), casada_por: (S.perfil&&S.perfil.nome)||'tela' }).eq('id', nid).select().maybeSingle();
+  if(!u.error && u.data) Object.assign(n, u.data);
+  aviso('Nota casada ✅ — compra consolidada.','ok');
+}
+function notaCasarManual(nid){
+  const n = (S.cartNotas||[]).find(x=>x.id===nid); if(!n) return;
+  const gs = semNotaGrupos().concat([]);   // compras sem nota (todas as datas, para casar na mão)
+  const cartoes = S.origens.filter(o=>o.tipo==='cartao').map(o=>o.id), g = {};
+  S.movimentos.filter(m=>cartoes.indexOf(m.origem_id)>=0 && !m.nota_id && m.tipo!=='entrada' && !ehEncargo(m)).forEach(m=>{ const pn = obraParcelaNum(m.descricao), base = String(m.fornecedor||m.descricao||'').replace(/\s*PARC\w*\.?\s*\d+\s*(\/|DE)\s*\d+.*$/i,'').trim();
+    const k = m.origem_id+'|'+base.toUpperCase()+'|'+(pn?pn[1]:1)+'|'+(+m.valor).toFixed(2); (g[k] = g[k] || { origem_id:m.origem_id, nome:base, parcelas:pn?pn[1]:1, valor:+m.valor, total:(+m.valor)*(pn?pn[1]:1), data:m.data_movimento, movs:[] }).movs.push(m); });
+  const lista = Object.values(g).sort((a,b)=>Math.abs(a.total-(+n.valor||0))-Math.abs(b.total-(+n.valor||0))).slice(0,40);
+  abrirModal('<h2>🔎 Qual é a compra desta nota?</h2><div class="aviso"><b>'+esc(n.emitente||'Nota')+'</b>'+(n.numero?' · NF '+esc(n.numero):'')+' · '+brl(+n.valor)+(n.data?' · '+dataBR(n.data):'')+'</div>'+
+    '<input id="nt-busca" placeholder="filtrar pelo nome…" oninput="document.querySelectorAll(\'.nt-li\').forEach(e=>e.style.display=e.dataset.t.indexOf(this.value.toUpperCase())>=0?\'\':\'none\')" style="margin:8px 0">'+
+    '<div style="max-height:50vh;overflow:auto">'+lista.map(c=>'<div class="nt-li" data-t="'+esc(c.nome.toUpperCase())+'" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--linha,#eee)"><span style="flex:1">'+dataBR(c.data).slice(0,5)+' · <b>'+esc(c.nome)+'</b> · '+esc(cartRot(c.origem_id))+'</span><b>'+brl(c.total)+'</b>'+
+      '<button class="bt mini" onclick="fecharModal();notaLigar(\''+nid+'\',\''+c.movs.map(m=>m.id).join(',')+'\')">É esta</button></div>').join('')+'</div>'+
+    '<div style="margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+async function notaDescartar(nid){
+  const motivo = prompt('Motivo para descartar esta nota (fica registrado):'); if(!motivo) return;
+  const u = await sb.from('cartao_notas').update({ status:'descartada', motivo: motivo+' — '+((S.perfil&&S.perfil.nome)||'') }).eq('id', nid).select().maybeSingle();
+  if(u.error) return aviso('Não descartou: '+u.error.message,'erro');
+  const n = (S.cartNotas||[]).find(x=>x.id===nid); if(n) Object.assign(n, u.data); aviso('Nota descartada (o motivo ficou registrado).','ok');
+}
+function notaDigitar(nid){
+  abrirModal('<h2>Digitar a nota</h2><div class="lin"><div><label>Fornecedor</label><input id="nd-emi"></div><div><label>Nº da NF</label><input id="nd-num"></div></div>'+
+    '<div class="lin"><div><label>Valor total da nota</label><input id="nd-val" type="number" step="0.01"></div><div><label>Data de emissão</label><input id="nd-dat" type="date"></div></div>'+
+    '<div style="display:flex;gap:8px;margin-top:14px"><button class="bt" onclick="notaDigitarSalvar(\''+nid+'\')">Salvar e casar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
+}
+async function notaDigitarSalvar(nid){
+  const v = +val('nd-val'); if(!v) return aviso('Informe o valor.','erro');
+  const u = await sb.from('cartao_notas').update({ emitente: val('nd-emi')||null, numero: val('nd-num')||null, valor: v, data: val('nd-dat')||null, status:'sem_compra' }).eq('id', nid).select().maybeSingle();
+  if(u.error) return aviso('Não salvou: '+u.error.message,'erro');
+  const n = (S.cartNotas||[]).find(x=>x.id===nid); if(n) Object.assign(n, u.data);
+  const r = await sb.rpc('cpe_casar_nota', { p_nota: nid, p_quem: (S.perfil&&S.perfil.nome)||'tela' });
+  S.modal = null;
+  if(r.data > 0){ const f = await sb.from('cartao_notas').select('*').eq('id', nid).maybeSingle(); if(f.data && n) Object.assign(n, f.data); await recarregarMovsNota(nid); aviso('Nota casada ✅ — compra consolidada.','ok'); }
+  else aviso('Guardei. Ainda não achei a compra — ela fica em "Notas sem compra" e o robô tenta de novo.','ok');
+}
+async function recarregarMovsNota(nid){ const r = await sb.from('movimentos').select('*').eq('nota_id', nid); (r.data||[]).forEach(d=>{ const m = S.movimentos.find(x=>x.id===d.id); if(m) Object.assign(m,d); }); render(); }
+async function autorizarSemNota(idsTxt, nome){
+  const motivo = prompt('Autorizar "'+nome+'" SEM NOTA.\nMotivo (fica registrado):'); if(!motivo) return;
+  const ids = idsTxt.split(',').filter(Boolean);
+  const r = await sb.from('movimentos').update({ sem_nota_ok: true, sem_nota_por: S.user.id, sem_nota_em: new Date().toISOString(), sem_nota_motivo: motivo }).in('id', ids).select();
+  if(r.error) return aviso('Não autorizou: '+r.error.message,'erro');
+  (r.data||[]).forEach(d=>{ const m = S.movimentos.find(x=>x.id===d.id); if(m) Object.assign(m,d); });
+  aviso('Autorizada sem nota — saiu da cobrança do robô.','ok');
+}
 var _exObra = null;   // v124: fatura importada pela aba de um cartão da obra
 function obraImportarFatura(oid){ abrirExtrato(null, oid); }
 async function obraGuardarFatura(origemId){   // v124: cabeçalho da fatura (total impresso + PDF) e o final do cartão novo
@@ -4899,6 +5002,7 @@ async function obraGuardarFatura(origemId){   // v124: cabeçalho da fatura (tot
     const r = await sb.from('cartao_faturas').upsert(reg, { onConflict:'origem_id,vencimento' }).select().maybeSingle();
     if(!r.error && r.data){ S.idad.faturas = (S.idad.faturas||[]).filter(f=>!(f.origem_id===origemId && f.vencimento===venc)); S.idad.faturas.unshift(r.data); }
     S.idad.obraFat = venc; S.idad.obraFil = 'sem';
+    try{ const rr = await sb.rpc('cpe_recasar_notas'); if(rr.data>0){ const f = await sb.from('cartao_notas').select('*').order('criado_em',{ascending:false}); S.cartNotas = f.data||S.cartNotas; const mv = await sb.from('movimentos').select('*').not('nota_id','is',null); (mv.data||[]).forEach(d=>{ const m = S.movimentos.find(x=>x.id===d.id); if(m) Object.assign(m,d); }); aviso(rr.data+' compra(s) da fatura casaram com notas já guardadas ✅','ok'); } }catch(e){}   // v131
   }catch(e){ console.warn('fatura', e); }
 }
 
