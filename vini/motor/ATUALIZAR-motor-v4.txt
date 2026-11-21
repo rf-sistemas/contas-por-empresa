@@ -1,0 +1,36 @@
+MOTOR DO VINI — atualização v4 (21/11/2026): ARQUIVO GRANDE (mais de 8 MB)
+=======================================================================
+Para quem tem acesso à VPS (srv2021578, pasta /opt/vini, serviço "vini" do systemd).
+NÃO mexe no Ravi. Leva uns 5 minutos.
+
+O que muda: hoje o motor descarta, sem avisar, arquivo acima de 8 MB (ex.: pasta .zip de 28 MB).
+No v4 ele sobe o arquivo grande direto para o armazenamento do Sistema MR (link assinado que a
+ponte entrega, ação "upload_url") e manda para o Vini só o caminho. A ponte (vini-ponte v23, já no ar)
+abre a pasta e lê em partes de 15 arquivos, com um resumo por parte. Limite: 100 MB e 300 arquivos.
+
+ATENÇÃO: o vini.js que está na VPS é o v3 (tem a voz). O arquivo vini.js deste repositório é o v2 (antigo).
+NÃO substitua o arquivo inteiro — faça só as 3 alterações abaixo no vini.js da VPS.
+
+1) Trocar a linha da VERSAO por:
+   const VERSAO = 'motor-vini v4 (21/11/2026)';   // v4: arquivo grande (> 8 MB) sobe direto no armazenamento
+
+2) Logo ACIMA da função "async function recebida(m) {", colar esta função:
+
+async function subirGrande(buf, mime, m) {
+  const nome = m.message?.documentMessage?.fileName || '';
+  const ext = (nome.split('.').pop() || (mime.split('/')[1] || 'bin')).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
+  const u = await ponte({ acao: 'upload_url', bytes: buf.length, ext, mime });
+  if (!u || !u.url) { console.error('upload_url:', u && u.erro); return null; }
+  const r = await fetch(u.url, { method: 'PUT', headers: { 'content-type': mime || 'application/octet-stream', 'x-upsert': 'false' }, body: buf });
+  if (!r.ok) { console.error('upload grande:', r.status, (await r.text()).slice(0, 200)); return null; }
+  return { mime, path: u.path, bytes: buf.length, nome };
+}
+
+3) Dentro de recebida(m), trocar a linha:
+      if (buf.length <= 8 * 1024 * 1024) midia = { mime: md.mime, b64: buf.toString('base64') }; } catch (e) { console.error('mídia:', e.message); }
+   por:
+      if (buf.length <= 8 * 1024 * 1024) midia = { mime: md.mime, b64: buf.toString('base64') };
+      else if (buf.length <= 100 * 1024 * 1024) midia = await subirGrande(buf, md.mime, m); } catch (e) { console.error('mídia:', e.message); }
+
+Depois:  systemctl restart vini   e   journalctl -u vini -n 30   (deve aparecer "motor-vini v4 ... iniciando").
+Teste: mandar ao Vini, no privado, um .zip maior que 8 MB. Ele responde "📦 Abri a pasta compactada…".

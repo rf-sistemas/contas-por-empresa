@@ -7,7 +7,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { unzipSync } from "https://esm.sh/fflate@0.8.2";
 
-const VERSAO = "vini-ponte v22 (21/11/2026)";
+const VERSAO = "vini-ponte v23 (21/11/2026)";
+// v23 (21/11/2026): arquivo GRANDE (mais de 8 MB) — o motor v4 sobe direto no armazenamento (acao upload_url) e manda só o caminho;
+//   pasta .zip com muitos arquivos é lida em partes de 15 (acao continuar_lote), com um resumo por parte. Limite: 300 arquivos por pasta.
 // v22 (21/11/2026): pasta compactada (.zip) — o Vini abre, tira cada PDF/foto de dentro e trata como se fossem mandados um por um (mesmo resumo).
 // v21 (21/11/2026): nenhuma nota se perde — nota sem valor legível fica como "não lida"; a nota guarda o chat para o robô avisar quando casar depois; fatura nova re-casa as notas guardadas.
 // v20 (21/11/2026): NOTA FISCAL de compra → o Vini procura a compra em todos os cartões e consolida (mesma regra do CPE v130).
@@ -634,7 +636,7 @@ async function receberZip(b: any, chat: string, autor: string, contato: any): Pr
   const bons = nomes.filter((n) => MIME_EXT[(n.split(".").pop() || "").toLowerCase()]);
   const outros = nomes.filter((n) => !bons.includes(n));
   if (!bons.length) return [`📦 Abri a pasta compactada (${nomes.length} arquivo(s)), mas não tem PDF nem foto dentro${outros.length ? ": " + outros.slice(0, 8).map((n) => n.split("/").pop()).join(", ") : ""}. Eu leio PDF e foto.`];
-  if (bons.length > 25) return [`📦 A pasta tem ${bons.length} arquivos — o máximo é 25 por vez. Divida em pastas menores, por favor.`];
+  if (bons.length > 300) return [`📦 A pasta tem ${bons.length} arquivos — o máximo é 300 por vez. Divida em pastas menores, por favor.`];
   const legenda = String(b.texto || "").trim() || null;
   let ultimo = 0;
   for (const n of bons) {
@@ -652,13 +654,18 @@ async function receberZip(b: any, chat: string, autor: string, contato: any): Pr
     if (depois?.length) return;
     try { await processarLote(chat, autor, contato); } catch (e) { await sb.from("vini_saida").insert({ chat, texto: "Tive um problema lendo os arquivos da pasta: " + String((e as Error).message).slice(0, 150) + ". Pode mandar de novo?" }); }
   })());
-  return [`📦 Abri a pasta compactada: *${bons.length}* arquivo(s) para ler${outros.length ? ` (ignorei ${outros.length} que não são PDF nem foto: ${outros.slice(0, 5).map((n) => n.split("/").pop()).join(", ")})` : ""}. Estou lendo tudo e já te mando o resumo.`];
+  return [`📦 Abri a pasta compactada: *${bons.length}* arquivo(s) para ler${outros.length ? ` (ignorei ${outros.length} que não são PDF nem foto: ${outros.slice(0, 5).map((n) => n.split("/").pop()).join(", ")})` : ""}. ${bons.length > 15 ? `Vou ler em partes de 15 e mando um resumo a cada parte (umas ${Math.ceil(bons.length / 15)} partes).` : "Estou lendo tudo e já te mando o resumo."}`];
 }
 const turnoOk = (a: string, b: string) => !a || !b || a === b || (a === "SN" || b === "SN");
 async function processarLote(chat: string, autor: string, contato: any) {
-  const { data: fotos } = await sb.from("vini_lote").select("*").eq("chat", chat).eq("processado", false).order("id");
-  if (!fotos?.length) return;
+  const { data: todas } = await sb.from("vini_lote").select("*").eq("chat", chat).eq("processado", false).order("id");
+  if (!todas?.length) return;
+  const fotos = todas.slice(0, 15), resto = todas.length - fotos.length;   // v23: no máximo 15 por vez
   await sb.from("vini_lote").update({ processado: true }).in("id", fotos.map((f: any) => f.id));
+  if (resto > 0) {   // v23: a próxima parte roda numa chamada nova (não estoura o tempo da função)
+    // @ts-ignore EdgeRuntime existe no Supabase
+    EdgeRuntime.waitUntil((async () => { await new Promise((r) => setTimeout(r, 1500)); await fetch(Deno.env.get("SUPABASE_URL") + "/functions/v1/vini-ponte", { method: "POST", headers: { "Content-Type": "application/json", "x-vini-token": TOKEN }, body: JSON.stringify({ acao: "continuar_lote", chat, autor }) }).catch(() => {}); })());
+  }
   const rg = await regras();
   const { data: locais } = await sb.from("esc_locais").select("id,hospital,unidade");
   const { data: anes } = await sb.from("esc_anestesistas").select("id,nome,ativo");
@@ -717,6 +724,7 @@ async function processarLote(chat: string, autor: string, contato: any) {
   } else if (faturas.length) linhasProd.push(`💳 Recebi também ${faturas.length} fatura(s) de cartão: mande de novo depois de responder este resumo, que eu lanço.`);
   const nFoto = n - nPdf;
   let t = `📋 *Li ${[nFoto ? nFoto + " foto(s)" : "", nPdf ? nPdf + " PDF(s)" : ""].filter(Boolean).join(" e ") || "0 arquivo(s)"}.*\n`;
+  if (resto > 0) t += `_(faltam ${resto} arquivo(s): continuo lendo e mando o próximo resumo)_\n`;
   if (linhasEsc.length) t += "\n" + linhasEsc.join("\n") + "\n";
   if (linhasProd.length) t += "\n*Produção*\n" + linhasProd.join("\n") + "\n";
   if (linhasNotas.length) t += "\n*Notas (consolidação dos cartões)*\n" + linhasNotas.join("\n") + "\n";
@@ -998,6 +1006,11 @@ async function aplicarMarcas(acao: any, contato: any): Promise<string> {
 /* ---------- Mensagem recebida ---------- */
 // info (v12): o handler lê info.voz (responder também em áudio) e info.audio (a pessoa mandou áudio)
 async function entrada(b: any, info: any = {}): Promise<string[]> {
+  if (b.midia?.path && !b.midia.b64) {   // v23: arquivo grande subido pelo motor direto no armazenamento
+    const { data: blob } = await sb.storage.from("notas").download(String(b.midia.path));
+    b.midia = blob ? { ...b.midia, b64: bytesB64(new Uint8Array(await blob.arrayBuffer())) } : null;
+    if (!b.midia) return ["Recebi o aviso de um arquivo grande, mas não consegui abrir no armazenamento. Pode mandar de novo?"];
+  }
   const chat = String(b.chat || ""), autor = so(b.autor), grupo = !!b.grupo;
   let texto = String(b.texto || "").trim();
   const mimeIn = String(b.midia?.mime || ""), ehAudio = !!b.midia && /^audio\//.test(mimeIn);
@@ -1166,6 +1179,22 @@ Deno.serve(async (req) => {
       const { data: s } = await sb.from("vini_saida").select("*").eq("id", b.id).maybeSingle();
       if (s) { await sb.from("vini_saida").update(b.ok ? { status: "enviado", enviado_em: agora } : { status: s.tentativas >= 2 ? "erro" : "pendente", tentativas: s.tentativas + 1, erro: String(b.erro || "").slice(0, 300) }).eq("id", b.id);
         if (b.ok) await log("saida", s.chat, s.texto || (s.audio_path ? "[🔊 resposta em áudio]" : ""), { wa_id: b.wa_id || null }); }
+      return J({ ok: true });
+    }
+    if (b.acao === "upload_url") {   // v23: motor v4 sobe arquivo grande direto (até 100 MB)
+      if ((+b.bytes || 0) > 100 * 1024 * 1024) return J({ erro: "arquivo maior que 100 MB" }, 400);
+      const ext = String(b.ext || "bin").replace(/[^a-z0-9]/gi, "").slice(0, 5) || "bin";
+      const path = `vini/entrada/grande/${crypto.randomUUID()}.${ext}`;
+      const { data, error } = await sb.storage.from("notas").createSignedUploadUrl(path);
+      if (error || !data) return J({ erro: error?.message || "sem url" }, 500);
+      return J({ ok: true, path, url: data.signedUrl, token: data.token });
+    }
+    if (b.acao === "continuar_lote") {   // v23: próxima parte de uma pasta grande
+      const autor = so(b.autor), chat = String(b.chat || "");
+      const { data: cts } = await sb.from("vini_contatos").select("*").in("telefone", variantes(autor)).eq("ativo", true).limit(1);
+      if (!cts?.[0]) return J({ ok: false });
+      // @ts-ignore EdgeRuntime existe no Supabase
+      EdgeRuntime.waitUntil(processarLote(chat, autor, cts[0]).catch(async (e) => { await sb.from("vini_saida").insert({ chat, texto: "Tive um problema lendo uma parte da pasta: " + String((e as Error).message).slice(0, 150) }); }));
       return J({ ok: true });
     }
     if (b.acao === "entrada") {
