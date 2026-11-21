@@ -5,8 +5,10 @@
 // tudo fica gravado em vini_mensagens / vini_acoes. Nunca usa o banco da RF.
 // v12 (21/11/2026): ÁUDIO — o Vini ouve (transcreve) e responde também em nota de voz; lê PDF como lê foto.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unzipSync } from "https://esm.sh/fflate@0.8.2";
 
-const VERSAO = "vini-ponte v21 (21/11/2026)";
+const VERSAO = "vini-ponte v22 (21/11/2026)";
+// v22 (21/11/2026): pasta compactada (.zip) — o Vini abre, tira cada PDF/foto de dentro e trata como se fossem mandados um por um (mesmo resumo).
 // v21 (21/11/2026): nenhuma nota se perde — nota sem valor legível fica como "não lida"; a nota guarda o chat para o robô avisar quando casar depois; fatura nova re-casa as notas guardadas.
 // v20 (21/11/2026): NOTA FISCAL de compra → o Vini procura a compra em todos os cartões e consolida (mesma regra do CPE v130).
 // v19 (21/11/2026): pedido do Renato/Vinicius — a equipe diz ao Vini (texto ou áudio) de qual CNPJ / obra / pessoal é cada conta ou compra e o Vini EXECUTA direto e avisa; "desfaz" volta a última.
@@ -621,6 +623,37 @@ async function receberFoto(b: any, chat: string, autor: string, contato: any): P
   })());
   return ant?.length ? [] : [ext === "pdf" ? "📥 Recebi o PDF, estou lendo… Se tiver mais arquivos, pode mandar que eu leio tudo junto e te respondo com um resumo." : "📥 Recebendo… pode mandar todas as fotos. Quando terminar eu leio tudo junto e te respondo com um resumo."];
 }
+
+/* ---------- v22: .ZIP — abre e coloca cada PDF/foto no lote ---------- */
+const ehZip = (mime: string, b64: string) => /zip|compressed/i.test(mime || "") || ((/octet-stream/i.test(mime || "") || !mime) && String(b64 || "").startsWith("UEsDB"));
+const MIME_EXT: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", heic: "image/heic" };
+async function receberZip(b: any, chat: string, autor: string, contato: any): Promise<string[]> {
+  let arqs: Record<string, Uint8Array>;
+  try { arqs = unzipSync(b64bytes(b.midia.b64)); } catch { return ["📦 Recebi a pasta compactada, mas não consegui abrir (arquivo danificado ou com senha). Pode mandar de novo ou mandar os arquivos soltos?"]; }
+  const nomes = Object.keys(arqs).filter((n) => !n.endsWith("/") && !/(^|\/)(__MACOSX|\.)/.test(n));
+  const bons = nomes.filter((n) => MIME_EXT[(n.split(".").pop() || "").toLowerCase()]);
+  const outros = nomes.filter((n) => !bons.includes(n));
+  if (!bons.length) return [`📦 Abri a pasta compactada (${nomes.length} arquivo(s)), mas não tem PDF nem foto dentro${outros.length ? ": " + outros.slice(0, 8).map((n) => n.split("/").pop()).join(", ") : ""}. Eu leio PDF e foto.`];
+  if (bons.length > 25) return [`📦 A pasta tem ${bons.length} arquivos — o máximo é 25 por vez. Divida em pastas menores, por favor.`];
+  const legenda = String(b.texto || "").trim() || null;
+  let ultimo = 0;
+  for (const n of bons) {
+    const ext = (n.split(".").pop() || "").toLowerCase(), mime = MIME_EXT[ext];
+    const path = `vini/entrada/${crypto.randomUUID()}.${ext === "jpeg" ? "jpg" : ext}`;
+    const up = await sb.storage.from("notas").upload(path, arqs[n], { contentType: mime });
+    if (up.error) continue;
+    const { data: eu } = await sb.from("vini_lote").insert({ chat, autor, foto_path: path, mime, legenda: legenda ? legenda + " (" + n.split("/").pop() + ")" : n.split("/").pop() }).select("id").single();
+    if (eu) ultimo = eu.id;
+  }
+  // @ts-ignore EdgeRuntime existe no Supabase
+  EdgeRuntime.waitUntil((async () => {
+    await new Promise((r) => setTimeout(r, 22000));
+    const { data: depois } = await sb.from("vini_lote").select("id").eq("chat", chat).eq("processado", false).gt("id", ultimo).limit(1);
+    if (depois?.length) return;
+    try { await processarLote(chat, autor, contato); } catch (e) { await sb.from("vini_saida").insert({ chat, texto: "Tive um problema lendo os arquivos da pasta: " + String((e as Error).message).slice(0, 150) + ". Pode mandar de novo?" }); }
+  })());
+  return [`📦 Abri a pasta compactada: *${bons.length}* arquivo(s) para ler${outros.length ? ` (ignorei ${outros.length} que não são PDF nem foto: ${outros.slice(0, 5).map((n) => n.split("/").pop()).join(", ")})` : ""}. Estou lendo tudo e já te mando o resumo.`];
+}
 const turnoOk = (a: string, b: string) => !a || !b || a === b || (a === "SN" || b === "SN");
 async function processarLote(chat: string, autor: string, contato: any) {
   const { data: fotos } = await sb.from("vini_lote").select("*").eq("chat", chat).eq("processado", false).order("id");
@@ -1068,6 +1101,7 @@ async function entrada(b: any, info: any = {}): Promise<string[]> {
     if (/^(NAO|N|CANCELA|CANCELAR)$/.test(t)) { await sb.from("vini_acoes").update({ status: "cancelada", resolvido_em: new Date().toISOString() }).eq("id", acao.id); await sb.storage.from("notas").remove([d.foto]); return ["Ok, não lancei nada."]; }
   }
   if (grupo && b.midia) return ["Fotos e documentos para lançar eu recebo só no privado — me manda lá, por favor."];
+  if (b.midia && ehZip(b.midia.mime, b.midia.b64)) return await receberZip(b, chat, autor, contato);   // v22
   if (b.midia && (/^image\//.test(b.midia.mime || "") || /pdf/i.test(b.midia.mime || ""))) return await receberFoto(b, chat, autor, contato);   // v9: lote; v12: PDF também
   // v9: texto mandado no meio das fotos = legenda da última foto
   if (texto && !b.midia && !info.audio) {
@@ -1087,7 +1121,7 @@ async function entrada(b: any, info: any = {}): Promise<string[]> {
     const { data: dv } = await sb.from("vini_duvidas").select("*").in("chat", chats).eq("status", "aguardando_pessoa").order("id").limit(1).maybeSingle();
     if (dv && !/^(OK|OKAY|BELEZA|BLZ|VALEU|OBRIGADO|OBRIGADA|SHOW|TOP)$/.test(norm(texto))) return await responderDuvida(dv, texto, chat, autor, contato);
   }
-  if (b.midia) return ["Por enquanto eu leio fotos, PDF e áudio. Vídeo e outros tipos de arquivo ainda não."];
+  if (b.midia) return ["Por enquanto eu leio fotos, PDF, pasta compactada (.zip) e áudio. Vídeo e outros tipos de arquivo ainda não."];
   if (!texto) return [];
   // v8: "código 123456" para o navegador do Vini
   const mc = texto.match(/^c[oó]d(?:igo)?\.?\s*:?\s*([A-Za-z0-9 ]{4,12})$/i);
