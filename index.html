@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v143">
+<meta name="rf-versao" content="v144">
 <meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v143',
+  versao : 'v144',
   data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadagenda' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -542,6 +542,7 @@ function render(){
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
   else if(S.tela==='idadtiss')  corpo = telaIdadTiss();   // v140
   else if(S.tela==='idadagenda') corpo = telaIdadAgenda(); // v141
+  else if(S.tela==='idadreceb') corpo = telaIdadReceb(); // v144
   else if(S.tela==='idadfin')   corpo = telaIdadFin();
   else if(S.tela==='idadconc')  corpo = telaIdadConc();
   else if(S.tela==='painel')   corpo = telaPainel();
@@ -585,7 +586,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t==='idadagenda' && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if((t==='idadagenda'||t==='idadreceb') && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3847,7 +3848,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda e recepção', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda e recepção', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4282,6 +4283,7 @@ function telaIdad(){
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
     (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadagenda\')"><div class="ic">'+icoAgenda()+'</div><div><b>Agenda e recepção <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+agResumo()+'</small></div><span class="seta">›</span></button>' : '')+
+    (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadreceb\')"><div class="ic" style="font-size:30px">💰</div><div><b>Dinheiro a caminho <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+rcResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
@@ -7480,6 +7482,7 @@ function agCartao(a){
   if(a.status==='chegou'||a.status==='confirmado'||a.status==='agendado') acoes.push(bt('agAtender(\''+a.id+'\')','Atender',''));
   if(a.status==='agendado'||a.status==='confirmado') acoes.push(bt('agStatus(\''+a.id+'\',\'faltou\')','Faltou'));
   if(a.status==='atendido' && a.guia_id) acoes.push(bt('tissGuiaAbrir(\''+a.guia_id+'\')','Ver guia'));
+  if(a.pago) acoes.push(bt('rcAbrirAgenda(\''+a.id+'\')','💰 Rastrear pagamento'));
   return '<div onclick="agEditar(\''+a.id+'\')" style="cursor:pointer;background:'+s[2]+';border-left:4px solid '+s[1]+';border-radius:8px;padding:6px 9px;margin:3px 0">'+
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(a.paciente_nome)+'</b>'+
     (a.encaixe?'<span style="font-size:11px;font-weight:800;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</span>':'')+
@@ -7755,18 +7758,25 @@ function agReceber(id){
   _agRec = { id, valor: a.valor!=null ? +a.valor : '', forma: a.pagamento==='cartao' ? 'Cartão de crédito' : 'Pix', parcelas: 1, lancar: true };
   agReceberModal();
 }
+/* v144: a janela de receber mostra quanto vai cair na conta, com a taxa da maquininha e as datas previstas */
 function agReceberModal(){
   const r = _agRec, a = S.ag.lista.find(x=>x.id===r.id), it = a.item_id ? tissIt(a.item_id) : null;
   const formas = a.pagamento==='cartao' ? ['Cartão de crédito'] : ['Pix','Dinheiro','Cartão de débito'];
+  const v = Math.round(Number(r.valor)*100)/100, pl = v>0 ? rcPlano(r.forma, v, r.parcelas, hojeISO()) : [];
+  const liq = pl.reduce((s,x)=>s+x.liquido,0), tx = pl.length ? pl[0].taxa_pct : 0;
+  const prev = !pl.length ? '' : r.forma==='Dinheiro' ? 'Fica no <b>Caixa recepção IDAD</b> até o depósito no banco.' :
+    '<b>Vai cair na conta: '+brl(liq)+'</b>'+(tx?' (taxa '+String(tx).replace('.',',')+'% · '+brl(v-liq)+')':'')+' · '+
+    (pl.length===1 ? 'previsto '+dataBR(pl[0].previsto) : pl.length+' parcelas de '+brl(pl[0].liquido)+', a 1ª em '+dataBR(pl[0].previsto));
   abrirModal('<h2>Atendimento particular · receber</h2>'+
     '<div style="font-size:14px;margin-bottom:10px"><b>'+esc(a.paciente_nome)+'</b> · '+esc(agNome(a.profissional_id))+' · '+AG_TIPO[a.tipo]+(it?' · '+esc(it.descricao||''):'')+'<br><small style="color:var(--fraco)">'+dataBR(a.data)+' às '+agHM(a.hora)+'</small></div>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
-      '<label style="flex:1;min-width:140px">Valor (R$)<input type="number" step="0.01" value="'+r.valor+'" onchange="_agRec.valor=this.value"></label>'+
+      '<label style="flex:1;min-width:140px">Valor (R$)<input type="number" step="0.01" value="'+r.valor+'" onchange="_agRec.valor=this.value;agReceberModal()"></label>'+
       '<label style="flex:1;min-width:160px">Forma<select onchange="_agRec.forma=this.value;agReceberModal()">'+formas.map(f=>'<option'+(r.forma===f?' selected':'')+'>'+f+'</option>').join('')+'</select></label>'+
-      (r.forma==='Cartão de crédito' ? '<label style="flex:1;min-width:120px">Parcelas<select onchange="_agRec.parcelas=Number(this.value)">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<option value="'+n+'"'+(r.parcelas===n?' selected':'')+'>'+n+'x</option>').join('')+'</select></label>' : '')+
+      (r.forma==='Cartão de crédito' ? '<label style="flex:1;min-width:120px">Parcelas<select onchange="_agRec.parcelas=Number(this.value);agReceberModal()">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<option value="'+n+'"'+(r.parcelas===n?' selected':'')+'>'+n+'x</option>').join('')+'</select></label>' : '')+
     '</div>'+
+    (prev ? '<div class="rc-prev">'+prev+'</div>' : '')+
     '<label style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><input type="checkbox"'+(r.lancar?' checked':'')+' onchange="_agRec.lancar=this.checked" style="width:auto;margin:0"> Lançar a entrada no Financeiro do IDAD</label>'+
-    '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">'+(r.forma==='Dinheiro'?'Entra no "Caixa recepção IDAD", já recebido.':r.forma==='Cartão de crédito'?'Entra como a receber (a maquininha repassa depois); confira na conciliação.':'Entra como recebido; confira na conciliação com o banco.')+'</div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">O pagamento entra em <b>Dinheiro a caminho</b> e é acompanhado até chegar na conta.</div>'+
     '<div id="ag-erro" style="color:#dc2626;font-weight:700;font-size:13.5px;margin-bottom:6px"></div>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="agReceberSalvar()">Registrar pagamento e finalizar</button></div>');
 }
@@ -7775,23 +7785,288 @@ async function agReceberSalvar(){
   const erro = t => { const e = document.getElementById('ag-erro'); if(e) e.textContent = '⚠ '+t; };
   if(!(v>0)) return erro('Informe o valor recebido.');
   try{
-    let movId = null;
+    const emp = idadEmpresa(); if(!emp) throw new Error('CNPJ do IDAD não está cadastrado em Empresas.');
+    await rcCfgCarregar();
+    const hoje = hojeISO(), pl = rcPlano(r.forma, v, r.parcelas, hoje), it = a.item_id ? tissIt(a.item_id) : null, quem = rcQuem();
+    const cx = (S.origens||[]).find(o=>/caixa recep/i.test(o.nome||'')), din = r.forma==='Dinheiro';
+    const movs = [];
     if(r.lancar){
-      const emp = idadEmpresa(); if(!emp) throw new Error('CNPJ do IDAD não está cadastrado em Empresas.');
-      const cx = (S.origens||[]).find(o=>/caixa recep/i.test(o.nome||''));
-      const it = a.item_id ? tissIt(a.item_id) : null, hoje = hojeISO(), cred = r.forma==='Cartão de crédito';
-      const m = await sb.from('movimentos').insert({ tipo:'entrada', empresa_id: emp.id, origem_id: r.forma==='Dinheiro' && cx ? cx.id : null,
-        descricao: 'Particular · '+AG_TIPO[a.tipo]+(it?' ('+(it.descricao||'')+')':'')+' · '+a.paciente_nome, fornecedor: a.paciente_nome, categoria: 'Atendimento particular',
-        valor: v, data_movimento: hoje, vencimento: cred ? agSomaDias(hoje, 30) : hoje, pago: !cred, data_pagamento: cred ? null : hoje,
-        observacao: '[Agenda MR · '+agNome(a.profissional_id)+' · '+r.forma+(cred?' '+r.parcelas+'x':'')+']' }).select('id').maybeSingle();
-      if(m.error) throw m.error; movId = m.data && m.data.id;
+      for(const p of pl){
+        const m = await sb.from('movimentos').insert({ tipo:'entrada', empresa_id: emp.id, origem_id: din && cx ? cx.id : null,
+          descricao: 'Particular · '+AG_TIPO[a.tipo]+(it?' ('+(it.descricao||'')+')':'')+' · '+a.paciente_nome+(pl.length>1?' · parcela '+p.parcela+'/'+p.parcelas:''),
+          fornecedor: a.paciente_nome, categoria: 'Atendimento particular', valor: p.liquido, data_movimento: hoje,
+          vencimento: p.previsto || hoje, pago: din, data_pagamento: din ? hoje : null,
+          observacao: '[Agenda MR · '+agNome(a.profissional_id)+' · '+r.forma+(r.forma==='Cartão de crédito'?' '+p.parcelas+'x':'')+' · bruto '+brl(p.bruto)+(p.taxa_pct?' · taxa '+p.taxa_pct+'%':'')+']' }).select('id').maybeSingle();
+        if(m.error) throw m.error; movs.push(m.data && m.data.id);
+      }
     }
+    const rows = pl.map((p,i)=>Object.assign({}, p, { empresa_id: emp.id, agenda_id: a.id, movimento_id: movs[i]||null, paciente_nome: a.paciente_nome, forma: r.forma, recebido_por: quem }));
+    const ins = await sb.from('idad_receb').insert(rows).select();
+    if(ins.error) throw ins.error;
     const up = await sb.from('agenda').update({ status:'atendido', pago:true, valor_pago:v, forma_pag:r.forma, parcelas: r.forma==='Cartão de crédito' ? r.parcelas : null, pago_em:new Date().toISOString(),
-      movimento_id: movId, atualizado_em:new Date().toISOString() }).eq('id', a.id).select().maybeSingle();
+      movimento_id: movs[0]||null, atualizado_em:new Date().toISOString() }).eq('id', a.id).select().maybeSingle();
     if(up.error) throw up.error;
     const i = S.ag.lista.findIndex(x=>x.id===a.id); if(i>=0) S.ag.lista[i] = up.data;
-    S.modal = null; aviso('✔ Pagamento de '+brl(v)+' ('+r.forma+(r.forma==='Cartão de crédito'?' '+r.parcelas+'x':'')+') registrado'+(movId?' e lançado no Financeiro do IDAD':'')+'.');
+    if(S.rc.carregado) S.rc.lista = S.rc.lista.concat(ins.data||[]);
+    S.modal = null; aviso('✔ Pagamento de '+brl(v)+' ('+r.forma+(r.forma==='Cartão de crédito'?' '+r.parcelas+'x':'')+') registrado'+(movs.length?' e lançado no Financeiro do IDAD':'')+'. Acompanhe em Dinheiro a caminho.');
   }catch(e){ erro('Não registrou: '+(e.message||e)); }
+}
+
+/* ============ v144 (Renato, 23/11/2026): DINHEIRO A CAMINHO — rastreio do pagamento particular até a conta ============
+   Etapas: recebido na recepção → no caixa (dinheiro) → a caminho (Pix, maquininha, depósito) → na conta (conferido no extrato).
+   Tabelas: idad_receb (uma linha por pagamento ou por parcela), idad_caixa_fech (fechamento do caixa do dia),
+   idad_receb_config (taxas e prazos da maquininha). Acesso: o mesmo da agenda (cpe_ve_agenda). */
+S.rc = { carregado:false, carregando:false, mes: hojeISO().slice(0,7), lista:[], fech:[], cfg:null, erro:null, dataCx: hojeISO() };
+const RC_PADRAO = { maquininha:'Stone', taxa_debito:1.5, prazo_debito:1, antecipa:false,
+  taxas_credito:[4.5,4.3,6.9,8.5,10.1,11.8,13.2,14.6,16.0,17.4,18.8,20.2] };
+const RC_IC = { 'Pix':'⚡', 'Dinheiro':'💵', 'Cartão de débito':'💳', 'Cartão de crédito':'💳' };
+const rc2 = v => Math.round((+v||0)*100)/100;
+(function(){ if(document.getElementById('rc-css')) return; document.head.insertAdjacentHTML('beforeend','<style id="rc-css">'+
+  '.rc-pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:560px){.rc-pipe{grid-template-columns:repeat(2,1fr)}}'+
+  '.rc-st{border-radius:10px;padding:9px 6px;text-align:center;border:1px solid var(--linha)}.rc-st .l{font-size:11.5px;color:var(--fraco)}.rc-st .n{font-size:17px;font-weight:800;margin:2px 0}.rc-st .q{font-size:11.5px}'+
+  '.rc-st.s1{border-color:#9fe3c7;background:rgba(19,185,129,.08)}.rc-st.s2{border-color:#ffd59a;background:rgba(255,182,72,.10)}.rc-st.s3{border-color:#9fdcec;background:rgba(0,184,217,.08)}.rc-st.s4{border-color:#a9c6f7;background:rgba(10,108,240,.08)}'+
+  '.rc-seta{text-align:center;color:var(--fraco);font-size:11.5px;margin-top:7px}'+
+  '.rc-lin{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid var(--linha2);cursor:pointer}.rc-lin:first-child{border-top:0}'+
+  '.rc-ic{width:32px;height:32px;border-radius:8px;background:var(--fundo2);display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 32px}'+
+  '.rc-lin .m{flex:1;min-width:0}.rc-lin .m b{display:block;font-size:14px}.rc-lin .m small{color:var(--fraco);font-size:12px}.rc-lin .r{text-align:right;font-size:13.5px}.rc-lin .r small{display:block;font-size:11.5px}'+
+  '.rc-ok{color:var(--verde);font-weight:700}.rc-wa{color:#b06b00;font-weight:700}.rc-er{color:var(--vermelho);font-weight:700}.rc-az{color:var(--mr-azul);font-weight:700}'+
+  '.rc-kp{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rc-k{border:1px solid var(--linha);border-radius:10px;padding:9px}.rc-k small{color:var(--fraco);font-size:12px}.rc-k b{display:block;font-size:16px}'+
+  '.rc-alerta{background:var(--er-bg);border:1px solid var(--er-bd);color:var(--er-tx);border-radius:10px;padding:9px;font-size:13px;margin-top:8px}'+
+  '.rc-prev{background:var(--av-bg);border:1px solid var(--av-bd);color:var(--av-tx);border-radius:9px;padding:8px 10px;font-size:13.5px;margin-bottom:10px}'+
+  '.rc-tl{margin:4px 0 0 12px;padding-left:18px;border-left:3px solid var(--linha)}.rc-ev{position:relative;padding:0 0 13px}'+
+  '.rc-ev:before{content:"";position:absolute;left:-27px;top:1px;width:15px;height:15px;border-radius:50%;background:var(--linha);border:3px solid var(--carta)}'+
+  '.rc-ev.f:before{background:linear-gradient(135deg,var(--mr-verde),var(--mr-turq),var(--mr-azul))}.rc-ev.p:before{background:#ffb648}'+
+  '.rc-ev b{display:block;font-size:13.5px}.rc-ev small{color:var(--fraco);font-size:12px}'+
+  '</style>'); })();
+
+function rcQuem(){ return (S.perfil && (S.perfil.nome || S.perfil.email)) || ''; }
+function rcCfg(){ return Object.assign({}, RC_PADRAO, S.rc.cfg||{}); }
+async function rcCfgCarregar(){
+  if(S.rc.cfg) return; const e = idadEmpresa(); if(!e) return;
+  const q = await sb.from('idad_receb_config').select('*').eq('empresa_id', e.id).maybeSingle();
+  S.rc.cfg = q.data || {};
+}
+/* dia útil: pula sábado e domingo */
+function rcDiaUtil(d, n){ let x = d; if(n>0){ let k = n; while(k>0){ x = agSomaDias(x,1); const w = new Date(x+'T12:00:00').getDay(); if(w!==0 && w!==6) k--; } }
+  let w = new Date(x+'T12:00:00').getDay(); while(w===0||w===6){ x = agSomaDias(x,1); w = new Date(x+'T12:00:00').getDay(); } return x; }
+/* plano do dinheiro: uma linha por pagamento (ou por parcela no crédito), com taxa, valor líquido e data prevista */
+function rcPlano(forma, valor, parcelas, hoje){
+  const c = rcCfg(), v = rc2(valor), um = (o) => [Object.assign({ parcela:1, parcelas:1, bruto:v, taxa_pct:0, liquido:v, previsto:hoje, etapa:'caminho' }, o)];
+  if(forma==='Dinheiro') return um({ previsto:null, etapa:'caixa' });
+  if(forma==='Pix') return um({});
+  if(forma==='Cartão de débito'){ const t = +c.taxa_debito||0; return um({ taxa_pct:t, liquido: rc2(v*(1-t/100)), previsto: rcDiaUtil(hoje, +c.prazo_debito||1) }); }
+  const n = Math.max(1, Math.min(12, +parcelas||1)), t = +((c.taxas_credito||[])[n-1]||0), liqT = rc2(v*(1-t/100));
+  const b = Math.floor(v/n*100)/100, l = Math.floor(liqT/n*100)/100, out = [];
+  for(let i=1; i<=n; i++) out.push({ parcela:i, parcelas:n, bruto: i<n ? b : rc2(v-b*(n-1)), taxa_pct:t, liquido: i<n ? l : rc2(liqT-l*(n-1)),
+    previsto: c.antecipa ? rcDiaUtil(hoje,1) : rcDiaUtil(agSomaDias(hoje, 30*i), 0), etapa:'caminho' });
+  return out;
+}
+
+async function rcCarregar(){
+  const e = idadEmpresa(); if(!e){ S.rc.erro = 'O CNPJ do IDAD não está cadastrado.'; render(); return; }
+  if(S.rc.carregando) return; S.rc.carregando = true;
+  const ini = S.rc.mes+'-01';
+  const [l, f] = await Promise.all([
+    sb.from('idad_receb').select('*').eq('empresa_id', e.id).or('etapa.neq.conta,recebido_em.gte.'+ini).order('recebido_em',{ascending:false}),
+    sb.from('idad_caixa_fech').select('*').eq('empresa_id', e.id).gte('data', agSomaDias(ini,-40)).order('data',{ascending:false}) ]);
+  S.rc.cfg = null; await rcCfgCarregar();
+  S.rc.carregando = false;
+  if(l.error){ S.rc.erro = l.error.message; render(); return; }
+  S.rc.lista = l.data||[]; S.rc.fech = f.data||[]; S.rc.erro = null; S.rc.carregado = true; render();
+}
+function rcResumo(){
+  if(!S.rc.carregado) return 'do pagamento particular até a conta';
+  const cam = S.rc.lista.filter(x=>x.etapa==='caminho').reduce((s,x)=>s+(+x.liquido),0), cx = S.rc.lista.filter(x=>x.etapa==='caixa').reduce((s,x)=>s+(+x.liquido),0);
+  return 'a caminho '+brl(cam)+' · no caixa '+brl(cx);
+}
+function rcGrupos(rows){
+  const G = {};
+  rows.forEach(x=>{ const k = x.agenda_id || x.id; (G[k] = G[k] || { key:k, agenda_id:x.agenda_id, rows:[] }).rows.push(x); });
+  return Object.values(G).map(g=>{ g.rows.sort((a,b)=>a.parcela-b.parcela); const r = g.rows[0];
+    g.nome = r.paciente_nome; g.forma = r.forma; g.recebido_em = r.recebido_em; g.bruto = rc2(g.rows.reduce((s,x)=>s+(+x.bruto),0)); g.liquido = rc2(g.rows.reduce((s,x)=>s+(+x.liquido),0)); return g; })
+    .sort((a,b)=>String(b.recebido_em).localeCompare(String(a.recebido_em)));
+}
+/* procura no extrato (lançamentos do IDAD importados do banco) um crédito do mesmo valor perto da data prevista */
+function rcSugestoes(){
+  const e = idadEmpresa(); if(!e) return {};
+  const usados = new Set(S.rc.lista.map(x=>x.conciliado_ref).filter(Boolean)), proprios = new Set(S.rc.lista.map(x=>x.movimento_id).filter(Boolean));
+  const ext = (S.movimentos||[]).filter(m=>m.empresa_id===e.id && !m.pessoal && m.tipo==='entrada' && m.categoria!=='Atendimento particular' && !/^transfer/i.test(m.categoria||'') && !usados.has(m.id) && !proprios.has(m.id));
+  const out = {}, tomados = new Set();
+  S.rc.lista.filter(x=>x.etapa==='caminho' && x.previsto).sort((a,b)=>String(a.previsto).localeCompare(String(b.previsto))).forEach(x=>{
+    const ini = agSomaDias(x.previsto,-3), fim = agSomaDias(x.previsto,7);
+    const m = ext.find(m=>!tomados.has(m.id) && Math.abs((+m.valor)-(+x.liquido))<=0.05 && (m.data_pagamento||m.data_movimento)>=ini && (m.data_pagamento||m.data_movimento)<=fim);
+    if(m){ tomados.add(m.id); out[x.id] = m; } });
+  return out;
+}
+function rcSituacao(g, sug){
+  const hoje = hojeISO(), n = g.rows.length, k = g.rows.filter(x=>x.etapa==='conta').length;
+  if(k===n){ const d = g.rows.map(x=>String(x.conciliado_em||'').slice(0,10)).sort().pop(); return ['rc-ok','✔ na conta'+(d?' '+dataBR(d):'')]; }
+  if(g.rows.some(x=>x.etapa==='caixa')) return ['rc-wa','● no caixa · depositar'];
+  if(g.rows.some(x=>sug[x.id])) return ['rc-az','🔎 achei no extrato · confirmar'];
+  const pend = g.rows.filter(x=>x.etapa!=='conta').sort((a,b)=>String(a.previsto).localeCompare(String(b.previsto))), p = pend[0];
+  if(p.previsto && p.previsto < hoje) return ['rc-er','⚠ previsto '+dataBR(p.previsto)+' · não achei no extrato'];
+  if(n>1) return ['rc-wa','● '+k+' de '+n+' parcelas na conta'];
+  return ['rc-wa','● '+(p.previsto===hoje?'cai hoje':'cai '+dataBR(p.previsto))+(+p.liquido!==+p.bruto?' · '+brl(+p.liquido):'')];
+}
+
+function telaIdadReceb(){
+  if(!agPode()) return '<div class="card">Você não tem acesso a esta área.</div>';
+  let h = '<div class="secao"><b>DINHEIRO A CAMINHO</b><span>Particulares · do pagamento na recepção até a conta do IDAD</span></div>';
+  if(S.rc.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(S.rc.erro)+'</b></div>';
+  if(!S.rc.carregado){ rcCarregar(); return h+'<div class="vazio">Carregando…</div>'; }
+  const mes = S.rc.mes, L = S.rc.lista, sug = rcSugestoes(), hoje = hojeISO();
+  const doMes = L.filter(x=>String(x.recebido_em).slice(0,7)===mes), sm = (a,c) => rc2(a.reduce((s,x)=>s+(+x[c]),0));
+  const cx = L.filter(x=>x.etapa==='caixa'), cam = L.filter(x=>x.etapa==='caminho'), conta = L.filter(x=>x.etapa==='conta' && String(x.conciliado_em).slice(0,7)===mes);
+  const nG = rcGrupos(doMes).length, nPix = cam.filter(x=>x.forma==='Pix').length, nDeb = cam.filter(x=>x.forma==='Cartão de débito').length, nCr = cam.filter(x=>x.forma==='Cartão de crédito').length, nDep = cam.filter(x=>x.forma==='Dinheiro').length;
+  const camTxt = [nPix?nPix+' Pix':'', nDeb?nDeb+' débito':'', nCr?nCr+' parcela'+(nCr>1?'s':''):'', nDep?nDep+' depósito'+(nDep>1?'s':''):''].filter(Boolean).join(' + ') || 'nada';
+  h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Mês</b><input type="month" value="'+mes+'" onchange="S.rc.mes=this.value;S.rc.carregado=false;render()" style="width:auto;margin:0">'+
+    '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📅 Agenda</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
+  h += '<div class="card"><b style="display:block;margin-bottom:8px">Onde está o dinheiro</b><div class="rc-pipe">'+
+    '<div class="rc-st s1"><div class="l">💵 Recebido na recepção</div><div class="n">'+brl(sm(doMes,'bruto'))+'</div><div class="q">'+nG+' paciente'+(nG===1?'':'s')+'</div></div>'+
+    '<div class="rc-st s2"><div class="l">🏪 No caixa (falta depositar)</div><div class="n">'+brl(sm(cx,'liquido'))+'</div><div class="q">'+cx.length+' em dinheiro</div></div>'+
+    '<div class="rc-st s3"><div class="l">🚚 A caminho</div><div class="n">'+brl(sm(cam,'liquido'))+'</div><div class="q">'+camTxt+'</div></div>'+
+    '<div class="rc-st s4"><div class="l">🏦 Na conta (conferido)</div><div class="n">'+brl(sm(conta,'liquido'))+'</div><div class="q">'+conta.length+' conferido'+(conta.length===1?'':'s')+'</div></div>'+
+    '</div><div class="rc-seta">recepção → caixa → maquininha / Pix / depósito → extrato do banco</div></div>';
+  const grupos = rcGrupos(L.filter(x=>String(x.recebido_em).slice(0,7)===mes || x.etapa!=='conta'));
+  h += '<div class="card"><b style="display:block;margin-bottom:4px">Pacientes particulares</b>'+(grupos.length ? grupos.map(g=>{ const s = rcSituacao(g, sug);
+      return '<div class="rc-lin" onclick="rcDetalhe(\''+g.key+'\')"><div class="rc-ic">'+(RC_IC[g.forma]||'💰')+'</div><div class="m"><b>'+esc(g.nome||'')+'</b><small>'+esc(g.forma)+(g.rows.length>1?' '+g.rows.length+'x':'')+' · '+dataBR(String(g.recebido_em).slice(0,10))+'</small></div>'+
+        '<div class="r">'+brl(g.bruto)+'<small class="'+s[0]+'">'+s[1]+'</small></div></div>'; }).join('') : '<div class="vazio">Nenhum pagamento particular neste mês. Ele entra aqui quando a recepção registra o pagamento no Atender.</div>')+'</div>';
+  /* fechamento do caixa */
+  const dc = S.rc.dataCx, doDia = L.filter(x=>String(x.recebido_em).slice(0,10)===dc), fch = S.rc.fech.find(f=>f.data===dc);
+  const dinD = sm(doDia.filter(x=>x.forma==='Dinheiro'),'bruto'), pixD = sm(doDia.filter(x=>x.forma==='Pix'),'bruto'), maqD = sm(doDia.filter(x=>/^Cart/.test(x.forma)),'bruto'), emCx = sm(cx,'bruto');
+  h += '<div class="card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>Fechamento do caixa</b><input type="date" value="'+dc+'" onchange="S.rc.dataCx=this.value;render()" style="width:auto;margin:0"></div><div class="rc-kp">'+
+    '<div class="rc-k"><small>Dinheiro (sistema)</small><b>'+brl(dinD)+'</b></div>'+
+    (fch ? '<div class="rc-k"><small>Contado na gaveta</small><b>'+brl(+fch.dinheiro_contado)+' '+(Math.abs((+fch.dinheiro_contado)-(+fch.dinheiro_sis))<0.01?'<span class="rc-ok" style="font-size:12px">✔ bate</span>':'<span class="rc-er" style="font-size:12px">⚠ '+brl((+fch.dinheiro_contado)-(+fch.dinheiro_sis))+'</span>')+'</b></div>'
+         : '<div class="rc-k"><small>Contado na gaveta</small><input id="rc-cont" type="number" step="0.01" placeholder="0,00" style="margin:2px 0 0"></div>')+
+    '<div class="rc-k"><small>Pix (sistema)</small><b>'+brl(pixD)+'</b></div><div class="rc-k"><small>Maquininha (débito + crédito)</small><b>'+brl(maqD)+'</b></div></div>'+
+    (fch ? '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">✔ Caixa fechado por '+esc(fch.fechado_por||'')+' em '+new Date(fch.fechado_em).toLocaleString('pt-BR').slice(0,17)+(fch.obs?' · '+esc(fch.obs):'')+'</div>' : '')+
+    '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+(fch?'':'<button class="bt" onclick="rcFechar()">Fechar caixa do dia</button>')+
+    '<button class="bt g" onclick="rcDepositoModal()"'+(emCx>0?'':' disabled')+'>Registrar depósito no banco'+(emCx>0?' ('+brl(emCx)+' no caixa)':'')+'</button></div></div>';
+  /* conferir com o banco */
+  const nSug = Object.keys(sug).length, atras = L.filter(x=>x.etapa==='caminho' && x.previsto && x.previsto<hoje && !sug[x.id]);
+  h += '<div class="card"><b style="display:block;margin-bottom:8px">Conferir com o banco</b><div style="display:flex;gap:8px;flex-wrap:wrap">'+
+    (podeEditar()?'<button class="bt" onclick="abrirExtrato()">Importar extrato (OFX / Excel)</button>':'')+
+    (podeEditar()?'<button class="bt g" onclick="irPara(\'idadconc\')">Importar relatório da maquininha</button>':'')+'</div>'+
+    (nSug ? '<div class="rc-prev" style="margin-top:8px">🔎 <b>Achei '+nSug+' valor'+(nSug>1?'es':'')+' no extrato.</b><br>'+Object.keys(sug).map(id=>{ const x = L.find(r=>r.id===id), m = sug[id];
+       return esc(x.paciente_nome)+' · '+esc(x.forma)+(x.parcelas>1?' '+x.parcela+'/'+x.parcelas:'')+' · '+brl(+x.liquido)+' → extrato '+dataBR(m.data_pagamento||m.data_movimento)+' <button class="bt mini" onclick="rcConfirmar(\''+id+'\',\''+m.id+'\')">✔ Confirmar</button>'; }).join('<br>')+'</div>' : '')+
+    (atras.length ? '<div class="rc-alerta">⚠ <b>'+atras.length+' valor'+(atras.length>1?'es não chegaram':' não chegou')+':</b><br>'+atras.map(x=>esc(x.forma)+' de '+brl(+x.liquido)+' ('+esc(x.paciente_nome)+') previsto para '+dataBR(x.previsto)).join('<br>')+'<br>Importe o extrato mais recente ou verifique com a '+esc(rcCfg().maquininha||'maquininha')+'.</div>' : '')+
+    (!nSug && !atras.length ? '<div style="font-size:12.5px;color:var(--fraco);margin-top:8px">Depois de importar o extrato do banco, o sistema procura cada valor previsto e mostra aqui para confirmar.</div>' : '')+'</div>';
+  return h;
+}
+
+async function rcFechar(){
+  const e = idadEmpresa(), dc = S.rc.dataCx, el = document.getElementById('rc-cont');
+  const doDia = S.rc.lista.filter(x=>String(x.recebido_em).slice(0,10)===dc), sm = a => rc2(a.reduce((s,x)=>s+(+x.bruto),0));
+  const sis = sm(doDia.filter(x=>x.forma==='Dinheiro')), cont = el && el.value!=='' ? rc2(el.value) : null;
+  if(cont===null) return aviso('Informe quanto foi contado na gaveta (pode ser 0).','erro');
+  let obs = null;
+  if(Math.abs(cont-sis)>=0.01){ obs = prompt('O dinheiro contado ('+brl(cont)+') não bate com o sistema ('+brl(sis)+'). Escreva o motivo da diferença:'); if(obs===null) return; }
+  const f = await sb.from('idad_caixa_fech').insert({ empresa_id:e.id, data:dc, dinheiro_sis:sis, dinheiro_contado:cont, pix: sm(doDia.filter(x=>x.forma==='Pix')), maquininha: sm(doDia.filter(x=>/^Cart/.test(x.forma))), obs, fechado_por: rcQuem() }).select().maybeSingle();
+  if(f.error) return aviso('Não fechou: '+f.error.message,'erro');
+  const ids = doDia.filter(x=>!x.fechamento_id).map(x=>x.id);
+  if(ids.length){ const u = await sb.from('idad_receb').update({ fechamento_id: f.data.id }).in('id', ids); if(!u.error) S.rc.lista.forEach(x=>{ if(ids.includes(x.id)) x.fechamento_id = f.data.id; }); }
+  S.rc.fech.unshift(f.data); render(); aviso('✔ Caixa de '+dataBR(dc)+' fechado.','ok');
+}
+function rcDepositoModal(){
+  const cx = S.rc.lista.filter(x=>x.etapa==='caixa'), tot = rc2(cx.reduce((s,x)=>s+(+x.bruto),0));
+  abrirModal('<h2>Depósito do caixa no banco</h2><div style="font-size:14px;margin-bottom:10px">No caixa da recepção: <b>'+brl(tot)+'</b> ('+cx.length+' pagamento'+(cx.length===1?'':'s')+' em dinheiro)</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;min-width:140px">Valor depositado (R$)<input id="rc-dv" type="number" step="0.01" value="'+tot+'"></label>'+
+    '<label style="flex:1;min-width:140px">Data do depósito<input id="rc-dd" type="date" value="'+hojeISO()+'"></label></div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin:6px 0 10px">Os pagamentos passam para "a caminho" e são conferidos quando o depósito aparecer no extrato.</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="rcDepositar()">Registrar depósito</button></div>');
+}
+async function rcDepositar(){
+  const cx = S.rc.lista.filter(x=>x.etapa==='caixa'), tot = rc2(cx.reduce((s,x)=>s+(+x.bruto),0));
+  const v = rc2(document.getElementById('rc-dv').value), d = document.getElementById('rc-dd').value || hojeISO();
+  if(!(v>0)) return aviso('Informe o valor depositado.','erro');
+  const quem = rcQuem(), em = new Date(d+'T12:00:00').toISOString();
+  /* depósito de valor diferente: marca os pagamentos que cabem no valor, do mais antigo para o mais novo */
+  let resto = v; const ids = [];
+  cx.slice().sort((a,b)=>String(a.recebido_em).localeCompare(String(b.recebido_em))).forEach(x=>{ if(+x.bruto <= resto+0.005){ ids.push(x.id); resto = rc2(resto-(+x.bruto)); } });
+  if(!ids.length) return aviso('O valor não cobre nenhum pagamento do caixa.','erro');
+  const u = await sb.from('idad_receb').update({ etapa:'caminho', depositado_em: em, depositado_por: quem, previsto: d }).in('id', ids);
+  if(u.error) return aviso('Não registrou: '+u.error.message,'erro');
+  S.rc.lista.forEach(x=>{ if(ids.includes(x.id)) Object.assign(x, { etapa:'caminho', depositado_em: em, depositado_por: quem, previsto: d }); });
+  S.modal = null; render();
+  aviso('✔ Depósito de '+brl(v)+' registrado.'+(Math.abs(v-tot)>=0.01 ? ' Ficaram '+brl(rc2(tot-v+resto))+' no caixa.' : ''), Math.abs(v-tot)>=0.01 ? 'erro' : 'ok');
+}
+async function rcConfirmar(id, movId){
+  const x = S.rc.lista.find(r=>r.id===id); if(!x) return;
+  const m = movId ? (S.movimentos||[]).find(z=>z.id===movId) : null, dt = m ? (m.data_pagamento||m.data_movimento) : hojeISO();
+  try{
+    if(m){ const u = await sb.from('movimentos').update({ categoria:'Transferência · conciliado com atendimento particular', observacao: ((m.observacao||'')+' [MR: é o recebimento de '+x.paciente_nome+' · '+x.forma+(x.parcelas>1?' '+x.parcela+'/'+x.parcelas:'')+', já lançado pela recepção]').trim() }).eq('id', m.id).select().maybeSingle();
+      if(u.error) throw u.error; Object.assign(m, u.data||{}); }
+    if(x.movimento_id){ const u = await sb.from('movimentos').update({ pago:true, data_pagamento: dt }).eq('id', x.movimento_id); if(u.error) throw u.error;
+      const mm = (S.movimentos||[]).find(z=>z.id===x.movimento_id); if(mm) Object.assign(mm, { pago:true, data_pagamento: dt }); }
+    const patch = { etapa:'conta', conciliado_em: new Date(dt+'T12:00:00').toISOString(), conciliado_por: rcQuem(), conciliado_ref: m ? m.id : 'manual' };
+    const r = await sb.from('idad_receb').update(patch).eq('id', id); if(r.error) throw r.error;
+    Object.assign(x, patch); render(); if(S.modal && _rcDet) rcDetalhe(_rcDet);
+    aviso('✔ '+brl(+x.liquido)+' conferido na conta.','ok');
+  }catch(e){ aviso('Não conferiu: '+(e.message||e),'erro'); }
+}
+function rcChegou(id){
+  const x = S.rc.lista.find(r=>r.id===id); if(!x) return;
+  if(!confirm('Confirmar que '+brl(+x.liquido)+' ('+x.forma+(x.parcelas>1?' parcela '+x.parcela+'/'+x.parcelas:'')+') já está na conta do IDAD?')) return;
+  rcConfirmar(id, null);
+}
+
+let _rcDet = null;
+async function rcAbrirAgenda(agId){
+  if(!S.rc.carregado) await rcCarregar();
+  const tem = S.rc.lista.some(x=>x.agenda_id===agId);
+  if(!tem){ const e = idadEmpresa(), q = e ? await sb.from('idad_receb').select('*').eq('agenda_id', agId) : { data:[] };
+    if(!(q.data||[]).length) return aviso('Este pagamento foi registrado antes da v144 e não tem rastreio.','erro');
+    S.rc.lista = S.rc.lista.concat(q.data); }
+  rcDetalhe(agId);
+}
+async function rcDetalhe(key){
+  _rcDet = key;
+  const g = rcGrupos(S.rc.lista.filter(x=>(x.agenda_id||x.id)===key))[0]; if(!g) return;
+  let a = g.agenda_id ? (S.ag.lista||[]).find(x=>x.id===g.agenda_id) : null;
+  if(!a && g.agenda_id){ const q = await sb.from('agenda').select('*').eq('id', g.agenda_id).maybeSingle(); a = q.data || null; }
+  const sug = rcSugestoes(), n = g.rows.length, k = g.rows.filter(x=>x.etapa==='conta'), din = g.forma==='Dinheiro', r0 = g.rows[0];
+  const quando = t => t ? new Date(t).toLocaleString('pt-BR').slice(0,17) : '';
+  const fch = S.rc.fech.find(f=>f.id===r0.fechamento_id), ev = [], pend = g.rows.filter(x=>x.etapa!=='conta').sort((a,b)=>String(a.previsto).localeCompare(String(b.previsto)));
+  if(a) ev.push(['f', 'Agendado · '+(AG_PAG[a.pagamento]||'particular'), quando(a.criado_em)]);
+  ev.push(['f', 'Atendido e pago · '+g.forma+(n>1?' '+n+'x':'')+' · '+brl(g.bruto), quando(r0.recebido_em)+(r0.recebido_por?' · '+r0.recebido_por:'')]);
+  if(g.rows.some(x=>x.movimento_id)) ev.push(['f', 'Lançado no Financeiro do IDAD', din ? 'no Caixa recepção IDAD' : n>1 ? n+' parcelas a receber da '+(rcCfg().maquininha||'maquininha') : 'a receber']);
+  ev.push(fch ? ['f', 'Caixa do dia fechado e conferido', quando(fch.fechado_em)+' · '+(fch.fechado_por||'')] : ['', 'Caixa do dia fechado e conferido', 'falta fechar o caixa de '+dataBR(String(r0.recebido_em).slice(0,10))]);
+  if(din) ev.push(r0.depositado_em ? ['f', 'Depositado no banco', dataBR(String(r0.depositado_em).slice(0,10))+' · '+(r0.depositado_por||'')] : ['p', 'Aguardando o depósito no banco', 'o dinheiro está no caixa da recepção']);
+  else ev.push(!pend.length ? ['f', g.forma==='Pix' ? 'Pix recebido' : 'Repassado pela '+(rcCfg().maquininha||'maquininha'), ''] : ['p', g.forma==='Pix' ? 'Aguardando conferir o Pix' : 'Aguardando a '+(rcCfg().maquininha||'maquininha')+' repassar', (n>1?(k.length+1)+'ª parcela':'')+' prevista para '+dataBR(pend[0].previsto)]);
+  ev.push(!pend.length ? ['f', 'Conferido no extrato do banco', quando(k.map(x=>x.conciliado_em).sort().pop())+' · '+(k[k.length-1].conciliado_por||'')] : ['', 'Conferido no extrato do banco', k.length ? k.length+' de '+n+' já conferidas' : 'marca quando o valor aparecer no extrato']);
+  const sit = x => x.etapa==='conta' ? '<span class="rc-ok">✔ na conta '+dataBR(String(x.conciliado_em).slice(0,10))+'</span>' : x.etapa==='caixa' ? '<span class="rc-wa">no caixa</span>' :
+    sug[x.id] ? '<button class="bt mini" onclick="rcConfirmar(\''+x.id+'\',\''+sug[x.id].id+'\')">🔎 Confirmar extrato</button>' :
+    '<span class="'+(x.previsto<hojeISO()?'rc-er':'rc-wa')+'">'+(x.previsto<hojeISO()?'⚠ atrasado':'a caminho')+'</span> <button class="bt g mini" onclick="rcChegou(\''+x.id+'\')">Chegou</button>';
+  abrirModal('<h2>Rastreio do pagamento</h2><div style="font-size:14px;margin-bottom:10px"><b>'+esc(g.nome||'')+'</b>'+(a?' · '+AG_TIPO[a.tipo]+' · '+esc(agNome(a.profissional_id)):'')+'</div>'+
+    '<div class="rc-kp" style="margin-bottom:12px"><div class="rc-k"><small>Valor cobrado</small><b>'+brl(g.bruto)+'</b></div>'+
+    '<div class="rc-k"><small>Taxa da maquininha'+(+r0.taxa_pct?' ('+String(+r0.taxa_pct).replace('.',',')+'%)':'')+'</small><b>'+(g.bruto-g.liquido>0.004?'– '+brl(rc2(g.bruto-g.liquido)):'R$ 0,00')+'</b></div>'+
+    '<div class="rc-k"><small>Vai cair na conta</small><b>'+brl(g.liquido)+'</b></div>'+
+    '<div class="rc-k"><small>Já chegou</small><b>'+brl(rc2(k.reduce((s,x)=>s+(+x.liquido),0)))+' <span class="'+(k.length===n?'rc-ok':'rc-wa')+'" style="font-size:12px">'+k.length+' de '+n+'</span></b></div></div>'+
+    '<b>Caminho do dinheiro</b><div class="rc-tl">'+ev.map(e=>'<div class="rc-ev '+e[0]+'"><b>'+esc(e[1])+'</b><small>'+esc(e[2])+'</small></div>').join('')+'</div>'+
+    '<div style="overflow-x:auto"><table style="width:100%;font-size:13px;margin-top:6px"><tr><th style="text-align:left">'+(n>1?'Parcela':'Pagamento')+'</th><th style="text-align:left">Previsto</th><th style="text-align:right">Líquido</th><th style="text-align:left">Situação</th></tr>'+
+    g.rows.map(x=>'<tr><td>'+(n>1?x.parcela+'/'+n:esc(x.forma))+'</td><td>'+(x.previsto?dataBR(x.previsto):'—')+'</td><td style="text-align:right">'+brl(+x.liquido)+'</td><td>'+sit(x)+'</td></tr>').join('')+'</table></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>');
+}
+
+function rcCfgModal(){
+  const c = rcCfg();
+  abrirModal('<h2>Taxas e prazos da maquininha</h2>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;min-width:140px">Maquininha<input id="rc-mq" value="'+esc(c.maquininha||'')+'"></label>'+
+    '<label style="flex:1;min-width:120px">Taxa débito (%)<input id="rc-td" type="number" step="0.01" value="'+c.taxa_debito+'"></label>'+
+    '<label style="flex:1;min-width:120px">Débito cai em (dias úteis)<input id="rc-pd" type="number" value="'+c.prazo_debito+'"></label></div>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input id="rc-an" type="checkbox"'+(c.antecipa?' checked':'')+' style="width:auto;margin:0"> Crédito antecipado (a maquininha paga tudo no dia útil seguinte)</label>'+
+    '<b style="font-size:13.5px">Taxa do crédito por número de parcelas (%)</b><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">'+
+    (c.taxas_credito||[]).map((t,i)=>'<label style="font-size:12px">'+(i+1)+'x<input class="rc-tc" type="number" step="0.01" value="'+t+'" style="margin:2px 0 0"></label>').join('')+'</div>'+
+    '<div style="font-size:12px;color:var(--fraco);margin:8px 0 10px">Valores iniciais tirados das vendas Stone de outubro (1x 4,5% · 3x 6,9% · 4x 8,5% · 6x 11,8%). Confira com o contrato da maquininha.</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="rcCfgSalvar()">Salvar</button></div>');
+}
+async function rcCfgSalvar(){
+  const e = idadEmpresa(); if(!e) return;
+  const row = { empresa_id:e.id, maquininha: document.getElementById('rc-mq').value.trim()||'Stone', taxa_debito: +document.getElementById('rc-td').value||0, prazo_debito: +document.getElementById('rc-pd').value||1,
+    antecipa: document.getElementById('rc-an').checked, taxas_credito: Array.from(document.querySelectorAll('.rc-tc')).map(i=>+i.value||0), atualizado_em: new Date().toISOString(), atualizado_por: rcQuem() };
+  const q = await sb.from('idad_receb_config').upsert(row).select().maybeSingle();
+  if(q.error) return aviso('Não salvou: '+q.error.message,'erro');
+  S.rc.cfg = q.data; S.modal = null; render(); aviso('✔ Taxas salvas. Valem para os próximos pagamentos.','ok');
 }
 
 </script>
