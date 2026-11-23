@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v141">
+<meta name="rf-versao" content="v142">
 <meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v141',
+  versao : 'v142',
   data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -7534,6 +7534,12 @@ function agModal(){
   const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
   const procs = a.operadora_id ? tissItensDoConv(a.operadora_id, 'proc').filter(i=>S.tiss.precos.some(p=>p.operadora_id===a.operadora_id && p.item_id===i.id)) : [];
   let h = '<h2>'+(a.id?'Agendamento':'Novo agendamento')+(a.encaixe?' <small style="font-size:12px;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</small>':'')+'</h2>';
+  if(!ro) h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px">'+
+    '<button type="button" class="bt mini" onclick="document.getElementById(\'ag-docfoto\').click()">'+icoCamDoc()+'Tirar foto da carteirinha / documento</button>'+
+    '<button type="button" class="bt g mini" onclick="document.getElementById(\'ag-docarq\').click()">Buscar na galeria / PDF</button>'+
+    '<input type="file" id="ag-docfoto" accept="image/*" capture="environment" hidden onchange="agLerAgendamento(this)">'+
+    '<input type="file" id="ag-docarq" accept="image/*,application/pdf" multiple hidden onchange="agLerAgendamento(this)">'+
+    '<span id="ag-docst" style="font-size:12.5px;color:var(--fraco);flex:1;min-width:180px">'+(a.paciente_id?'<span style="color:#0e9f6e">✔ Paciente já tem ficha no IDAD.</span>':'Paciente novo? Fotografe a carteirinha e o documento: a IA preenche e a ficha é criada ao salvar.')+'</span></div>';
   h += lin('<label style="flex:2;min-width:220px">Paciente<input list="ag-pacs" value="'+esc(a.paciente_nome)+'" onchange="agPac(this.value)"'+(ro?' disabled':'')+'></label><datalist id="ag-pacs">'+S.ag.pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',
     I('telefone','Celular / WhatsApp','tel'), I('carteira','Carteirinha'));
   h += lin(Sel('profissional_id','Médico', agMedicos().map(p=>[p.id,p.nome])), I('data','Data','date'), I('hora','Hora','time'), I('duracao','Duração (min)','number'));
@@ -7560,6 +7566,15 @@ async function agSalvar(atender){
   // conflito vira encaixe
   const conflito = S.ag.lista.some(x=>x.id!==a.id && x.status!=='cancelado' && x.profissional_id===a.profissional_id && x.data===a.data && agMin(x.hora)===agMin(a.hora));
   if(conflito && !a.encaixe){ if(!confirm('Já existe paciente neste horário. Marcar como ENCAIXE?')) return; a.encaixe = true; }
+  if(!a.paciente_id){ // v142: paciente novo ganha a ficha no cadastro do IDAD já no agendamento
+    const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===soDig(a.cpf)) || (a.carteira && p.carteirinha && soDig(p.carteirinha)===soDig(a.carteira)) || permNorm(p.nome)===permNorm(a.paciente_nome));
+    if(ex) a.paciente_id = ex.id;
+    else { const op = tissOp(a.operadora_id);
+      const rp = await sb.from('idad_pacientes').insert({ nome:String(a.paciente_nome).trim().toUpperCase(), cpf:a.cpf||null, nascimento:a.nascimento||null, celular:soDig(a.telefone)||null,
+        convenio: op.nome||null, plano:a.plano||null, carteirinha:a.carteira||null, conv_validade:a.validade||null, obs:'[Criado no agendamento pelo MR em '+dataBR(hojeISO())+']' })
+        .select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').maybeSingle();
+      if(rp.error) return aviso('Não criou a ficha do paciente: '+rp.error.message,'erro');
+      a.paciente_id = rp.data.id; S.ag.pacs.push(rp.data); if(S.idad) S.idad.pacOk = false; } }
   const reg = { profissional_id:a.profissional_id, data:a.data, hora:a.hora, duracao: Number(a.duracao)||20, tipo:a.tipo, encaixe:!!a.encaixe, paciente_id:a.paciente_id||null,
     paciente_nome:String(a.paciente_nome).trim().toUpperCase(), telefone: soDig(a.telefone)||null, carteira:a.carteira||null, operadora_id:a.operadora_id||null, item_id:a.item_id||null,
     origem:a.origem||'recepcao', obs:a.obs||null, atualizado_em:new Date().toISOString() };
@@ -7610,6 +7625,37 @@ function agAtender(id){
     const kit = S.tiss.kits.find(k=>k.operadora_id===a.operadora_id && k.item_id===a.item_id); if(kit){ tissGuiaModal(); tissUsarKit(kit.id); } }
   if(a.status==='agendado' || a.status==='confirmado') agStatus(a.id, 'chegou');
   tissGuiaModal();
+}
+/* v142: leitura genérica de documento/carteirinha por foto (mesma IA da ficha do paciente) */
+async function agLerCampos(inp){
+  const arqs = Array.from((inp && inp.files)||[]); if(!arqs.length) return null;
+  const imagens = [];
+  for(const f of arqs.slice(0,4)){ const buf = await f.arrayBuffer(); if(!buf.byteLength) throw new Error('a foto veio vazia — tente pela Galeria');
+    if(f.type==='application/pdf' || /\.pdf$/i.test(f.name||'')) (await saldoPdfImagens(buf.slice(0))).slice(0,2).forEach(x=>imagens.push(x));
+    else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }); }
+  const { data, error } = await sb.functions.invoke('ler-documento-paciente', { body: { imagens } });
+  if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
+  if(data && data.error) throw new Error(data.error);
+  return (data && data.campos) || {};
+}
+const agDataISO = v => { v = String(v||'').trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v; const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? m[3]+'-'+m[2]+'-'+m[1] : ''; };
+function agConvDe(txt){ const n = permNorm(txt); if(!n) return null; return S.tiss.ops.find(o=>permNorm(o.nome)===n) || S.tiss.ops.find(o=>n.indexOf(permNorm(o.nome).split(' ')[0])>=0) || null; }
+async function agLerAgendamento(inp){
+  const st = document.getElementById('ag-docst'); const msg = h=>{ if(st) st.innerHTML = h; };
+  try{ msg('Lendo… (uns 10 a 20 segundos)'); const c = await agLerCampos(inp); if(!c) return;
+    const a = _agEd, lidos = [];
+    if(c.nome && !a.paciente_nome){ a.paciente_nome = String(c.nome).toUpperCase(); lidos.push('nome'); }
+    if(c.celular && !a.telefone){ a.telefone = soDig(c.celular); lidos.push('celular'); }
+    if(c.carteirinha && !a.carteira){ a.carteira = soDig(c.carteirinha)||c.carteirinha; lidos.push('carteirinha'); }
+    if(c.cpf && !a.cpf){ a.cpf = soDig(c.cpf); lidos.push('CPF'); }
+    if(c.nascimento && !a.nascimento){ a.nascimento = agDataISO(c.nascimento); }
+    if(c.plano) a.plano = c.plano; if(c.conv_validade) a.validade = agDataISO(c.conv_validade);
+    if(c.convenio && !a.operadora_id){ const o = agConvDe(c.convenio); if(o){ a.operadora_id = o.id; lidos.push('convênio'); } else a.convenio_lido = c.convenio; }
+    if(!a.paciente_id && (a.cpf || a.carteira)){ const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===a.cpf) || (a.carteira && soDig(p.carteirinha)===soDig(a.carteira))); if(ex){ a.paciente_id = ex.id; lidos.push('paciente já cadastrado'); } }
+    agModal(); const s2 = document.getElementById('ag-docst');
+    if(s2) s2.innerHTML = '<span style="color:#0e9f6e">✔ Lido: '+(lidos.join(', ')||'nada novo')+'. Confira.</span>'+(a.convenio_lido?'<br><span style="color:#d97706">Convênio no documento: '+esc(a.convenio_lido)+' — escolha na lista.</span>':'');
+  }catch(e){ msg('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value=''; }
 }
 /* leitura da carteirinha/documento por foto dentro do atendimento (mesma IA da ficha do paciente) */
 async function agLerCarteira(inp){
