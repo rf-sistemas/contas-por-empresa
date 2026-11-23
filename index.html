@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v140">
+<meta name="rf-versao" content="v141">
 <meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v140',
+  versao : 'v141',
   data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadagenda' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -541,6 +541,7 @@ function render(){
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
   else if(S.tela==='idadtiss')  corpo = telaIdadTiss();   // v140
+  else if(S.tela==='idadagenda') corpo = telaIdadAgenda(); // v141
   else if(S.tela==='idadfin')   corpo = telaIdadFin();
   else if(S.tela==='idadconc')  corpo = telaIdadConc();
   else if(S.tela==='painel')   corpo = telaPainel();
@@ -584,7 +585,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if(t==='idadagenda' && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3846,7 +3847,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda e recepção', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4280,6 +4281,7 @@ function telaIdad(){
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
+    (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadagenda\')"><div class="ic">'+icoAgenda()+'</div><div><b>Agenda e recepção <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+agResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
@@ -7110,7 +7112,8 @@ function tissGuiaModal(){
   const I = (k, rot, tipo, extra) => '<label style="flex:1;min-width:150px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'></label>';
   const Sel = (k, rot, ops, extra) => '<label style="flex:1;min-width:150px">'+rot+'<select onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k])===String(o[0])?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>';
   const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
-  let h = '<h2>'+(f.id?'Guia de ':'Nova guia de ')+TISS_TIPOS[f.tipo]+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
+  let h = '<h2>'+(f.agendaId && !f.id ? 'Atendimento · ' : '')+(f.id?'Guia de ':'Nova guia de ')+TISS_TIPOS[f.tipo]+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
+  if(typeof agBarraAtendimento==='function') h += agBarraAtendimento();
   h += lin('<label style="flex:2;min-width:220px">Convênio<select onchange="tissFormOp(this.value)"'+(ro?' disabled':'')+'><option value="">Escolha…</option>'+opsOpt+'</select></label>',
     '<label style="flex:2;min-width:220px">Faturar como<select onchange="S.tiss.form.ctId=this.value"'+(ro?' disabled':'')+'>'+cts.map(c=>'<option value="'+c.id+'"'+(f.ctId===c.id?' selected':'')+'>'+esc(c.rotulo)+(c.ativo?'':' (sem envio há 1 ano)')+'</option>').join('')+'</select></label>');
   h += lin('<label style="flex:2;min-width:220px">Paciente<input list="tg-pacs" value="'+esc(f.paciente)+'" onchange="tissFormPac(this.value)"'+(ro?' disabled':'')+'></label>'+
@@ -7135,7 +7138,7 @@ function tissGuiaModal(){
   h += lin(I('obs','Observação (vai na guia)'));
   h += '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px">'+
     (f.id && f.status==='aberta' ? '<button class="bt g" style="color:#dc2626" onclick="tissGuiaCancelar()">Cancelar guia</button>' : '')+
-    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="tissGuiaSalvar()">Salvar guia</button>')+'</div>';
+    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="tissGuiaSalvar()">'+(f.agendaId && !f.id ? 'Finalizar atendimento e gerar guia' : 'Salvar guia')+'</button>')+'</div>';
   abrirModal(h);
 }
 function tissFormOp(id){ const f = S.tiss.form; f.opId = id; const ct = S.tiss.contratos.find(c=>c.operadora_id===id && c.principal) || S.tiss.contratos.find(c=>c.operadora_id===id);
@@ -7243,6 +7246,7 @@ async function tissGuiaSalvar(){
     if(r.error) throw r.error; if(!r.data) throw new Error('A guia não está mais aberta.');
     const i = S.tiss.guias.findIndex(g=>g.id===r.data.id); if(i>=0) S.tiss.guias[i] = r.data; else S.tiss.guias.unshift(r.data);
     S.modal = null; aviso('Guia '+num+' salva ('+brl(r.data.valor_total)+').');
+    if(typeof agDepoisDaGuia==='function' && (f.agendaId || !f.pacienteId)) agDepoisDaGuia(f, r.data);
   }catch(e){ aviso('Não salvou: '+(e.message||e),'erro'); }
 }
 async function tissGuiaCancelar(){ const f = S.tiss.form; if(!confirm('Cancelar esta guia? Ela não entra em lote.')) return;
@@ -7364,6 +7368,301 @@ async function tissConferir(files){
     }catch(e){ res.push({ arquivo:f.name, erro: e.message||String(e) }); }
   }
   S.tiss.conf = res; render();
+}
+
+
+/* ===== v141 (Renato, 23/11/2026): AGENDA E RECEPÇÃO do Hospital IDAD — substitui o Smart Agenda + Ordem de Serviço =====
+   Agenda por médico (dia e semana), consulta/exame/cirurgia, encaixe, situação do horário, confirmação pelo WhatsApp (link pronto),
+   e ATENDIMENTO EM UMA TELA: do horário marcado abre a guia já preenchida; "Finalizar atendimento" grava a guia no Faturamento TISS
+   e marca o horário como atendido. Tabelas agenda e agenda_medicos (RLS cpe_ve_agenda: Renato e quem tiver a aba 'agenda' ou 'tiss'). */
+S.ag = { carregado:false, carregando:false, dia:null, vista:'dia', medico:'', lista:[], grade:[], pacs:[], erro:null };
+function agPode(){ const p = S.perfil||{}; return tissPode() || (Array.isArray(p.abas) && p.abas.indexOf('agenda')>=0); }
+const AG_ST = { agendado:['Agendado','#0a6cf0','#e8f1ff'], confirmado:['Confirmado','#0e9f6e','#e6f8f1'], chegou:['Chegou','#7c3aed','#f1eafe'],
+  atendido:['Atendido','#047857','#d9f7ea'], faltou:['Faltou','#dc2626','#fdecea'], cancelado:['Cancelado','#6b7280','#f1f2f4'] };
+const AG_TIPO = { consulta:'Consulta', exame:'Exame', cirurgia:'Cirurgia' };
+const AG_ORIG = { recepcao:'Recepção', telefone:'Telefone', whatsapp:'WhatsApp', retorno:'Retorno' };
+function icoAgenda(){
+  return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gAg" x1="0" y1="1" x2="1" y2="0">'+
+    '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
+    '<rect x="5" y="9" width="34" height="31" rx="5" fill="url(#gAg)" opacity=".28"/><rect x="5" y="9" width="34" height="9" rx="4" fill="url(#gAg)"/>'+
+    '<rect x="12" y="5" width="3" height="8" rx="1.5" fill="#0a6cf0"/><rect x="29" y="5" width="3" height="8" rx="1.5" fill="#0a6cf0"/>'+
+    '<rect x="11" y="23" width="6" height="5" rx="1.2" fill="url(#gAg)"/><rect x="20" y="23" width="6" height="5" rx="1.2" fill="url(#gAg)"/><rect x="11" y="31" width="6" height="5" rx="1.2" fill="url(#gAg)"/>'+
+    '<circle cx="37" cy="35" r="8" fill="#fff" stroke="url(#gAg)" stroke-width="2.5"/><path d="M37 31v4.3l2.8 1.8" fill="none" stroke="#0a6cf0" stroke-width="2.3" stroke-linecap="round"/></svg>';
+}
+function agResumo(){ if(!S.ag.carregado) return 'Agenda por médico, confirmação e atendimento · teste';
+  const h = hojeISO(), l = S.ag.lista.filter(a=>a.data===h && a.status!=='cancelado'); return l.length+' paciente'+(l.length===1?'':'s')+' hoje · '+l.filter(a=>a.status==='atendido').length+' atendido'+(l.filter(a=>a.status==='atendido').length===1?'':'s'); }
+function agSomaDias(d, n){ const x = new Date(d+'T12:00:00'); x.setDate(x.getDate()+n); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); }
+function agDiaSemana(d){ return new Date(d+'T12:00:00').getDay(); }
+const AG_DS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const agHM = t => String(t||'').slice(0,5);
+const agMin = t => { const [h,m] = agHM(t).split(':').map(Number); return h*60+(m||0); };
+const agHora = m => String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+
+async function agCarregar(){
+  if(S.ag.carregando) return; S.ag.carregando = true;
+  if(!S.ag.dia) S.ag.dia = hojeISO();
+  try{
+    if(!S.tiss.carregado) await tissCarregar();
+    const ini = agSomaDias(S.ag.dia, -7), fim = agSomaDias(S.ag.dia, 14);
+    const [a, g, p] = await Promise.all([
+      sb.from('agenda').select('*').gte('data', ini).lte('data', fim).order('hora'),
+      sb.from('agenda_medicos').select('*'),
+      sb.from('idad_pacientes').select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').order('nome').limit(5000) ]);
+    if(a.error) throw a.error; if(g.error) throw g.error;
+    Object.assign(S.ag, { lista:a.data, grade:g.data, pacs:(p.data||[]), ini, fim, carregado:true, erro:null });
+  }catch(e){ S.ag.erro = e.message||String(e); }
+  S.ag.carregando = false; if(S.tela==='idadagenda' || S.tela==='idad') render();
+}
+function agIrDia(d){ S.ag.dia = d; if(!S.ag.ini || d < S.ag.ini || d > S.ag.fim){ S.ag.carregado = false; agCarregar(); } render(); }
+function agMedicos(){ return S.tiss.profs.filter(p=>p.ativo).sort((a,b)=>a.nome.localeCompare(b.nome)); }
+function agGrade(pid){ return S.ag.grade.find(g=>g.profissional_id===pid) || { dias:[1,2,3,4,5], inicio:'07:00', fim:'18:00', duracao:20, ativo:true }; }
+function agNome(pid){ const p = S.tiss.profs.find(x=>x.id===pid); return p ? p.nome.split(' ').slice(0,2).join(' ') : '—'; }
+
+/* ---------- tela ---------- */
+function telaIdadAgenda(){
+  if(!agPode()) return '<div class="card">Você não tem acesso à Agenda.</div>';
+  if(!S.ag.carregado && !S.ag.carregando) agCarregar();
+  let h = '<div class="secao"><b>AGENDA E RECEPÇÃO</b><span>Por médico · consulta, exame e cirurgia · do agendamento à guia</span></div>';
+  h += '<div class="card" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00;font-size:13.5px"><b>Modo teste.</b> A agenda do Smart continua valendo até a equipe aprovar.</div>';
+  if(S.ag.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(S.ag.erro)+'</b></div>';
+  if(!S.ag.carregado || !S.tiss.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const d = S.ag.dia, dl = S.ag.lista.filter(a=>a.data===d && a.status!=='cancelado');
+  const cnt = s => dl.filter(a=>a.status===s).length;
+  h += '<div class="card"><div class="kpis">'+kpi('Agendados no dia', String(dl.length))+kpi('Confirmados', String(cnt('confirmado')))+kpi('Na recepção', String(cnt('chegou')))+
+    kpi('Atendidos', String(cnt('atendido')))+kpi('Faltas', '<span style="color:'+(cnt('faltou')?'#dc2626':'inherit')+'">'+cnt('faltou')+'</span>')+kpi('Encaixes', String(dl.filter(a=>a.encaixe).length))+'</div></div>';
+  h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+    '<button class="bt g mini" onclick="agIrDia(agSomaDias(S.ag.dia,-1))">‹</button>'+
+    '<input type="date" value="'+d+'" onchange="agIrDia(this.value)" style="width:auto;margin:0">'+
+    '<button class="bt g mini" onclick="agIrDia(agSomaDias(S.ag.dia,1))">›</button>'+
+    '<button class="bt g mini" onclick="agIrDia(hojeISO())">Hoje</button>'+
+    '<b style="margin:0 6px">'+AG_DS[agDiaSemana(d)]+', '+dataBR(d)+'</b>'+
+    '<select onchange="S.ag.medico=this.value;render()" style="width:auto;margin:0"><option value="">Todos os médicos</option>'+agMedicos().map(p=>'<option value="'+p.id+'"'+(S.ag.medico===p.id?' selected':'')+'>'+esc(p.nome)+'</option>').join('')+'</select>'+
+    '<span style="flex:1"></span>'+
+    ['dia','semana','confirmar'].map(v=>'<button class="bt'+(S.ag.vista===v?'':' g')+' mini" onclick="S.ag.vista=\''+v+'\';render()">'+({dia:'Dia',semana:'Semana',confirmar:'Confirmar por WhatsApp'})[v]+'</button>').join('')+
+    '<button class="bt" onclick="agNovo()">+ Agendar</button></div>';
+  if(S.ag.vista==='semana') h += agSemanaHtml();
+  else if(S.ag.vista==='confirmar') h += agConfirmarHtml();
+  else h += agDiaHtml();
+  return h;
+}
+function agDiaHtml(){
+  const d = S.ag.dia, ds = agDiaSemana(d);
+  const meds = agMedicos().filter(p=>!S.ag.medico || p.id===S.ag.medico);
+  let h = '';
+  meds.forEach(p=>{
+    const g = agGrade(p.id), ags = S.ag.lista.filter(a=>a.data===d && a.profissional_id===p.id && a.status!=='cancelado').sort((a,b)=>agMin(a.hora)-agMin(b.hora));
+    const trabalha = g.ativo && (g.dias||[]).indexOf(ds)>=0;
+    if(!trabalha && !ags.length && !S.ag.medico) return;
+    // horários da grade + agendamentos fora dela (encaixes)
+    const slots = []; if(trabalha) for(let m = agMin(g.inicio); m + g.duracao <= agMin(g.fim); m += g.duracao) slots.push(m);
+    const usados = new Set();
+    let linhas = slots.map(m=>{ const aqui = ags.filter(a=>agMin(a.hora)>=m && agMin(a.hora)<m+g.duracao); aqui.forEach(a=>usados.add(a.id));
+      return '<tr><td style="width:62px;color:var(--fraco);font-weight:700">'+agHora(m)+'</td><td>'+(aqui.length ? aqui.map(agCartao).join('') :
+        '<button class="bt g mini" style="opacity:.7" onclick="agNovo(\''+p.id+'\',\''+agHora(m)+'\')">+ livre</button>')+'</td></tr>'; });
+    const fora = ags.filter(a=>!usados.has(a.id));
+    linhas = linhas.concat(fora.map(a=>'<tr><td style="width:62px;color:#d97706;font-weight:700">'+agHM(a.hora)+'</td><td>'+agCartao(a)+'</td></tr>'));
+    h += '<div class="card" style="padding:8px 10px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px"><b style="font-size:15px">'+esc(p.nome)+'</b>'+
+      '<small style="color:var(--fraco)">CRM '+esc(p.numero)+' · '+(trabalha ? agHM(g.inicio)+'–'+agHM(g.fim)+' · '+g.duracao+' min' : 'sem grade neste dia')+'</small>'+
+      '<span style="flex:1"></span><button class="bt g mini" onclick="agGradeAbrir(\''+p.id+'\')">Horários</button><button class="bt mini" onclick="agNovo(\''+p.id+'\',\'\',true)">+ Encaixe</button></div>'+
+      (linhas.length ? '<table>'+linhas.join('')+'</table>' : '<div style="color:var(--fraco);font-size:13px">Sem horário neste dia.</div>')+'</div>';
+  });
+  return h || '<div class="vazio">Nenhum médico atende neste dia. Ajuste em "Horários" ou escolha outro dia.</div>';
+}
+function agCartao(a){
+  const s = AG_ST[a.status]||AG_ST.agendado, op = tissOp(a.operadora_id).nome||'Particular';
+  const bt = (f, t, cls) => '<button class="bt '+(cls||'g')+' mini" onclick="event.stopPropagation();'+f+'">'+t+'</button>';
+  const acoes = [];
+  if(a.status==='agendado') acoes.push(bt('agStatus(\''+a.id+'\',\'confirmado\')','Confirmar'));
+  if(a.status==='agendado'||a.status==='confirmado') acoes.push(bt('agStatus(\''+a.id+'\',\'chegou\')','Chegou'));
+  if(a.status==='chegou'||a.status==='confirmado'||a.status==='agendado') acoes.push(bt('agAtender(\''+a.id+'\')','Atender',''));
+  if(a.status==='agendado'||a.status==='confirmado') acoes.push(bt('agStatus(\''+a.id+'\',\'faltou\')','Faltou'));
+  if(a.status==='atendido' && a.guia_id) acoes.push(bt('tissGuiaAbrir(\''+a.guia_id+'\')','Ver guia'));
+  return '<div onclick="agEditar(\''+a.id+'\')" style="cursor:pointer;background:'+s[2]+';border-left:4px solid '+s[1]+';border-radius:8px;padding:6px 9px;margin:3px 0">'+
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(a.paciente_nome)+'</b>'+
+    (a.encaixe?'<span style="font-size:11px;font-weight:800;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</span>':'')+
+    '<small>'+AG_TIPO[a.tipo]+(a.item_id && tissIt(a.item_id) ? ' · '+esc((tissIt(a.item_id).descricao||'').slice(0,34)) : '')+' · '+esc(op)+'</small>'+
+    '<small style="color:'+s[1]+';font-weight:800">'+s[0]+'</small>'+(a.origem==='whatsapp'?'<small>📱</small>':'')+'</div>'+
+    (acoes.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'+acoes.join('')+'</div>':'')+'</div>';
+}
+function agSemanaHtml(){
+  const d0 = agSomaDias(S.ag.dia, -((agDiaSemana(S.ag.dia)+6)%7)), dias = [0,1,2,3,4,5].map(i=>agSomaDias(d0,i));
+  const meds = agMedicos().filter(p=>!S.ag.medico || p.id===S.ag.medico);
+  return '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Médico</th>'+dias.map(d=>'<th style="text-align:center;cursor:pointer" onclick="S.ag.vista=\'dia\';agIrDia(\''+d+'\')">'+AG_DS[agDiaSemana(d)]+'<br>'+dataBR(d).slice(0,5)+'</th>').join('')+'</tr></thead><tbody>'+
+    meds.map(p=>'<tr><td><b>'+esc(p.nome)+'</b></td>'+dias.map(d=>{ const l = S.ag.lista.filter(a=>a.data===d && a.profissional_id===p.id && a.status!=='cancelado');
+      const at = l.filter(a=>a.status==='atendido').length, fa = l.filter(a=>a.status==='faltou').length;
+      return '<td style="text-align:center;cursor:pointer" onclick="S.ag.vista=\'dia\';S.ag.medico=\''+p.id+'\';agIrDia(\''+d+'\')">'+(l.length?'<b>'+l.length+'</b>'+(at?'<br><small style="color:#047857">'+at+' atend.</small>':'')+(fa?'<br><small style="color:#dc2626">'+fa+' falta</small>':''):'<span style="color:var(--fraco)">—</span>')+'</td>'; }).join('')+'</tr>').join('')+
+    '</tbody></table><div style="font-size:12.5px;color:var(--fraco);margin-top:6px">Toque num dia para abrir a agenda dele.</div></div>';
+}
+/* ---------- confirmação pelo WhatsApp ---------- */
+function agTextoConfirma(a){
+  const p = S.tiss.profs.find(x=>x.id===a.profissional_id)||{}, nome = (a.paciente_nome||'').split(' ')[0];
+  const nm = (p.nome||'').toLowerCase().replace(/(^|\s)\S/g, s=>s.toUpperCase());
+  let t = 'Olá, '+nome.charAt(0)+nome.slice(1).toLowerCase()+'! Aqui é do IDAD. Lembramos '+(a.tipo==='consulta'?'da sua consulta':a.tipo==='exame'?'do seu exame':'do seu procedimento')+' com Dr(a). '+nm+
+    ' no dia '+dataBR(a.data)+' ('+AG_DS[agDiaSemana(a.data)]+') às '+agHM(a.hora)+'.';
+  if(a.tipo!=='consulta') t += ' Siga as orientações de preparo que você recebeu e traga o pedido médico.';
+  t += ' Traga documento com foto e a carteirinha do convênio.\n\nResponda: 1 para CONFIRMAR, 2 para REMARCAR ou 3 para CANCELAR.';
+  return t;
+}
+function agConfirmarHtml(){
+  const amanha = agSomaDias(S.ag.dia, 1), dias = [S.ag.dia, amanha];
+  let h = '';
+  dias.forEach(d=>{
+    const l = S.ag.lista.filter(a=>a.data===d && a.status==='agendado' && (!S.ag.medico || a.profissional_id===S.ag.medico)).sort((a,b)=>agMin(a.hora)-agMin(b.hora));
+    h += '<div class="card" style="padding:8px 10px"><b style="font-size:15px">'+AG_DS[agDiaSemana(d)]+', '+dataBR(d)+' — '+l.length+' a confirmar</b>';
+    if(!l.length) h += '<div style="color:var(--fraco);font-size:13px;margin-top:4px">Ninguém pendente de confirmação.</div>';
+    else h += '<table style="margin-top:4px">'+l.map(a=>{ const tel = soDig(a.telefone||''); const link = tel ? 'https://wa.me/55'+tel.replace(/^55(?=\d{10,11}$)/,'')+'?text='+encodeURIComponent(agTextoConfirma(a)) : '';
+      return '<tr><td style="width:56px"><b>'+agHM(a.hora)+'</b></td><td><b>'+esc(a.paciente_nome)+'</b><br><small style="color:var(--fraco)">'+esc(agNome(a.profissional_id))+' · '+AG_TIPO[a.tipo]+' · '+(tel?esc(mascaraTel(tel)):'<span style="color:#d97706">sem telefone</span>')+'</small></td>'+
+        '<td style="white-space:nowrap">'+(link?'<a class="bt mini" style="text-decoration:none" target="_blank" href="'+link+'">Enviar no WhatsApp</a> ':'')+
+        '<button class="bt g mini" onclick="agStatus(\''+a.id+'\',\'confirmado\')">Confirmou</button> <button class="bt g mini" onclick="agStatus(\''+a.id+'\',\'cancelado\')">Cancelou</button></td></tr>'; }).join('')+'</table>';
+    h += '</div>';
+  });
+  return h+'<div class="card" style="font-size:12.5px;color:var(--fraco)">Por enquanto o botão abre o WhatsApp com a mensagem pronta e a recepção envia. O envio automático pelo robô entra quando for decidido o canal (WhatsApp oficial ou servidor próprio).</div>';
+}
+
+/* ---------- agendar / editar ---------- */
+let _agEd = null;
+function agNovo(pid, hora, encaixe){
+  _agEd = { id:null, profissional_id: pid || S.ag.medico || (agMedicos()[0]||{}).id || '', data: S.ag.dia, hora: hora || '', duracao: agGrade(pid||'').duracao||20, tipo:'consulta', encaixe: !!encaixe,
+    paciente_id:null, paciente_nome:'', telefone:'', carteira:'', operadora_id:'', item_id:'', origem:'recepcao', obs:'', status:'agendado' };
+  agModal();
+}
+function agEditar(id){ const a = S.ag.lista.find(x=>x.id===id); if(!a) return; _agEd = Object.assign({}, a, { hora: agHM(a.hora) }); agModal(); }
+function agModal(){
+  const a = _agEd, ro = a.status==='atendido';
+  const I = (k, rot, tipo) => '<label style="flex:1;min-width:140px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(a[k]==null?'':a[k])+'" onchange="_agEd.'+k+'=this.value"'+(ro?' disabled':'')+'></label>';
+  const Sel = (k, rot, ops) => '<label style="flex:1;min-width:140px">'+rot+'<select onchange="_agEd.'+k+'=this.value;'+(k==='operadora_id'||k==='tipo'?'agModal()':'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(a[k]||'')===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>';
+  const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
+  const procs = a.operadora_id ? tissItensDoConv(a.operadora_id, 'proc').filter(i=>S.tiss.precos.some(p=>p.operadora_id===a.operadora_id && p.item_id===i.id)) : [];
+  let h = '<h2>'+(a.id?'Agendamento':'Novo agendamento')+(a.encaixe?' <small style="font-size:12px;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</small>':'')+'</h2>';
+  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="ag-pacs" value="'+esc(a.paciente_nome)+'" onchange="agPac(this.value)"'+(ro?' disabled':'')+'></label><datalist id="ag-pacs">'+S.ag.pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',
+    I('telefone','Celular / WhatsApp','tel'), I('carteira','Carteirinha'));
+  h += lin(Sel('profissional_id','Médico', agMedicos().map(p=>[p.id,p.nome])), I('data','Data','date'), I('hora','Hora','time'), I('duracao','Duração (min)','number'));
+  h += lin(Sel('tipo','Tipo', [['consulta','Consulta'],['exame','Exame'],['cirurgia','Cirurgia']]),
+    Sel('operadora_id','Convênio', [['','Particular / não informado']].concat(tissOpsAtivas().map(o=>[o.id,o.nome]))),
+    Sel('item_id','Procedimento previsto', [['','—']].concat(procs.map(i=>[i.id, i.codigo+' · '+(i.descricao||'')]))));
+  h += lin(Sel('origem','Marcado por', Object.entries(AG_ORIG)), '<label style="flex:1;min-width:140px;display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox"'+(a.encaixe?' checked':'')+' onchange="_agEd.encaixe=this.checked" style="width:auto;margin:0"'+(ro?' disabled':'')+'> Encaixe</label>', I('obs','Observação'));
+  if(a.id) h += '<div style="font-size:13px;margin-bottom:8px">Situação: <b style="color:'+(AG_ST[a.status]||[])[1]+'">'+(AG_ST[a.status]||[''])[0]+'</b></div>';
+  h += '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'+
+    (a.id && !ro ? '<button class="bt g" style="color:#dc2626" onclick="agStatus(\''+a.id+'\',\'cancelado\');fecharModal()">Cancelar agendamento</button>' : '')+
+    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="agSalvar()">Salvar</button>')+
+    (a.id && !ro ? '<button class="bt" onclick="agSalvar(true)">Salvar e atender</button>' : '')+'</div>';
+  abrirModal(h);
+}
+function agPac(nome){ _agEd.paciente_nome = nome; const p = S.ag.pacs.find(x=>x.nome===nome);
+  _agEd.paciente_id = p ? p.id : null;
+  if(p){ if(!_agEd.telefone) _agEd.telefone = p.celular||p.telefone||''; if(!_agEd.carteira) _agEd.carteira = p.carteirinha||'';
+    if(!_agEd.operadora_id && p.convenio){ const o = S.tiss.ops.find(o=>permNorm(o.nome)===permNorm(p.convenio) || permNorm(p.convenio).indexOf(permNorm(o.nome))>=0); if(o) _agEd.operadora_id = o.id; }
+    agModal(); } }
+async function agSalvar(atender){
+  const a = _agEd;
+  if(!String(a.paciente_nome||'').trim()) return aviso('Informe o paciente.','erro');
+  if(!a.profissional_id || !a.data || !a.hora) return aviso('Informe médico, data e hora.','erro');
+  // conflito vira encaixe
+  const conflito = S.ag.lista.some(x=>x.id!==a.id && x.status!=='cancelado' && x.profissional_id===a.profissional_id && x.data===a.data && agMin(x.hora)===agMin(a.hora));
+  if(conflito && !a.encaixe){ if(!confirm('Já existe paciente neste horário. Marcar como ENCAIXE?')) return; a.encaixe = true; }
+  const reg = { profissional_id:a.profissional_id, data:a.data, hora:a.hora, duracao: Number(a.duracao)||20, tipo:a.tipo, encaixe:!!a.encaixe, paciente_id:a.paciente_id||null,
+    paciente_nome:String(a.paciente_nome).trim().toUpperCase(), telefone: soDig(a.telefone)||null, carteira:a.carteira||null, operadora_id:a.operadora_id||null, item_id:a.item_id||null,
+    origem:a.origem||'recepcao', obs:a.obs||null, atualizado_em:new Date().toISOString() };
+  const r = a.id ? await sb.from('agenda').update(reg).eq('id', a.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
+  const i = S.ag.lista.findIndex(x=>x.id===r.data.id); if(i>=0) S.ag.lista[i] = r.data; else S.ag.lista.push(r.data);
+  S.modal = null;
+  if(atender) return agAtender(r.data.id);
+  aviso('Agendado: '+reg.paciente_nome+' · '+dataBR(reg.data)+' '+agHM(reg.hora)+'.');
+}
+async function agStatus(id, st){
+  const up = { status: st, atualizado_em: new Date().toISOString() };
+  if(st==='confirmado') up.confirmado_em = up.atualizado_em; if(st==='chegou') up.chegou_em = up.atualizado_em;
+  const r = await sb.from('agenda').update(up).eq('id', id).select().maybeSingle();
+  if(r.error) return aviso('Não mudou: '+r.error.message,'erro');
+  const i = S.ag.lista.findIndex(x=>x.id===id); if(i>=0) S.ag.lista[i] = r.data; render();
+}
+/* ---------- horários do médico ---------- */
+function agGradeAbrir(pid){
+  const g = Object.assign({}, agGrade(pid)), p = S.tiss.profs.find(x=>x.id===pid)||{};
+  abrirModal('<h2>Horários · '+esc(p.nome||'')+'</h2>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+[1,2,3,4,5,6].map(d=>'<label style="display:flex;gap:4px;align-items:center;border:1px solid var(--linha);border-radius:8px;padding:4px 8px"><input type="checkbox" class="ag-dia" value="'+d+'"'+((g.dias||[]).indexOf(d)>=0?' checked':'')+' style="width:auto;margin:0">'+AG_DS[d]+'</label>').join('')+'</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1">Início<input type="time" id="ag-ini" value="'+agHM(g.inicio)+'"></label><label style="flex:1">Fim<input type="time" id="ag-fim" value="'+agHM(g.fim)+'"></label>'+
+    '<label style="flex:1">Tempo de cada horário (min)<input type="number" id="ag-dur" value="'+g.duracao+'"></label></div>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin:6px 0 10px">O tempo é só para montar a grade; o valor continua sendo cobrado por consulta ou procedimento.</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="agGradeSalvar(\''+pid+'\')">Salvar</button></div>');
+}
+async function agGradeSalvar(pid){
+  const reg = { profissional_id: pid, dias: Array.from(document.querySelectorAll('.ag-dia')).filter(e=>e.checked).map(e=>Number(e.value)),
+    inicio: val('ag-ini')||'07:00', fim: val('ag-fim')||'18:00', duracao: Math.max(5, Number(val('ag-dur'))||20), ativo:true };
+  const r = await sb.from('agenda_medicos').upsert(reg).select().maybeSingle(); if(r.error) return aviso(r.error.message,'erro');
+  const i = S.ag.grade.findIndex(g=>g.profissional_id===pid); if(i>=0) S.ag.grade[i] = r.data; else S.ag.grade.push(r.data);
+  S.modal = null; aviso('Horários salvos.'); }
+
+/* ---------- ATENDIMENTO EM UMA TELA: do horário para a guia ---------- */
+function agAtender(id){
+  const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
+  if(!a.operadora_id) return aviso('Informe o convênio no agendamento antes de atender (particular ainda não gera guia).','erro');
+  if(a.guia_id) return tissGuiaAbrir(a.guia_id);
+  const tipo = a.tipo==='consulta' ? 'consulta' : 'sadt';
+  S.tiss.filtro = a.operadora_id;
+  tissGuiaNova(tipo);
+  const f = S.tiss.form;
+  Object.assign(f, { agendaId: a.id, paciente: a.paciente_nome, pacienteId: a.paciente_id, carteira: a.carteira||'', telefone: a.telefone||'', data: a.data, profId: a.profissional_id,
+    solProfId: tipo==='sadt' ? a.profissional_id : '', tipoAtend: tipo==='sadt' ? '23' : f.tipoAtend });
+  if(tipo==='consulta') tissFormConsultaPadrao();
+  else if(a.item_id){ f.procs = [{ itemId:a.item_id, qtd:1, red:1, valor: tissPreco(a.operadora_id, a.item_id, a.data), auto:true }];
+    const kit = S.tiss.kits.find(k=>k.operadora_id===a.operadora_id && k.item_id===a.item_id); if(kit){ tissGuiaModal(); tissUsarKit(kit.id); } }
+  if(a.status==='agendado' || a.status==='confirmado') agStatus(a.id, 'chegou');
+  tissGuiaModal();
+}
+/* leitura da carteirinha/documento por foto dentro do atendimento (mesma IA da ficha do paciente) */
+async function agLerCarteira(inp){
+  const st = document.getElementById('tg-docst'), arqs = Array.from((inp && inp.files)||[]); if(!arqs.length) return;
+  const msg = h=>{ if(st) st.innerHTML = h; };
+  try{
+    msg('Lendo… (uns 10 a 20 segundos)');
+    const imagens = [];
+    for(const f of arqs.slice(0,4)){ const buf = await f.arrayBuffer(); const pdf = f.type==='application/pdf';
+      if(pdf) (await saldoPdfImagens(buf.slice(0))).slice(0,2).forEach(x=>imagens.push(x)); else imagens.push({ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }); }
+    const { data, error } = await sb.functions.invoke('ler-documento-paciente', { body: { imagens } });
+    if(error) throw new Error(error.message); if(data && data.error) throw new Error(data.error);
+    const c = (data && data.campos) || {}, f = S.tiss.form, lidos = [];
+    if(c.nome && !f.paciente){ f.paciente = String(c.nome).toUpperCase(); lidos.push('nome'); }
+    if(c.carteirinha){ f.carteira = soDig(c.carteirinha) || c.carteirinha; lidos.push('carteirinha'); }
+    if(c.cpf && !f.cpf){ f.cpf = soDig(c.cpf); lidos.push('CPF'); }
+    if(c.nascimento && !f.nascimento){ f.nascimento = c.nascimento; }
+    if(c.celular && !f.telefone){ f.telefone = soDig(c.celular); lidos.push('celular'); }
+    if(c.convenio && !f.opId){ const o = S.tiss.ops.find(o=>permNorm(c.convenio).indexOf(permNorm(o.nome).split(' ')[0])>=0); if(o){ tissFormOp(o.id); lidos.push('convênio'); } }
+    if(c.plano) f.plano = c.plano; if(c.conv_validade) f.validade = c.conv_validade;
+    tissGuiaModal();
+    const st2 = document.getElementById('tg-docst'); if(st2) st2.innerHTML = '<span style="color:#0e9f6e">✔ Lido: '+(lidos.join(', ')||'nada novo')+'. Confira.</span>';
+  }catch(e){ msg('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value=''; }
+}
+function agBarraAtendimento(){
+  const f = S.tiss.form; if(!f || (f.status && f.status!=='aberta')) return '';
+  return '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px">'+
+    '<button type="button" class="bt mini" onclick="document.getElementById(\'tg-docfoto\').click()">'+icoCamDoc()+'Foto da carteirinha / documento</button>'+
+    '<button type="button" class="bt g mini" onclick="document.getElementById(\'tg-docarq\').click()">Galeria / PDF</button>'+
+    '<input type="file" id="tg-docfoto" accept="image/*" capture="environment" hidden onchange="agLerCarteira(this)">'+
+    '<input type="file" id="tg-docarq" accept="image/*,application/pdf" multiple hidden onchange="agLerCarteira(this)">'+
+    '<span id="tg-docst" style="font-size:12.5px;color:var(--fraco);flex:1;min-width:180px">A IA lê a carteirinha e preenche paciente, carteirinha e convênio.</span></div>';
+}
+/* depois de gravar a guia: liga ao horário, marca atendido e cria a ficha do paciente se ainda não existir */
+async function agDepoisDaGuia(f, guia){
+  try{
+    if(!f.pacienteId && f.paciente){
+      const ex = S.ag.pacs.find(p=>(f.cpf && soDig(p.cpf)===soDig(f.cpf)) || (f.carteira && soDig(p.carteirinha)===soDig(f.carteira)));
+      if(ex) f.pacienteId = ex.id;
+      else { const op = tissOp(f.opId);
+        const r = await sb.from('idad_pacientes').insert({ nome: String(f.paciente).toUpperCase(), cpf: f.cpf||null, nascimento: f.nascimento||null, celular: f.telefone?soDig(f.telefone):null,
+          convenio: op.nome||null, plano: f.plano||null, carteirinha: f.carteira||null, conv_validade: f.validade||null, obs:'[Criado no atendimento pelo MR em '+dataBR(hojeISO())+']' }).select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').maybeSingle();
+        if(!r.error && r.data){ f.pacienteId = r.data.id; S.ag.pacs.push(r.data); if(S.idad && S.idad.pac) S.idad.pacOk = false; } }
+      if(f.pacienteId) await sb.from('tiss_guias').update({ paciente_id: f.pacienteId }).eq('id', guia.id);
+    }
+    if(f.agendaId){
+      await sb.from('tiss_guias').update({ agenda_id: f.agendaId }).eq('id', guia.id);
+      const r = await sb.from('agenda').update({ status:'atendido', guia_id: guia.id, paciente_id: f.pacienteId||null, atualizado_em:new Date().toISOString() }).eq('id', f.agendaId).select().maybeSingle();
+      if(!r.error && r.data){ const i = S.ag.lista.findIndex(x=>x.id===r.data.id); if(i>=0) S.ag.lista[i] = r.data; }
+    }
+  }catch(e){ console.warn('agDepoisDaGuia', e); }
+  render();
 }
 
 </script>
