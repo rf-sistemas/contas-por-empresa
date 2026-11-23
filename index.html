@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v139">
-<meta name="rf-data" content="2026-11-21">
+<meta name="rf-versao" content="v140">
+<meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -248,8 +248,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v139',
-  data   : '21/11/2026',
+  versao : 'v140',
+  data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -540,6 +540,7 @@ function render(){
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
+  else if(S.tela==='idadtiss')  corpo = telaIdadTiss();   // v140
   else if(S.tela==='idadfin')   corpo = telaIdadFin();
   else if(S.tela==='idadconc')  corpo = telaIdadConc();
   else if(S.tela==='painel')   corpo = telaPainel();
@@ -583,7 +584,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
@@ -3845,7 +3846,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4279,6 +4280,7 @@ function telaIdad(){
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
+    (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
     '<div style="color:var(--fraco);font-size:13.5px;line-height:1.5">Este é o espaço do Hospital IDAD dentro do Sistema MR. As próximas funções serão definidas com o Vinicius e entram aqui como novas caixas.</div></div>';
@@ -6695,6 +6697,673 @@ function hospServAtualizar(){
 function hospServTroca(){
   const h = hospDoLocal(val('ed-local')), sv = hospServicos(h).find(s=>s.nome===val('ed-serv')), v = document.getElementById('ed-valor');
   if(v && sv && sv.valor!=null) v.value = sv.valor;
+}
+
+
+/* ============ v140: módulo TISS (gerador, leitura e telas) ============ */
+/* ===== TISS do Sistema MR (CPE) — gerador de lote XML =====
+   Gera guias de Consulta, SP/SADT e Honorários e o lote ENVIO_LOTE_GUIAS no mesmo formato do Pixeon Smart:
+   ISO-8859-1, uma linha, hash MD5 do epílogo = MD5 do texto de todos os campos (em ordem, sem o epílogo).
+   Regra do hash conferida em 6.119 lotes reais do IDAD (23/11/2026). */
+(function (root) {
+  'use strict';
+  const vazio = v => v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+  const no = (tag, v) => vazio(v) ? null : [tag, v];
+  const nos = (...l) => l.filter(Boolean);
+  const dec = v => vazio(v) ? null : (Math.round(Number(v) * 100) / 100).toFixed(2);
+
+  // ---------- partes comuns
+  function profissional(p, nomes) { // nomes: [tagNome, tagConselho, tagCbo]
+    if (!p) return null;
+    return nos(no(nomes[0], p.nome), no(nomes[1], p.conselho || '06'), no('numeroConselhoProfissional', p.numero), no('UF', p.uf || '29'), no(nomes[2] || 'CBOS', p.cbo));
+  }
+  function contratado(c) { // {codigo | cnpj | cpf, nome}
+    if (!c) return null;
+    return nos(no('codigoPrestadorNaOperadora', c.codigo), no('cpfContratado', c.cpf), no('cnpjContratado', c.cnpj), no('nomeContratado', c.nome));
+  }
+  function proc(p) { return nos(no('codigoTabela', p.tabela), no('codigoProcedimento', p.codigo), no('descricaoProcedimento', p.descricao)); }
+
+  // ---------- Guia de Consulta
+  function guiaConsulta(g) {
+    return ['guiaConsulta', nos(
+      no('cabecalhoConsulta', nos(no('registroANS', g.ans), no('numeroGuiaPrestador', g.numeroGuiaPrestador))),
+      no('numeroGuiaOperadora', g.numeroGuiaOperadora),
+      no('dadosBeneficiario', nos(no('numeroCarteira', g.carteira), no('atendimentoRN', g.atendimentoRN || 'N'), no('nomeBeneficiario', g.nomeBeneficiario))),
+      no('contratadoExecutante', nos(...contratado(g.contratado), no('CNES', g.cnes))),
+      no('profissionalExecutante', profissional(g.profissional, ['nomeProfissional', 'conselhoProfissional', 'CBOS'])),
+      no('indicacaoAcidente', g.indicacaoAcidente || '9'),
+      no('dadosAtendimento', nos(
+        no('coberturaEspecial', g.coberturaEspecial),
+        no('regimeAtendimento', g.regimeAtendimento),
+        no('saudeOcupacional', g.saudeOcupacional),
+        no('dataAtendimento', g.data),
+        no('tipoConsulta', g.tipoConsulta || '1'),
+        no('procedimento', nos(no('codigoTabela', g.procedimento.tabela), no('codigoProcedimento', g.procedimento.codigo), no('valorProcedimento', dec(g.procedimento.valor)))))),
+      no('observacao', g.observacao))];
+  }
+
+  // ---------- Guia SP/SADT
+  function itemProc(it, seq, semSeq) {
+    const eq = (it.equipe || []).map(e => ['equipeSadt', nos(
+      no('grauPart', e.grauPart),
+      no('codProfissional', nos(no('codigoPrestadorNaOperadora', e.codigoOperadora), no('cpfContratado', e.cpf))),
+      no('nomeProf', e.nome), no('conselho', e.conselho || '06'), no('numeroConselhoProfissional', e.numero), no('UF', e.uf || '29'), no('CBOS', e.cbo))]);
+    return ['procedimentoExecutado', nos(
+      semSeq ? null : no('sequencialItem', it.seq != null ? String(it.seq) : String(seq)),
+      no('dataExecucao', it.data), no('horaInicial', it.horaInicial), no('horaFinal', it.horaFinal),
+      no('procedimento', proc(it)),
+      no('quantidadeExecutada', String(it.quantidade || 1)),
+      no('viaAcesso', it.viaAcesso), no('tecnicaUtilizada', it.tecnica),
+      no('reducaoAcrescimo', dec(it.reducao == null ? 1 : it.reducao)),
+      no('valorUnitario', dec(it.valorUnitario)), no('valorTotal', dec(it.valorTotal)),
+      ...eq)];
+  }
+  function itemDespesa(d, seq) {
+    return ['despesa', nos(
+      no('sequencialItem', d.seq != null ? String(d.seq) : String(seq)),
+      no('codigoDespesa', d.codigoDespesa),
+      no('servicosExecutados', nos(
+        no('dataExecucao', d.data), no('horaInicial', d.horaInicial), no('horaFinal', d.horaFinal),
+        no('codigoTabela', d.tabela), no('codigoProcedimento', d.codigo),
+        no('quantidadeExecutada', d.quantidadeTxt || String(d.quantidade || 1)), no('unidadeMedida', d.unidade),
+        no('reducaoAcrescimo', dec(d.reducao == null ? 1 : d.reducao)),
+        no('valorUnitario', dec(d.valorUnitario)), no('valorTotal', dec(d.valorTotal)),
+        no('centroConsumo', d.centroConsumo), no('descricaoProcedimento', d.descricao))))];
+  }
+  // codigoDespesa: 01 gases, 02 medicamentos, 03 materiais, 05 diárias, 07 taxas e aluguéis, 08 OPME
+  function totaisSADT(g) {
+    const s = { proc: 0, diarias: 0, taxas: 0, mat: 0, med: 0, opme: 0, gases: 0 };
+    (g.procedimentos || []).forEach(p => s.proc += Number(p.valorTotal) || 0);
+    (g.despesas || []).forEach(d => {
+      const v = Number(d.valorTotal) || 0;
+      ({ '01': () => s.gases += v, '02': () => s.med += v, '03': () => s.mat += v, '05': () => s.diarias += v, '07': () => s.taxas += v, '08': () => s.opme += v })[d.codigoDespesa]?.();
+    });
+    const r = x => Math.round(x * 100) / 100;
+    Object.keys(s).forEach(k => s[k] = r(s[k]));
+    s.total = r(s.proc + s.diarias + s.taxas + s.mat + s.med + s.opme + s.gases);
+    return s;
+  }
+  function guiaSADT(g) {
+    let seq = 0;
+    const semSeq = !!g.versao && g.versao < '4';
+    const procs = (g.procedimentos || []).map(p => itemProc(p, ++seq, semSeq));
+    const desp = (g.despesas || []).map(d => itemDespesa(d, ++seq));
+    const t = g.totais || totaisSADT(g);
+    const a = g.autorizacao || {};
+    return ['guiaSP-SADT', nos(
+      no('cabecalhoGuia', nos(no('registroANS', g.ans), no('numeroGuiaPrestador', g.numeroGuiaPrestador), no('guiaPrincipal', g.guiaPrincipal))),
+      no('dadosAutorizacao', nos(no('numeroGuiaOperadora', a.numeroGuiaOperadora), no('dataAutorizacao', a.data), no('senha', a.senha), no('dataValidadeSenha', a.validade))),
+      no('dadosBeneficiario', nos(no('numeroCarteira', g.carteira), no('atendimentoRN', g.atendimentoRN || 'N'), no('nomeBeneficiario', g.nomeBeneficiario))),
+      no('dadosSolicitante', nos(
+        no('contratadoSolicitante', contratado(g.solicitante && g.solicitante.contratado)),
+        no('nomeContratadoSolicitante', g.solicitante && g.solicitante.nomeContratado),
+        no('profissionalSolicitante', profissional(g.solicitante && g.solicitante.profissional, ['nomeProfissional', 'conselhoProfissional', 'CBOS'])))),
+      no('dadosSolicitacao', nos(no('dataSolicitacao', g.dataSolicitacao), no('caraterAtendimento', g.carater || '1'), no('indicacaoClinica', g.indicacaoClinica))),
+      no('dadosExecutante', nos(no('contratadoExecutante', contratado(g.contratado)), no('CNES', g.cnes))),
+      no('dadosAtendimento', nos(no('tipoAtendimento', g.tipoAtendimento), no('indicacaoAcidente', g.indicacaoAcidente || '9'), no('tipoConsulta', g.tipoConsulta), no('regimeAtendimento', g.regimeAtendimento), no('saudeOcupacional', g.saudeOcupacional))),
+      no('procedimentosExecutados', procs),
+      no('outrasDespesas', desp),
+      no('observacao', g.observacao),
+      ['valorTotal', [['valorProcedimentos', dec(t.proc)], ['valorDiarias', dec(t.diarias)], ['valorTaxasAlugueis', dec(t.taxas)], ['valorMateriais', dec(t.mat)],
+        ['valorMedicamentos', dec(t.med)], ['valorOPME', dec(t.opme)], ['valorGasesMedicinais', dec(t.gases)], ['valorTotalGeral', dec(t.total)]]])];
+  }
+
+  // ---------- Guia de Honorários
+  function guiaHonorarios(g) {
+    let seq = 0;
+    const procs = (g.procedimentos || []).map(it => ['procedimentoRealizado', nos(
+      no('sequencialItem', String(it.seq != null ? it.seq : ++seq)),
+      no('dataExecucao', it.data), no('horaInicial', it.horaInicial), no('horaFinal', it.horaFinal),
+      no('procedimento', proc(it)), no('quantidadeExecutada', String(it.quantidade || 1)),
+      no('viaAcesso', it.viaAcesso), no('tecnicaUtilizada', it.tecnica),
+      no('reducaoAcrescimo', dec(it.reducao == null ? 1 : it.reducao)), no('valorUnitario', dec(it.valorUnitario)), no('valorTotal', dec(it.valorTotal)),
+      ...(it.equipe || []).map(e => ['profissionais', nos(no('grauParticipacao', e.grauPart), no('codProfissional', nos(no('codigoPrestadorNaOperadora', e.codigoOperadora), no('cpfContratado', e.cpf))),
+        no('nomeProfissional', e.nome), no('conselhoProfissional', e.conselho || '06'), no('numeroConselhoProfissional', e.numero), no('UF', e.uf || '29'), no('CBO', e.cbo))]))]);
+    const tot = (g.procedimentos || []).reduce((s, p) => s + (Number(p.valorTotal) || 0), 0);
+    return ['guiaHonorarios', nos(
+      no('cabecalhoGuia', nos(no('registroANS', g.ans), no('numeroGuiaPrestador', g.numeroGuiaPrestador))),
+      no('guiaSolicInternacao', g.guiaSolicInternacao), no('senha', g.senha), no('numeroGuiaOperadora', g.numeroGuiaOperadora),
+      no('beneficiario', nos(no('numeroCarteira', g.carteira), no('atendimentoRN', g.atendimentoRN || 'N'), no('nomeBeneficiario', g.nomeBeneficiario))),
+      no('localContratado', nos(no('codigoContratado', nos(no('codigoNaOperadora', g.local && g.local.codigo), no('cnpjLocalExecutante', g.local && g.local.cnpj))), no('nomeContratado', g.local && g.local.nome), no('cnes', g.local && g.local.cnes))),
+      no('dadosContratadoExecutante', nos(no('codigonaOperadora', g.contratado && g.contratado.codigo), no('cnpjContratado', g.contratado && g.contratado.cnpj), no('cnesContratadoExecutante', g.cnes))),
+      no('dadosInternacao', nos(no('dataInicioFaturamento', g.inicio), no('dataFimFaturamento', g.fim))),
+      no('procedimentosRealizados', procs),
+      no('observacao', g.observacao),
+      no('valorTotalHonorarios', dec(g.valorTotal != null ? g.valorTotal : tot)),
+      no('dataEmissaoGuia', g.dataEmissao))];
+  }
+
+  // ---------- serialização e hash
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' };
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ESC[c]); }
+  function serializar(n, textos) {
+    const [tag, v] = n;
+    if (Array.isArray(v)) return '<ans:' + tag + '>' + v.map(f => serializar(f, textos)).join('') + '</ans:' + tag + '>';
+    textos.push(String(v));
+    return '<ans:' + tag + '>' + esc(v) + '</ans:' + tag + '>';
+  }
+  // texto em ISO-8859-1: troca o que não existe em Latin-1
+  function latin1(s) { return String(s).normalize('NFC').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/[^\x00-\xFF]/g, '?'); }
+  function limparTexto(n) { const [t, v] = n; return Array.isArray(v) ? [t, v.map(limparTexto)] : [t, latin1(String(v)).trim()]; }
+
+  // MD5 sobre bytes Latin-1 (cada caractere = 1 byte)
+  function md5(str) {
+    function rh(n) { let s = '', j; for (j = 0; j <= 3; j++) s += ((n >> (j * 8 + 4)) & 0x0F).toString(16) + ((n >> (j * 8)) & 0x0F).toString(16); return s; }
+    function ad(x, y) { const l = (x & 0xFFFF) + (y & 0xFFFF); return (((x >> 16) + (y >> 16) + (l >> 16)) << 16) | (l & 0xFFFF); }
+    function rl(n, c) { return (n << c) | (n >>> (32 - c)); }
+    function cm(q, a, b, x, s, t) { return ad(rl(ad(ad(a, q), ad(x, t)), s), b); }
+    function ff(a, b, c, d, x, s, t) { return cm((b & c) | (~b & d), a, b, x, s, t); }
+    function gg(a, b, c, d, x, s, t) { return cm((b & d) | (c & ~d), a, b, x, s, t); }
+    function hh(a, b, c, d, x, s, t) { return cm(b ^ c ^ d, a, b, x, s, t); }
+    function ii(a, b, c, d, x, s, t) { return cm(c ^ (b | ~d), a, b, x, s, t); }
+    const n = ((str.length + 8) >> 6) + 1, x = new Array(n * 16).fill(0);
+    let i; for (i = 0; i < str.length; i++) x[i >> 2] |= (str.charCodeAt(i) & 0xFF) << ((i % 4) * 8);
+    x[i >> 2] |= 0x80 << ((i % 4) * 8); x[n * 16 - 2] = str.length * 8;
+    let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+    for (i = 0; i < x.length; i += 16) {
+      const oa = a, ob = b, oc = c, od = d;
+      a = ff(a, b, c, d, x[i], 7, -680876936); d = ff(d, a, b, c, x[i + 1], 12, -389564586); c = ff(c, d, a, b, x[i + 2], 17, 606105819); b = ff(b, c, d, a, x[i + 3], 22, -1044525330);
+      a = ff(a, b, c, d, x[i + 4], 7, -176418897); d = ff(d, a, b, c, x[i + 5], 12, 1200080426); c = ff(c, d, a, b, x[i + 6], 17, -1473231341); b = ff(b, c, d, a, x[i + 7], 22, -45705983);
+      a = ff(a, b, c, d, x[i + 8], 7, 1770035416); d = ff(d, a, b, c, x[i + 9], 12, -1958414417); c = ff(c, d, a, b, x[i + 10], 17, -42063); b = ff(b, c, d, a, x[i + 11], 22, -1990404162);
+      a = ff(a, b, c, d, x[i + 12], 7, 1804603682); d = ff(d, a, b, c, x[i + 13], 12, -40341101); c = ff(c, d, a, b, x[i + 14], 17, -1502002290); b = ff(b, c, d, a, x[i + 15], 22, 1236535329);
+      a = gg(a, b, c, d, x[i + 1], 5, -165796510); d = gg(d, a, b, c, x[i + 6], 9, -1069501632); c = gg(c, d, a, b, x[i + 11], 14, 643717713); b = gg(b, c, d, a, x[i], 20, -373897302);
+      a = gg(a, b, c, d, x[i + 5], 5, -701558691); d = gg(d, a, b, c, x[i + 10], 9, 38016083); c = gg(c, d, a, b, x[i + 15], 14, -660478335); b = gg(b, c, d, a, x[i + 4], 20, -405537848);
+      a = gg(a, b, c, d, x[i + 9], 5, 568446438); d = gg(d, a, b, c, x[i + 14], 9, -1019803690); c = gg(c, d, a, b, x[i + 3], 14, -187363961); b = gg(b, c, d, a, x[i + 8], 20, 1163531501);
+      a = gg(a, b, c, d, x[i + 13], 5, -1444681467); d = gg(d, a, b, c, x[i + 2], 9, -51403784); c = gg(c, d, a, b, x[i + 7], 14, 1735328473); b = gg(b, c, d, a, x[i + 12], 20, -1926607734);
+      a = hh(a, b, c, d, x[i + 5], 4, -378558); d = hh(d, a, b, c, x[i + 8], 11, -2022574463); c = hh(c, d, a, b, x[i + 11], 16, 1839030562); b = hh(b, c, d, a, x[i + 14], 23, -35309556);
+      a = hh(a, b, c, d, x[i + 1], 4, -1530992060); d = hh(d, a, b, c, x[i + 4], 11, 1272893353); c = hh(c, d, a, b, x[i + 7], 16, -155497632); b = hh(b, c, d, a, x[i + 10], 23, -1094730640);
+      a = hh(a, b, c, d, x[i + 13], 4, 681279174); d = hh(d, a, b, c, x[i], 11, -358537222); c = hh(c, d, a, b, x[i + 3], 16, -722521979); b = hh(b, c, d, a, x[i + 6], 23, 76029189);
+      a = hh(a, b, c, d, x[i + 9], 4, -640364487); d = hh(d, a, b, c, x[i + 12], 11, -421815835); c = hh(c, d, a, b, x[i + 15], 16, 530742520); b = hh(b, c, d, a, x[i + 2], 23, -995338651);
+      a = ii(a, b, c, d, x[i], 6, -198630844); d = ii(d, a, b, c, x[i + 7], 10, 1126891415); c = ii(c, d, a, b, x[i + 14], 15, -1416354905); b = ii(b, c, d, a, x[i + 5], 21, -57434055);
+      a = ii(a, b, c, d, x[i + 12], 6, 1700485571); d = ii(d, a, b, c, x[i + 3], 10, -1894986606); c = ii(c, d, a, b, x[i + 10], 15, -1051523); b = ii(b, c, d, a, x[i + 1], 21, -2054922799);
+      a = ii(a, b, c, d, x[i + 8], 6, 1873313359); d = ii(d, a, b, c, x[i + 15], 10, -30611744); c = ii(c, d, a, b, x[i + 6], 15, -1560198380); b = ii(b, c, d, a, x[i + 13], 21, 1309151649);
+      a = ii(a, b, c, d, x[i + 4], 6, -145523070); d = ii(d, a, b, c, x[i + 11], 10, -1120210379); c = ii(c, d, a, b, x[i + 2], 15, 718787259); b = ii(b, c, d, a, x[i + 9], 21, -343485551);
+      a = ad(a, oa); b = ad(b, ob); c = ad(c, oc); d = ad(d, od);
+    }
+    return rh(a) + rh(b) + rh(c) + rh(d);
+  }
+
+  /* lote: {padrao, sequencial, data (AAAA-MM-DD), hora (HH:MM:SS), origem:{codigo|cnpj}, ans, numeroLote, guias:[árvore]}
+     devolve {xml, hash}; o xml é texto Latin-1 (gravar cada caractere como 1 byte). */
+  function montarLote(l) {
+    const cab = ['cabecalho', [
+      ['identificacaoTransacao', [['tipoTransacao', 'ENVIO_LOTE_GUIAS'], ['sequencialTransacao', String(l.sequencial)], ['dataRegistroTransacao', l.data], ['horaRegistroTransacao', l.hora]]],
+      ['origem', [['identificacaoPrestador', [l.origem.codigo ? ['codigoPrestadorNaOperadora', l.origem.codigo] : ['CNPJ', l.origem.cnpj]]]]],
+      ['destino', [['registroANS', l.ans]]],
+      ['Padrao', l.padrao]]];
+    const corpo = ['prestadorParaOperadora', [['loteGuias', [['numeroLote', String(l.numeroLote)], ['guiasTISS', l.guias]]]]];
+    const textos = [];
+    const c1 = serializar(limparTexto(cab), textos), c2 = serializar(limparTexto(corpo), textos);
+    const hash = md5(textos.join(''));
+    const xml = '<?xml version="1.0" encoding="ISO-8859-1"?>\r\n<ans:mensagemTISS xmlns:ans="http://www.ans.gov.br/padroes/tiss/schemas">' + c1 + c2 +
+      '<ans:epilogo><ans:hash>' + hash + '</ans:hash></ans:epilogo></ans:mensagemTISS>\r\n';
+    return { xml, hash, nomeArquivo: String(l.sequencial).padStart(20, '0') + '_' + hash + '.xml' };
+  }
+
+  const TISS = { guiaConsulta, guiaSADT, guiaHonorarios, totaisSADT, montarLote, md5, latin1 };
+  if (typeof module !== 'undefined') module.exports = TISS; else root.TISS = TISS;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ===== TISS do Sistema MR — leitura de um lote XML (do Smart ou de qualquer sistema) =====
+   lerLote(texto, DOMParser) -> { lote:{padrao, sequencial, data, hora, origem, ans, numeroLote}, guias:[{tipo, modelo}], hashArquivo }
+   conferir(texto, DOMParser) -> regera o lote com o gerador do MR e compara com o original. */
+(function (root) {
+  'use strict';
+  const T = root.TISS || (typeof require !== 'undefined' ? require('./tiss-core.js') : null);
+  const nome = e => (e.localName || e.nodeName || '').replace(/^.*:/, '');
+  const kids = e => e ? Array.from(e.childNodes || []).filter(n => n.nodeType === 1) : [];
+  const acha = (e, t) => kids(e).find(k => nome(k) === t) || null;
+  const todos = (e, t) => kids(e).filter(k => nome(k) === t);
+  const sub = (e, ...cam) => { for (const c of cam) { e = acha(e, c); if (!e) return null; } return e; };
+  const v = (e, ...cam) => { const x = sub(e, ...cam); if (!x) return undefined; const t = x.textContent; return t === '' ? undefined : t; };
+
+  const contr = a => a ? { codigo: v(a, 'codigoPrestadorNaOperadora'), cpf: v(a, 'cpfContratado'), cnpj: v(a, 'cnpjContratado'), nome: v(a, 'nomeContratado') } : null;
+  const prof = a => a ? { nome: v(a, 'nomeProfissional'), conselho: v(a, 'conselhoProfissional'), numero: v(a, 'numeroConselhoProfissional'), uf: v(a, 'UF'), cbo: v(a, 'CBOS') } : null;
+  const eqp = (e, tN, tC, tG, tB) => { const cp = acha(e, 'codProfissional'); return { grauPart: v(e, tG), codigoOperadora: cp && v(cp, 'codigoPrestadorNaOperadora'), cpf: cp && v(cp, 'cpfContratado'), nome: v(e, tN), conselho: v(e, tC), numero: v(e, 'numeroConselhoProfissional'), uf: v(e, 'UF'), cbo: v(e, tB) }; };
+  const itemP = (p, tagEq, a) => ({ seq: v(p, 'sequencialItem'), data: v(p, 'dataExecucao'), horaInicial: v(p, 'horaInicial'), horaFinal: v(p, 'horaFinal'),
+    tabela: v(p, 'procedimento', 'codigoTabela'), codigo: v(p, 'procedimento', 'codigoProcedimento'), descricao: v(p, 'procedimento', 'descricaoProcedimento'),
+    quantidade: v(p, 'quantidadeExecutada'), viaAcesso: v(p, 'viaAcesso'), tecnica: v(p, 'tecnicaUtilizada'), reducao: v(p, 'reducaoAcrescimo'),
+    valorUnitario: v(p, 'valorUnitario'), valorTotal: v(p, 'valorTotal'), equipe: todos(p, tagEq).map(e => eqp(e, ...a)) });
+
+  function modelo(tipo, g, versao) {
+    if (tipo === 'guiaConsulta') return { tipo: 'consulta', m: {
+      ans: v(g, 'cabecalhoConsulta', 'registroANS'), numeroGuiaPrestador: v(g, 'cabecalhoConsulta', 'numeroGuiaPrestador'), numeroGuiaOperadora: v(g, 'numeroGuiaOperadora'),
+      carteira: v(g, 'dadosBeneficiario', 'numeroCarteira'), atendimentoRN: v(g, 'dadosBeneficiario', 'atendimentoRN'), nomeBeneficiario: v(g, 'dadosBeneficiario', 'nomeBeneficiario'),
+      contratado: contr(acha(g, 'contratadoExecutante')), cnes: v(g, 'contratadoExecutante', 'CNES'), profissional: prof(acha(g, 'profissionalExecutante')),
+      indicacaoAcidente: v(g, 'indicacaoAcidente'), coberturaEspecial: v(g, 'dadosAtendimento', 'coberturaEspecial'), regimeAtendimento: v(g, 'dadosAtendimento', 'regimeAtendimento'),
+      saudeOcupacional: v(g, 'dadosAtendimento', 'saudeOcupacional'), data: v(g, 'dadosAtendimento', 'dataAtendimento'), tipoConsulta: v(g, 'dadosAtendimento', 'tipoConsulta'),
+      procedimento: { tabela: v(g, 'dadosAtendimento', 'procedimento', 'codigoTabela'), codigo: v(g, 'dadosAtendimento', 'procedimento', 'codigoProcedimento'), valor: v(g, 'dadosAtendimento', 'procedimento', 'valorProcedimento') },
+      observacao: v(g, 'observacao') } };
+    if (tipo === 'guiaSP-SADT') {
+      const vt = acha(g, 'valorTotal');
+      return { tipo: 'sadt', m: { versao,
+        ans: v(g, 'cabecalhoGuia', 'registroANS'), numeroGuiaPrestador: v(g, 'cabecalhoGuia', 'numeroGuiaPrestador'), guiaPrincipal: v(g, 'cabecalhoGuia', 'guiaPrincipal'),
+        autorizacao: { numeroGuiaOperadora: v(g, 'dadosAutorizacao', 'numeroGuiaOperadora'), data: v(g, 'dadosAutorizacao', 'dataAutorizacao'), senha: v(g, 'dadosAutorizacao', 'senha'), validade: v(g, 'dadosAutorizacao', 'dataValidadeSenha') },
+        carteira: v(g, 'dadosBeneficiario', 'numeroCarteira'), atendimentoRN: v(g, 'dadosBeneficiario', 'atendimentoRN'), nomeBeneficiario: v(g, 'dadosBeneficiario', 'nomeBeneficiario'),
+        solicitante: { contratado: contr(sub(g, 'dadosSolicitante', 'contratadoSolicitante')), nomeContratado: v(g, 'dadosSolicitante', 'nomeContratadoSolicitante'), profissional: prof(sub(g, 'dadosSolicitante', 'profissionalSolicitante')) },
+        dataSolicitacao: v(g, 'dadosSolicitacao', 'dataSolicitacao'), carater: v(g, 'dadosSolicitacao', 'caraterAtendimento'), indicacaoClinica: v(g, 'dadosSolicitacao', 'indicacaoClinica'),
+        contratado: contr(sub(g, 'dadosExecutante', 'contratadoExecutante')), cnes: v(g, 'dadosExecutante', 'CNES'),
+        tipoAtendimento: v(g, 'dadosAtendimento', 'tipoAtendimento'), indicacaoAcidente: v(g, 'dadosAtendimento', 'indicacaoAcidente'), tipoConsulta: v(g, 'dadosAtendimento', 'tipoConsulta'),
+        regimeAtendimento: v(g, 'dadosAtendimento', 'regimeAtendimento'), saudeOcupacional: v(g, 'dadosAtendimento', 'saudeOcupacional'),
+        procedimentos: todos(acha(g, 'procedimentosExecutados'), 'procedimentoExecutado').map(p => itemP(p, 'equipeSadt', ['nomeProf', 'conselho', 'grauPart', 'CBOS'])),
+        despesas: todos(acha(g, 'outrasDespesas'), 'despesa').map(d => { const s = acha(d, 'servicosExecutados'); return {
+          seq: v(d, 'sequencialItem'), codigoDespesa: v(d, 'codigoDespesa'), data: v(s, 'dataExecucao'), horaInicial: v(s, 'horaInicial'), horaFinal: v(s, 'horaFinal'),
+          tabela: v(s, 'codigoTabela'), codigo: v(s, 'codigoProcedimento'), quantidadeTxt: v(s, 'quantidadeExecutada'), unidade: v(s, 'unidadeMedida'), reducao: v(s, 'reducaoAcrescimo'),
+          valorUnitario: v(s, 'valorUnitario'), valorTotal: v(s, 'valorTotal'), descricao: v(s, 'descricaoProcedimento'), centroConsumo: v(s, 'centroConsumo') }; }),
+        observacao: v(g, 'observacao'),
+        totais: vt ? { proc: v(vt, 'valorProcedimentos'), diarias: v(vt, 'valorDiarias'), taxas: v(vt, 'valorTaxasAlugueis'), mat: v(vt, 'valorMateriais'), med: v(vt, 'valorMedicamentos'), opme: v(vt, 'valorOPME'), gases: v(vt, 'valorGasesMedicinais'), total: v(vt, 'valorTotalGeral') } : null } };
+    }
+    if (tipo === 'guiaHonorarios') {
+      const lc = acha(g, 'localContratado'), dc = acha(g, 'dadosContratadoExecutante');
+      return { tipo: 'honorarios', m: {
+        ans: v(g, 'cabecalhoGuia', 'registroANS'), numeroGuiaPrestador: v(g, 'cabecalhoGuia', 'numeroGuiaPrestador'), guiaSolicInternacao: v(g, 'guiaSolicInternacao'), senha: v(g, 'senha'), numeroGuiaOperadora: v(g, 'numeroGuiaOperadora'),
+        carteira: v(g, 'beneficiario', 'numeroCarteira'), atendimentoRN: v(g, 'beneficiario', 'atendimentoRN'), nomeBeneficiario: v(g, 'beneficiario', 'nomeBeneficiario'),
+        local: lc && { codigo: v(lc, 'codigoContratado', 'codigoNaOperadora'), cnpj: v(lc, 'codigoContratado', 'cnpjLocalExecutante'), nome: v(lc, 'nomeContratado'), cnes: v(lc, 'cnes') },
+        contratado: dc && { codigo: v(dc, 'codigonaOperadora'), cnpj: v(dc, 'cnpjContratado') }, cnes: dc && v(dc, 'cnesContratadoExecutante'),
+        inicio: v(g, 'dadosInternacao', 'dataInicioFaturamento'), fim: v(g, 'dadosInternacao', 'dataFimFaturamento'),
+        procedimentos: todos(acha(g, 'procedimentosRealizados'), 'procedimentoRealizado').map(p => itemP(p, 'profissionais', ['nomeProfissional', 'conselhoProfissional', 'grauParticipacao', 'CBO'])),
+        observacao: v(g, 'observacao'), valorTotal: v(g, 'valorTotalHonorarios'), dataEmissao: v(g, 'dataEmissaoGuia') } };
+    }
+    return null;
+  }
+  const montar = gm => gm.tipo === 'consulta' ? T.guiaConsulta(gm.m) : gm.tipo === 'sadt' ? T.guiaSADT(gm.m) : T.guiaHonorarios(gm.m);
+
+  function lerLote(texto, DP) {
+    const doc = new DP().parseFromString(texto, 'text/xml');
+    const raiz = doc.documentElement;
+    if (!raiz || nome(raiz) !== 'mensagemTISS') throw new Error('Não é um arquivo TISS (mensagemTISS).');
+    const cab = acha(raiz, 'cabecalho');
+    const tipoT = v(cab, 'identificacaoTransacao', 'tipoTransacao');
+    if (tipoT !== 'ENVIO_LOTE_GUIAS') throw new Error('Arquivo TISS do tipo ' + tipoT + ' (só lote de guias é conferido).');
+    const padrao = v(cab, 'Padrao');
+    const loteEl = sub(raiz, 'prestadorParaOperadora', 'loteGuias');
+    const guias = kids(acha(loteEl, 'guiasTISS')).map(g => modelo(nome(g), g, padrao)).filter(Boolean);
+    return {
+      lote: { padrao, sequencial: v(cab, 'identificacaoTransacao', 'sequencialTransacao'), data: v(cab, 'identificacaoTransacao', 'dataRegistroTransacao'), hora: v(cab, 'identificacaoTransacao', 'horaRegistroTransacao'),
+        origem: { codigo: v(cab, 'origem', 'identificacaoPrestador', 'codigoPrestadorNaOperadora'), cnpj: v(cab, 'origem', 'identificacaoPrestador', 'CNPJ') },
+        ans: v(cab, 'destino', 'registroANS'), numeroLote: v(loteEl, 'numeroLote') },
+      guias, hashArquivo: v(raiz, 'epilogo', 'hash') };
+  }
+  function conferir(texto, DP) {
+    const l = lerLote(texto, DP);
+    const out = T.montarLote(Object.assign({}, l.lote, { guias: l.guias.map(montar) }));
+    const limpo = texto.replace(/<!--[\s\S]*?-->/g, '').replace(/ xmlns:xsi="[^"]*" xsi:schemaLocation="[^"]*"/, '').replace(/<ans:(\w+)\/>/g, '');
+    const doc2 = out.xml;
+    return { ans: l.lote.ans, padrao: l.lote.padrao, guias: l.guias.length, numeroLote: l.lote.numeroLote,
+      hashArquivo: l.hashArquivo, hashMR: out.hash, hashOk: (l.hashArquivo || '').toLowerCase() === out.hash,
+      identico: doc2 === limpo, tipos: l.guias.reduce((a, g) => (a[g.tipo] = (a[g.tipo] || 0) + 1, a), {}) };
+  }
+  const API = { lerLote, conferir, montarGuia: montar };
+  if (typeof module !== 'undefined') module.exports = API; else root.TISSLer = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+/* ===== v140 (Renato, 23/11/2026): FATURAMENTO TISS do Hospital IDAD — MODO TESTE =====
+   Substitui o Pixeon Smart (Exportação de Fatura). Guias de Consulta, SP/SADT e Honorários; lote XML no padrão TISS
+   da versão de cada convênio (3.02 a 4.03), com o hash MD5 igual ao do Smart (conferido em 1.274 lotes reais de 2025-26).
+   Tabelas tiss_* (RLS cpe_ve_tiss: só o login do Renato e quem tiver a aba 'tiss'). Nada aqui mexe em tela ou dado antigo.
+   Convênios, códigos do IDAD em cada operadora, médicos, procedimentos, preços e kits vieram dos XML do Smart. */
+S.tiss = { carregado:false, carregando:false, aba:'guias', ops:[], contratos:[], profs:[], itens:[], precos:[], kits:[], guias:[], lotes:[], filtro:'', conf:[], form:null };
+function tissPode(){ const p = S.perfil||{}; return String(p.email||'').toLowerCase()==='rflogisticadistribuicao@gmail.com' || (Array.isArray(p.abas) && p.abas.indexOf('tiss')>=0); }
+const TISS_TIPOS = { consulta:'Consulta', sadt:'SP/SADT', honorarios:'Honorários' };
+const TISS_ST = { aberta:['Aberta','#0a6cf0'], no_lote:['No lote','#7c3aed'], enviada:['Enviada','#0e9f6e'], glosada:['Glosada','#dc2626'], paga:['Paga','#047857'], cancelada:['Cancelada','#6b7280'] };
+const TISS_DESP = { '01':'Gases', '02':'Medicamentos', '03':'Materiais', '05':'Diárias', '07':'Taxas e aluguéis', '08':'OPME' };
+function icoTiss(){
+  return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gTiss" x1="0" y1="1" x2="1" y2="0">'+
+    '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
+    '<rect x="7" y="5" width="28" height="36" rx="4" fill="url(#gTiss)" opacity=".28"/><rect x="12" y="12" width="18" height="3" rx="1.5" fill="url(#gTiss)"/>'+
+    '<rect x="12" y="19" width="14" height="3" rx="1.5" fill="url(#gTiss)"/><rect x="12" y="26" width="16" height="3" rx="1.5" fill="url(#gTiss)"/>'+
+    '<circle cx="36" cy="34" r="9" fill="#fff" stroke="url(#gTiss)" stroke-width="2.5"/><path d="M31.5 34.2l3 3 6-6.2" fill="none" stroke="#0a6cf0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function tissResumo(){ if(!S.tiss.carregado) return 'Guias e lote XML dos convênios · modo teste';
+  const ab = S.tiss.guias.filter(g=>g.status==='aberta'); return ab.length+' guia'+(ab.length===1?'':'s')+' aberta'+(ab.length===1?'':'s')+' · '+S.tiss.ops.filter(o=>o.ativo).length+' convênios · modo teste'; }
+
+async function tissCarregar(){
+  if(S.tiss.carregando) return; S.tiss.carregando = true;
+  try{
+    const q = (t, sel, ord) => { let x = sb.from(t).select(sel||'*'); if(ord) x = x.order(ord); return x; };
+    const [ops, ct, pr, it, pc, kt, gu, lo] = await Promise.all([
+      q('tiss_operadoras','*','nome'), q('tiss_op_prestador','*,tiss_prestadores(sigla,nome,cnpj,cnes)','rotulo'), q('tiss_profissionais','*','nome'),
+      q('tiss_itens','*','codigo'), q('tiss_precos','*','vigencia_inicio'), q('tiss_kits','*'),
+      sb.from('tiss_guias').select('*').order('criado_em',{ascending:false}).limit(2000),
+      sb.from('tiss_lotes').select('id,operadora_id,contrato_id,tipo_guia,numero_lote,sequencial,padrao,qtd_guias,valor_total,hash,nome_arquivo,status,teste,criado_em').order('criado_em',{ascending:false}).limit(500) ]);
+    for(const r of [ops,ct,pr,it,pc,kt,gu,lo]) if(r.error) throw r.error;
+    Object.assign(S.tiss, { ops:ops.data, contratos:ct.data, profs:pr.data, itens:it.data, precos:pc.data, kits:kt.data, guias:gu.data, lotes:lo.data, carregado:true, erro:null });
+  }catch(e){ S.tiss.erro = e.message||String(e); }
+  S.tiss.carregando = false; if(S.tela==='idadtiss' || S.tela==='idad') render();
+}
+const tissOp = id => S.tiss.ops.find(o=>o.id===id) || {};
+const tissCt = id => S.tiss.contratos.find(c=>c.id===id) || {};
+const tissIt = id => S.tiss.itens.find(i=>i.id===id) || null;
+const tissItCod = (tab, cod) => S.tiss.itens.find(i=>i.tabela===tab && i.codigo===cod) || null;
+function tissPreco(opId, itemId, data){ // valor vigente na data (ou o mais recente)
+  const l = S.tiss.precos.filter(p=>p.operadora_id===opId && p.item_id===itemId && (!data || p.vigencia_inicio<=data)).sort((a,b)=>a.vigencia_inicio<b.vigencia_inicio?1:-1);
+  return l.length ? +l[0].valor : null; }
+function tissItensDoConv(opId, tipo){ // itens com preço neste convênio primeiro, depois o resto
+  const com = new Set(S.tiss.precos.filter(p=>p.operadora_id===opId).map(p=>p.item_id));
+  return S.tiss.itens.filter(i=>!tipo || i.tipo===tipo).sort((a,b)=>(com.has(b.id)-com.has(a.id)) || (b.usos||0)-(a.usos||0)); }
+const tissN = v => Math.round((Number(v)||0)*100)/100;
+function tissHora(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); }
+
+/* ---------- tela ---------- */
+function telaIdadTiss(){
+  if(!tissPode()) return '<div class="card">Você não tem acesso ao Faturamento TISS.</div>';
+  if(!S.tiss.carregado && !S.tiss.carregando) tissCarregar();
+  let h = '<div class="secao"><b>FATURAMENTO TISS</b><span>Guias e lote XML dos convênios do IDAD · substitui a Exportação de Fatura do Smart</span></div>';
+  h += '<div class="card" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00;font-size:13.5px;line-height:1.5"><b>Modo teste.</b> Tudo o que for lançado aqui fica marcado como teste. '+
+    'O arquivo gerado é igual ao do Smart e pode ser conferido antes de ir para a operadora. Nada daqui mexe no restante do sistema.</div>';
+  if(S.tiss.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(S.tiss.erro)+'</b></div>';
+  if(!S.tiss.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const ab = S.tiss.guias.filter(g=>g.status==='aberta'), lt = S.tiss.guias.filter(g=>g.status==='no_lote');
+  h += '<div class="card"><div class="kpis">'+kpi('Guias abertas', String(ab.length))+kpi('A faturar', brl(ab.reduce((s,g)=>s+(+g.valor_total||0),0)))+
+    kpi('Em lote', String(lt.length))+kpi('Lotes gerados', String(S.tiss.lotes.length))+kpi('Convênios ativos', String(S.tiss.ops.filter(o=>o.ativo).length))+'</div></div>';
+  const abas = [['guias','Guias'],['lotes','Lotes e XML'],['conv','Convênios e preços'],['conf','Conferir com o Smart']];
+  h += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">'+abas.map(a=>'<button class="bt'+(S.tiss.aba===a[0]?'':' g')+'" onclick="S.tiss.aba=\''+a[0]+'\';render()">'+a[1]+'</button>').join('')+'</div>';
+  if(S.tiss.aba==='guias') h += tissTelaGuias();
+  else if(S.tiss.aba==='lotes') h += tissTelaLotes();
+  else if(S.tiss.aba==='conv') h += tissTelaConv();
+  else h += tissTelaConf();
+  return h;
+}
+function tissOpsAtivas(){ return S.tiss.ops.filter(o=>o.ativo || S.tiss.guias.some(g=>g.operadora_id===o.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
+
+/* ---------- guias ---------- */
+function tissTelaGuias(){
+  const f = S.tiss.filtro, st = S.tiss.filtroSt||'';
+  const l = S.tiss.guias.filter(g=>(!f || g.operadora_id===f) && (!st || g.status===st));
+  let h = '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<select onchange="S.tiss.filtro=this.value;render()" style="width:auto;margin:0"><option value="">Todos os convênios</option>'+tissOpsAtivas().map(o=>'<option value="'+o.id+'"'+(f===o.id?' selected':'')+'>'+esc(o.nome)+'</option>').join('')+'</select>'+
+    '<select onchange="S.tiss.filtroSt=this.value;render()" style="width:auto;margin:0"><option value="">Todas as situações</option>'+Object.entries(TISS_ST).map(([k,v])=>'<option value="'+k+'"'+(st===k?' selected':'')+'>'+v[0]+'</option>').join('')+'</select>'+
+    '<span style="flex:1"></span><button class="bt" onclick="tissGuiaNova(\'consulta\')">+ Consulta</button><button class="bt" onclick="tissGuiaNova(\'sadt\')">+ SP/SADT</button><button class="bt g" onclick="tissGuiaNova(\'honorarios\')">+ Honorários</button></div>';
+  if(!l.length) return h+'<div class="vazio">Nenhuma guia'+(f||st?' com esse filtro':' lançada ainda')+'. Use os botões acima para lançar a primeira.</div>';
+  h += '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Atendimento</th><th>Paciente</th><th>Convênio</th><th>Tipo</th><th>Nº guia</th><th style="text-align:right">Valor</th><th>Situação</th></tr></thead><tbody>'+
+    l.map(g=>{ const s = TISS_ST[g.status]||['?','#666']; return '<tr style="cursor:pointer" onclick="tissGuiaAbrir(\''+g.id+'\')"><td>'+dataBR(g.data_atendimento)+'</td><td><b>'+esc(g.paciente_nome||'—')+'</b><br><small style="color:var(--fraco)">Cart. '+esc(g.carteira)+'</small></td>'+
+      '<td>'+esc(tissOp(g.operadora_id).nome||'—')+'</td><td>'+TISS_TIPOS[g.tipo]+'</td><td>'+esc(g.numero_guia_prestador)+'</td><td style="text-align:right;font-weight:800">'+brl(+g.valor_total)+'</td>'+
+      '<td><span style="font-weight:700;color:'+s[1]+'">'+s[0]+'</span></td></tr>'; }).join('')+'</tbody></table></div>';
+  return h;
+}
+function tissGuiaNova(tipo){
+  const opId = S.tiss.filtro || '', ct = S.tiss.contratos.find(c=>c.operadora_id===opId && c.principal);
+  S.tiss.form = { id:null, tipo, opId, ctId: ct?ct.id:'', paciente:'', pacienteId:null, carteira:'', rn:'N', numeroGuia:'', numeroGuiaOperadora:'', senha:'', dataAut:'', validadeSenha:'',
+    data: hojeISO(), profId:'', tipoConsulta:'1', regime:'01', acidente:'9', carater:'1', tipoAtend:'23', indicacao:'', solProfId:'', solNome:'', obs:'',
+    guiaSolic:'', localNome:'', localCodigo:'', localCnes:'', procs:[], desps:[] };
+  if(tipo==='consulta') tissFormConsultaPadrao();
+  tissGuiaModal();
+}
+function tissFormConsultaPadrao(){ const f = S.tiss.form; if(f.tipo!=='consulta' || !f.opId) return;
+  // procedimento de consulta mais usado neste convênio
+  const cands = S.tiss.precos.filter(p=>p.operadora_id===f.opId).map(p=>tissIt(p.item_id)).filter(i=>i && i.tipo==='proc' && /CONSULTA/i.test(i.descricao||''));
+  const it = cands[0] || tissItCod('22','10101012');
+  f.procs = it ? [{ itemId: it.id, qtd:1, valor: tissPreco(f.opId, it.id, f.data), red:1 }] : []; }
+function tissGuiaAbrir(id){
+  const g = S.tiss.guias.find(x=>x.id===id); if(!g) return;
+  S.tiss.form = Object.assign({ id:g.id, status:g.status }, g.dados.form || {});
+  tissGuiaModal();
+}
+function tissGuiaModal(){
+  const f = S.tiss.form, ro = f.status && f.status!=='aberta';
+  const opsOpt = tissOpsAtivas().map(o=>'<option value="'+o.id+'"'+(f.opId===o.id?' selected':'')+'>'+esc(o.nome)+' · ANS '+o.ans+'</option>').join('');
+  const cts = S.tiss.contratos.filter(c=>c.operadora_id===f.opId);
+  const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
+  const profOpt = sel => '<option value="">—</option>'+profs.map(p=>'<option value="'+p.id+'"'+(sel===p.id?' selected':'')+'>'+esc(p.nome)+' · CRM '+esc(p.numero)+(p.ativo?'':' (antigo)')+'</option>').join('');
+  const pacs = (S.idad && S.idad.pac) || [];
+  const I = (k, rot, tipo, extra) => '<label style="flex:1;min-width:150px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'></label>';
+  const Sel = (k, rot, ops, extra) => '<label style="flex:1;min-width:150px">'+rot+'<select onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k])===String(o[0])?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>';
+  const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
+  let h = '<h2>'+(f.id?'Guia de ':'Nova guia de ')+TISS_TIPOS[f.tipo]+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
+  h += lin('<label style="flex:2;min-width:220px">Convênio<select onchange="tissFormOp(this.value)"'+(ro?' disabled':'')+'><option value="">Escolha…</option>'+opsOpt+'</select></label>',
+    '<label style="flex:2;min-width:220px">Faturar como<select onchange="S.tiss.form.ctId=this.value"'+(ro?' disabled':'')+'>'+cts.map(c=>'<option value="'+c.id+'"'+(f.ctId===c.id?' selected':'')+'>'+esc(c.rotulo)+(c.ativo?'':' (sem envio há 1 ano)')+'</option>').join('')+'</select></label>');
+  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="tg-pacs" value="'+esc(f.paciente)+'" onchange="tissFormPac(this.value)"'+(ro?' disabled':'')+'></label>'+
+      '<datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>', I('carteira','Nº da carteirinha'), Sel('rn','Recém-nascido',[['N','Não'],['S','Sim']]));
+  h += lin(I('numeroGuia','Nº da guia (prestador)', '', ''), I('data', f.tipo==='sadt'?'Data da solicitação/execução':'Data do atendimento', 'date', ';tissFormRecalc()'),
+      '<label style="flex:2;min-width:220px">Médico executante<select onchange="S.tiss.form.profId=this.value"'+(ro?' disabled':'')+'>'+profOpt(f.profId)+'</select></label>');
+  if(f.tipo==='consulta'){
+    h += lin(Sel('tipoConsulta','Tipo de consulta',[['1','Primeira consulta'],['2','Retorno'],['3','Pré-natal'],['4','Por encaminhamento']]),
+      Sel('regime','Regime',[['01','Ambulatorial'],['02','Internação'],['03','Hospital-dia'],['04','Domiciliar'],['05','Urgência/emergência']]), Sel('acidente','Acidente',[['9','Não acidente'],['0','Trabalho'],['1','Trânsito'],['2','Outros']]),
+      I('numeroGuiaOperadora','Nº guia na operadora (se houver)'));
+  } else if(f.tipo==='sadt'){
+    h += lin(I('numeroGuiaOperadora','Nº guia na operadora'), I('senha','Senha de autorização'), I('dataAut','Data da autorização','date'), I('validadeSenha','Validade da senha','date'));
+    h += lin('<label style="flex:2;min-width:220px">Médico solicitante<select onchange="S.tiss.form.solProfId=this.value"'+(ro?' disabled':'')+'>'+profOpt(f.solProfId)+'</select></label>', I('solNome','Ou solicitante de fora (nome)'),
+      I('indicacao','Indicação clínica'));
+    h += lin(Sel('carater','Caráter',[['1','Eletivo'],['2','Urgência/emergência']]), Sel('tipoAtend','Tipo de atendimento',[['23','Exame'],['04','Consulta'],['05','Exame ambulatorial'],['03','Outras terapias'],['22','Telessaúde']]),
+      Sel('regime','Regime',[['01','Ambulatorial'],['02','Internação'],['03','Hospital-dia'],['05','Urgência/emergência']]), Sel('acidente','Acidente',[['9','Não acidente'],['0','Trabalho'],['1','Trânsito'],['2','Outros']]));
+  } else {
+    h += lin(I('numeroGuiaOperadora','Nº guia na operadora'), I('senha','Senha'), I('guiaSolic','Guia de solicitação de internação'));
+    h += lin(I('localNome','Hospital onde operou'), I('localCodigo','Código do hospital na operadora'), I('localCnes','CNES do hospital'));
+  }
+  h += '<div id="tg-itens">'+tissItensHtml()+'</div>';
+  h += lin(I('obs','Observação (vai na guia)'));
+  h += '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px">'+
+    (f.id && f.status==='aberta' ? '<button class="bt g" style="color:#dc2626" onclick="tissGuiaCancelar()">Cancelar guia</button>' : '')+
+    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="tissGuiaSalvar()">Salvar guia</button>')+'</div>';
+  abrirModal(h);
+}
+function tissFormOp(id){ const f = S.tiss.form; f.opId = id; const ct = S.tiss.contratos.find(c=>c.operadora_id===id && c.principal) || S.tiss.contratos.find(c=>c.operadora_id===id);
+  f.ctId = ct?ct.id:''; if(f.tipo==='consulta') tissFormConsultaPadrao(); else tissFormRecalc(); tissGuiaModal(); }
+function tissFormPac(nome){ const f = S.tiss.form; f.paciente = nome; const p = ((S.idad&&S.idad.pac)||[]).find(x=>x.nome===nome);
+  f.pacienteId = p ? p.id : null; if(p && p.carteirinha && !f.carteira){ f.carteira = p.carteirinha; tissGuiaModal(); } }
+function tissFormRecalc(){ const f = S.tiss.form; [...f.procs, ...f.desps].forEach(x=>{ if(x.auto!==false){ const v = tissPreco(f.opId, x.itemId, f.data); if(v!=null) x.valor = v; } });
+  const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
+function tissItemRot(i){ return i ? i.codigo+' · '+(i.descricao||'') : ''; }
+function tissItensHtml(){
+  const f = S.tiss.form, ro = f.status && f.status!=='aberta';
+  const dl = (id, tipo) => '<datalist id="'+id+'">'+tissItensDoConv(f.opId, tipo).slice(0,400).map(i=>'<option value="'+esc(tissItemRot(i))+'">').join('')+'</datalist>';
+  const linha = (x, k, ix) => { const it = tissIt(x.itemId); const tot = tissN((+x.valor||0)*(+x.qtd||0)*(+x.red||1));
+    return '<tr><td style="min-width:260px"><input list="dl-'+k+'" value="'+esc(tissItemRot(it))+'" onchange="tissItemSet(\''+k+'\','+ix+',this.value)"'+(ro?' disabled':'')+' style="margin:0">'+
+      (it && k==='desps' ? '<small style="color:var(--fraco)">'+(TISS_DESP[it.codigo_despesa]||'')+' · tab. '+it.tabela+'</small>' : (it?'<small style="color:var(--fraco)">tab. '+it.tabela+'</small>':''))+'</td>'+
+      '<td><input type="number" step="any" value="'+x.qtd+'" style="width:70px;margin:0" onchange="tissItemCampo(\''+k+'\','+ix+',\'qtd\',this.value)"'+(ro?' disabled':'')+'></td>'+
+      '<td><input type="number" step="0.01" value="'+(x.valor==null?'':x.valor)+'" style="width:100px;margin:0" onchange="tissItemCampo(\''+k+'\','+ix+',\'valor\',this.value)"'+(ro?' disabled':'')+'>'+(x.valor==null?'<br><small style="color:#d97706">sem preço neste convênio</small>':'')+'</td>'+
+      (k==='procs' && f.tipo!=='consulta' ? '<td><select style="width:80px;margin:0" onchange="tissItemCampo(\''+k+'\','+ix+',\'red\',this.value)"'+(ro?' disabled':'')+'>'+[['1','100%'],['0.7','70%'],['0.5','50%']].map(o=>'<option value="'+o[0]+'"'+(String(x.red)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></td>' : (k==='procs'?'':'<td></td>'))+
+      '<td style="text-align:right;font-weight:700">'+brl(tot)+'</td><td>'+(ro||f.tipo==='consulta'?'':'<button class="bt g mini" onclick="tissItemTirar(\''+k+'\','+ix+')">✕</button>')+'</td></tr>'; };
+  const t = tissTotais();
+  let h = '<div class="card" style="padding:8px 10px;margin:8px 0"><b>'+(f.tipo==='consulta'?'Procedimento':'Procedimentos')+'</b>'+dl('dl-procs','proc')+
+    '<div style="overflow-x:auto"><table style="margin-top:4px"><thead><tr><th>Código e descrição</th><th>Qtd</th><th>Valor unit.</th>'+(f.tipo!=='consulta'?'<th>Redução</th>':'')+'<th style="text-align:right">Total</th><th></th></tr></thead><tbody>'+
+    f.procs.map((x,i)=>linha(x,'procs',i)).join('')+'</tbody></table></div>'+
+    (ro||f.tipo==='consulta'?'':'<button class="bt g mini" style="margin-top:6px" onclick="tissItemNovo(\'procs\')">+ procedimento</button>')+'</div>';
+  if(f.tipo==='sadt'){
+    const kit = f.procs.length ? S.tiss.kits.find(k=>k.operadora_id===f.opId && k.item_id===f.procs[0].itemId) : null;
+    h += '<div class="card" style="padding:8px 10px;margin:8px 0"><b>Materiais, medicamentos e taxas</b>'+dl('dl-desps','despesa')+
+      (kit && !ro ? ' <button class="bt mini" style="margin-left:8px" onclick="tissUsarKit(\''+kit.id+'\')">Usar o kit de sempre deste convênio ('+kit.itens.length+' itens, visto '+kit.vezes+'x)</button>' : '')+
+      (f.desps.length ? '<div style="overflow-x:auto"><table style="margin-top:4px"><thead><tr><th>Código e descrição</th><th>Qtd</th><th>Valor unit.</th><th></th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>'+f.desps.map((x,i)=>linha(x,'desps',i)).join('')+'</tbody></table></div>' : '<div style="color:var(--fraco);font-size:13px;margin-top:4px">Nenhum item.</div>')+
+      (ro?'':'<button class="bt g mini" style="margin-top:6px" onclick="tissItemNovo(\'desps\')">+ item</button>')+'</div>';
+  }
+  h += '<div style="text-align:right;font-size:15px;margin:4px 0 10px">'+(f.tipo==='sadt'?'<small style="color:var(--fraco)">Proc. '+brl(t.proc)+' · Taxas '+brl(t.taxas)+' · Mat. '+brl(t.mat)+' · Med. '+brl(t.med)+(t.opme?' · OPME '+brl(t.opme):'')+'</small><br>':'')+'Total da guia: <b>'+brl(t.total)+'</b></div>';
+  return h;
+}
+function tissItemSet(k, ix, rot){ const f = S.tiss.form, cod = String(rot||'').split(' · ')[0].trim();
+  const it = tissItensDoConv(f.opId).find(i=>tissItemRot(i)===rot) || S.tiss.itens.find(i=>i.codigo===cod);
+  if(!it){ aviso('Código não encontrado na tabela. Cadastre em Convênios e preços.','erro'); return; }
+  const x = f[k][ix]; x.itemId = it.id; x.valor = tissPreco(f.opId, it.id, f.data); x.auto = true; tissFormRecalc(); }
+function tissItemCampo(k, ix, c, v){ const x = S.tiss.form[k][ix]; x[c] = v===''?null:Number(v); if(c==='valor') x.auto = false; const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
+function tissItemNovo(k){ S.tiss.form[k].push({ itemId:null, qtd:1, valor:null, red:1 }); const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
+function tissItemTirar(k, ix){ S.tiss.form[k].splice(ix,1); const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
+function tissUsarKit(id){ const f = S.tiss.form, kit = S.tiss.kits.find(k=>k.id===id); if(!kit) return;
+  const novos = []; kit.itens.forEach(x=>{ const it = tissItCod(x.tabela, x.codigo); if(it && !f.desps.some(d=>d.itemId===it.id)) novos.push({ itemId:it.id, qtd:Number(x.quantidade)||1, valor:tissPreco(f.opId,it.id,f.data), red:1, auto:true }); });
+  f.desps = f.desps.concat(novos); const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
+function tissTotais(){ const f = S.tiss.form, s = { proc:0, taxas:0, mat:0, med:0, opme:0, gases:0, diarias:0 };
+  f.procs.forEach(x=>s.proc += tissN((+x.valor||0)*(+x.qtd||0)*(+x.red||1)));
+  f.desps.forEach(x=>{ const it = tissIt(x.itemId), v = tissN((+x.valor||0)*(+x.qtd||0)); const c = it && it.codigo_despesa;
+    if(c==='02') s.med+=v; else if(c==='07') s.taxas+=v; else if(c==='08') s.opme+=v; else if(c==='01') s.gases+=v; else if(c==='05') s.diarias+=v; else s.mat+=v; });
+  Object.keys(s).forEach(k=>s[k]=tissN(s[k])); s.total = tissN(s.proc+s.taxas+s.mat+s.med+s.opme+s.gases+s.diarias); return s; }
+
+/* monta o "modelo" da guia que o gerador TISS usa (o mesmo formato que o Smart grava) */
+function tissModelo(f, numeroGuia){
+  const op = tissOp(f.opId), ct = tissCt(f.ctId), prof = S.tiss.profs.find(p=>p.id===f.profId) || {};
+  const pr = ct.tiss_prestadores || {};
+  const contratado = ct.executante==='cnpj' ? { cnpj: ct.cnpj || pr.cnpj } : { codigo: ct.codigo_operadora };
+  const cnes = ct.cnes || pr.cnes, hora = f.hora || tissHora();
+  const pf = p => ({ nome:p.nome, conselho:p.conselho||'06', numero:p.numero, uf:p.uf||'29', cbo:p.cbo });
+  const base = { ans: op.ans, numeroGuiaPrestador: numeroGuia, carteira: soDig(f.carteira)||f.carteira, atendimentoRN: f.rn||'N', observacao: f.obs||undefined };
+  if(f.tipo==='consulta'){ const x = f.procs[0], it = tissIt(x.itemId);
+    return Object.assign(base, { numeroGuiaOperadora: f.numeroGuiaOperadora||undefined, contratado, cnes, profissional: pf(prof), indicacaoAcidente: f.acidente||'9',
+      regimeAtendimento: f.regime||'01', data: f.data, tipoConsulta: f.tipoConsulta||'1', procedimento: { tabela: it.tabela, codigo: it.codigo, valor: tissN(+x.valor||0) } }); }
+  const equipe = [{ cpf: prof.cpf||undefined, codigoOperadora: prof.cpf?undefined:undefined, nome: prof.nome, conselho: prof.conselho||'06', numero: prof.numero, uf: prof.uf||'29', cbo: prof.cbo }];
+  const procs = f.procs.map(x=>{ const it = tissIt(x.itemId), vu = tissN(+x.valor||0), red = Number(x.red||1);
+    return { data: f.data, horaInicial: hora, horaFinal: hora, tabela: it.tabela, codigo: it.codigo, descricao: it.descricao, quantidade: x.qtd||1, reducao: red,
+      valorUnitario: tissN(vu*red), valorTotal: tissN(vu*red*(x.qtd||1)), equipe }; });
+  if(f.tipo==='honorarios'){
+    return Object.assign(base, { guiaSolicInternacao: f.guiaSolic||undefined, senha: f.senha||undefined, numeroGuiaOperadora: f.numeroGuiaOperadora||numeroGuia,
+      local: { codigo: f.localCodigo||ct.codigo_operadora, nome: f.localNome||undefined, cnes: f.localCnes||undefined },
+      contratado: { codigo: ct.codigo_operadora, cnpj: ct.codigo_operadora?undefined:(ct.cnpj||pr.cnpj) }, cnes, inicio: f.data, fim: f.data, dataEmissao: f.data,
+      procedimentos: procs.map(p=>Object.assign(p, { equipe: [{ grauPart:'00', cpf: prof.cpf, nome: prof.nome, conselho: prof.conselho||'06', numero: prof.numero, uf: prof.uf||'29', cbo: prof.cbo }] })) }); }
+  const sol = S.tiss.profs.find(p=>p.id===f.solProfId) || (f.solNome ? null : prof);
+  const desps = f.desps.map(x=>{ const it = tissIt(x.itemId), vu = tissN(+x.valor||0);
+    return { codigoDespesa: it.codigo_despesa||'03', data: f.data, horaInicial: hora, horaFinal: hora, tabela: it.tabela, codigo: it.codigo, quantidade: x.qtd||1, unidade: it.unidade||'036',
+      reducao: 1, valorUnitario: vu, valorTotal: tissN(vu*(x.qtd||1)), descricao: it.descricao }; });
+  return Object.assign(base, { versao: op.versao, autorizacao: { numeroGuiaOperadora: f.numeroGuiaOperadora||undefined, data: f.dataAut||undefined, senha: f.senha||undefined, validade: f.validadeSenha||undefined },
+    solicitante: { contratado: ct.executante==='cnpj' ? { cnpj: ct.cnpj||pr.cnpj } : { codigo: ct.codigo_operadora }, nomeContratado: (pr.nome||'').toUpperCase().slice(0,70) || undefined,
+      profissional: sol ? pf(sol) : { nome: f.solNome, conselho:'06', numero:'0', uf:'29', cbo:'225125' } },
+    dataSolicitacao: f.data, carater: f.carater||'1', indicacaoClinica: f.indicacao||undefined, contratado, cnes,
+    tipoAtendimento: f.tipoAtend||'23', indicacaoAcidente: f.acidente||'9', regimeAtendimento: f.regime||'01', procedimentos: procs, despesas: desps });
+}
+function tissValidar(f){
+  if(!f.opId || !f.ctId) return 'Escolha o convênio.';
+  if(!String(f.paciente||'').trim()) return 'Informe o paciente.';
+  if(!soDig(f.carteira)) return 'Informe o número da carteirinha.';
+  if(!f.data) return 'Informe a data.';
+  if(!f.profId) return 'Escolha o médico executante.';
+  if(!f.procs.length || f.procs.some(x=>!x.itemId)) return 'Informe o procedimento.';
+  if([...f.procs, ...f.desps].some(x=>!x.itemId || x.valor==null || !(x.qtd>0))) return 'Há item sem código, quantidade ou valor.';
+  if(f.tipo==='sadt' && !f.solProfId && !String(f.solNome||'').trim()) return 'Informe o médico solicitante.';
+  return null;
+}
+async function tissGuiaSalvar(){
+  const f = S.tiss.form, erro = tissValidar(f); if(erro) return aviso(erro,'erro');
+  try{
+    let num = String(f.numeroGuia||'').trim();
+    if(!num){ const r = await sb.rpc('tiss_proximo', { p_chave:'numero_guia' }); if(r.error) throw r.error; num = String(r.data); }
+    f.numeroGuia = num; if(!f.hora) f.hora = tissHora();
+    const modelo = tissModelo(f, num);
+    TISS.montarLote({ padrao: tissOp(f.opId).versao, sequencial: 1, data: f.data, hora: f.hora, origem: { codigo: '1' }, ans: tissOp(f.opId).ans, numeroLote: 1,
+      guias: [ f.tipo==='consulta' ? TISS.guiaConsulta(modelo) : f.tipo==='sadt' ? TISS.guiaSADT(modelo) : TISS.guiaHonorarios(modelo) ] }); // testa a montagem antes de gravar
+    const reg = { tipo: f.tipo, operadora_id: f.opId, contrato_id: f.ctId, prestador_id: tissCt(f.ctId).prestador_id || null, paciente_id: f.pacienteId || null, paciente_nome: String(f.paciente).trim(),
+      carteira: f.carteira, numero_guia_prestador: num, data_atendimento: f.data, profissional_id: f.profId, valor_total: tissTotais().total,
+      dados: { form: Object.assign({}, f, { id: undefined, status: undefined }), modelo }, obs: f.obs || null, atualizado_em: new Date().toISOString() };
+    const r = f.id ? await sb.from('tiss_guias').update(reg).eq('id', f.id).eq('status','aberta').select().maybeSingle() : await sb.from('tiss_guias').insert(reg).select().maybeSingle();
+    if(r.error) throw r.error; if(!r.data) throw new Error('A guia não está mais aberta.');
+    const i = S.tiss.guias.findIndex(g=>g.id===r.data.id); if(i>=0) S.tiss.guias[i] = r.data; else S.tiss.guias.unshift(r.data);
+    S.modal = null; aviso('Guia '+num+' salva ('+brl(r.data.valor_total)+').');
+  }catch(e){ aviso('Não salvou: '+(e.message||e),'erro'); }
+}
+async function tissGuiaCancelar(){ const f = S.tiss.form; if(!confirm('Cancelar esta guia? Ela não entra em lote.')) return;
+  const r = await sb.from('tiss_guias').update({ status:'cancelada', atualizado_em:new Date().toISOString() }).eq('id', f.id).eq('status','aberta').select().maybeSingle();
+  if(r.error) return aviso('Não cancelou: '+r.error.message,'erro'); const i = S.tiss.guias.findIndex(g=>g.id===f.id); if(i>=0 && r.data) S.tiss.guias[i] = r.data; S.modal = null; aviso('Guia cancelada.'); }
+
+/* ---------- lotes ---------- */
+function tissTelaLotes(){
+  const ab = S.tiss.guias.filter(g=>g.status==='aberta'), grupos = {};
+  ab.forEach(g=>{ const k = g.contrato_id+'|'+g.tipo; (grupos[k] = grupos[k] || []).push(g); });
+  let h = '<div class="card"><b style="font-size:15px">Guias prontas para lote</b><div style="font-size:12.5px;color:var(--fraco);margin:2px 0 8px">Um lote por convênio, código do IDAD e tipo de guia — como o Smart faz.</div>';
+  const ks = Object.keys(grupos);
+  if(!ks.length) h += '<div style="color:var(--fraco);font-size:13.5px">Nenhuma guia aberta.</div>';
+  else h += '<table><thead><tr><th>Convênio · faturar como</th><th>Tipo</th><th>Versão TISS</th><th>Guias</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+    ks.map(k=>{ const [ctId, tipo] = k.split('|'), ct = tissCt(ctId), op = tissOp(ct.operadora_id), l = grupos[k];
+      return '<tr><td><b>'+esc(op.nome)+'</b><br><small style="color:var(--fraco)">'+esc(ct.rotulo||'')+'</small></td><td>'+TISS_TIPOS[tipo]+'</td><td>'+esc(op.versao)+'</td><td>'+l.length+'</td>'+
+        '<td style="text-align:right;font-weight:800">'+brl(l.reduce((s,g)=>s+(+g.valor_total||0),0))+'</td><td><button class="bt mini" onclick="tissGerarLote(\''+ctId+'\',\''+tipo+'\')">Gerar lote XML</button></td></tr>'; }).join('')+'</tbody></table>';
+  h += '</div>';
+  h += '<div class="card" style="overflow-x:auto;padding:6px 10px"><b style="font-size:15px;display:block;margin:6px 0">Lotes gerados</b>';
+  if(!S.tiss.lotes.length) h += '<div style="color:var(--fraco);font-size:13.5px;padding:4px 0 8px">Nenhum lote gerado ainda.</div>';
+  else h += '<table><thead><tr><th>Gerado em</th><th>Convênio</th><th>Lote</th><th>Guias</th><th style="text-align:right">Valor</th><th>Hash</th><th>Situação</th><th></th></tr></thead><tbody>'+
+    S.tiss.lotes.map(l=>'<tr><td>'+dataBR(l.criado_em)+'</td><td><b>'+esc(tissOp(l.operadora_id).nome||'')+'</b><br><small style="color:var(--fraco)">'+TISS_TIPOS[l.tipo_guia]+' · TISS '+esc(l.padrao)+'</small></td>'+
+      '<td>'+esc(l.numero_lote)+'</td><td>'+l.qtd_guias+'</td><td style="text-align:right;font-weight:800">'+brl(+l.valor_total)+'</td><td><code style="font-size:11px">'+esc(l.hash)+'</code></td>'+
+      '<td>'+(l.status==='enviado'?'<b style="color:#0e9f6e">Enviado</b>':'Gerado')+(l.teste?'<br><small style="color:#d97706">teste</small>':'')+'</td>'+
+      '<td style="white-space:nowrap"><button class="bt mini" onclick="tissBaixarLote(\''+l.id+'\')">Baixar XML</button>'+(l.status!=='enviado'?' <button class="bt g mini" onclick="tissLoteEnviado(\''+l.id+'\')">Marcar enviado</button>':'')+'</td></tr>').join('')+'</tbody></table>';
+  return h+'</div>';
+}
+function tissBaixar(nome, xml){ const b = new Uint8Array(xml.length); for(let i=0;i<xml.length;i++) b[i] = xml.charCodeAt(i) & 0xFF;
+  const u = URL.createObjectURL(new Blob([b], { type:'application/xml' })); const a = document.createElement('a'); a.href = u; a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u), 3000); }
+async function tissGerarLote(ctId, tipo){
+  const ct = tissCt(ctId), op = tissOp(ct.operadora_id), pr = ct.tiss_prestadores || {};
+  const l = S.tiss.guias.filter(g=>g.status==='aberta' && g.contrato_id===ctId && g.tipo===tipo).sort((a,b)=>a.data_atendimento<b.data_atendimento?-1:1);
+  if(!l.length) return;
+  if(!confirm('Gerar o lote de '+l.length+' guia(s) de '+TISS_TIPOS[tipo]+' para '+op.nome+' (TISS '+op.versao+')?')) return;
+  try{
+    const r = await sb.rpc('tiss_proximo', { p_chave:'sequencial_transacao' }); if(r.error) throw r.error;
+    const seq = r.data, d = new Date(), data = hojeISO(), hora = tissHora();
+    const guias = l.map(g=>{ const m = Object.assign({}, g.dados.modelo, { versao: op.versao }); return g.tipo==='consulta' ? TISS.guiaConsulta(m) : g.tipo==='sadt' ? TISS.guiaSADT(m) : TISS.guiaHonorarios(m); });
+    const origem = ct.origem==='cnpj' ? { cnpj: ct.cnpj || pr.cnpj } : { codigo: ct.codigo_operadora };
+    const out = TISS.montarLote({ padrao: op.versao, sequencial: seq, data, hora, origem, ans: op.ans, numeroLote: seq, guias });
+    const total = tissN(l.reduce((s,g)=>s+(+g.valor_total||0),0));
+    const ins = await sb.from('tiss_lotes').insert({ operadora_id: op.id, contrato_id: ctId, prestador_id: ct.prestador_id||null, tipo_guia: tipo, numero_lote: String(seq), sequencial: seq, padrao: op.versao,
+      qtd_guias: l.length, valor_total: total, hash: out.hash, nome_arquivo: out.nomeArquivo, xml: out.xml }).select('id,operadora_id,contrato_id,tipo_guia,numero_lote,sequencial,padrao,qtd_guias,valor_total,hash,nome_arquivo,status,teste,criado_em').maybeSingle();
+    if(ins.error) throw ins.error;
+    const up = await sb.from('tiss_guias').update({ status:'no_lote', lote_id: ins.data.id, atualizado_em: new Date().toISOString() }).in('id', l.map(g=>g.id)).select();
+    if(up.error) throw up.error;
+    (up.data||[]).forEach(n=>{ const i = S.tiss.guias.findIndex(g=>g.id===n.id); if(i>=0) S.tiss.guias[i] = n; });
+    S.tiss.lotes.unshift(ins.data); tissBaixar(out.nomeArquivo, out.xml);
+    aviso('Lote '+seq+' gerado: '+l.length+' guia(s), '+brl(total)+'. Hash '+out.hash+'.');
+  }catch(e){ aviso('Não gerou o lote: '+(e.message||e),'erro'); }
+}
+async function tissBaixarLote(id){ const r = await sb.from('tiss_lotes').select('xml,nome_arquivo').eq('id', id).maybeSingle();
+  if(r.error || !r.data) return aviso('Não achei o arquivo do lote.','erro'); tissBaixar(r.data.nome_arquivo, r.data.xml); }
+async function tissLoteEnviado(id){ if(!confirm('Marcar este lote como enviado à operadora?')) return;
+  const r = await sb.from('tiss_lotes').update({ status:'enviado' }).eq('id', id); if(r.error) return aviso(r.error.message,'erro');
+  await sb.from('tiss_guias').update({ status:'enviada', atualizado_em:new Date().toISOString() }).eq('lote_id', id).eq('status','no_lote');
+  S.tiss.carregado = false; tissCarregar(); aviso('Lote marcado como enviado.'); }
+
+/* ---------- convênios e preços ---------- */
+function tissTelaConv(){
+  const ops = S.tiss.ops.slice().sort((a,b)=>(b.ativo-a.ativo) || a.nome.localeCompare(b.nome,'pt-BR'));
+  let h = '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Convênio</th><th>ANS</th><th>Versão TISS</th><th>Faturar como (código do IDAD na operadora)</th><th>Preços</th><th>Último envio pelo Smart</th></tr></thead><tbody>'+
+    ops.map(o=>{ const cts = S.tiss.contratos.filter(c=>c.operadora_id===o.id), np = S.tiss.precos.filter(p=>p.operadora_id===o.id).length;
+      return '<tr style="cursor:pointer;'+(o.ativo?'':'opacity:.55')+'" onclick="tissConvAbrir(\''+o.id+'\')"><td><b>'+esc(o.nome)+'</b>'+(o.ativo?'':'<br><small>sem envio há mais de 1 ano</small>')+'</td><td>'+o.ans+'</td><td>'+esc(o.versao)+'</td>'+
+        '<td>'+cts.map(c=>'<div style="font-size:12.5px">'+(c.principal?'⭐ ':'')+esc(c.origem==='cnpj'?'CNPJ '+(c.cnpj||''):'Cód. '+(c.codigo_operadora||''))+' · CNES '+esc(c.cnes||'—')+(c.ativo?'':' <span style="color:var(--fraco)">(antigo)</span>')+'</div>').join('')+'</td>'+
+        '<td>'+np+'</td><td>'+dataBR(o.ultimo_envio)+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  h += '<div class="card" style="font-size:12.5px;color:var(--fraco)">Tudo isto veio dos '+'XML enviados pelo Smart (2025-2026): versão do TISS, código do IDAD em cada operadora, médicos, procedimentos, preços e o kit de materiais de cada exame. '+
+    S.tiss.profs.filter(p=>p.ativo).length+' médicos ativos · '+S.tiss.itens.length+' códigos · '+S.tiss.precos.length+' preços · '+S.tiss.kits.length+' kits.</div>';
+  return h;
+}
+function tissConvAbrir(id){
+  const o = tissOp(id), pr = S.tiss.precos.filter(p=>p.operadora_id===id), ult = {};
+  pr.forEach(p=>{ if(!ult[p.item_id] || ult[p.item_id].vigencia_inicio < p.vigencia_inicio) ult[p.item_id] = p; });
+  const l = Object.values(ult).map(p=>({ p, it: tissIt(p.item_id) })).filter(x=>x.it).sort((a,b)=>(a.it.tipo>b.it.tipo?1:-1) || (b.it.usos||0)-(a.it.usos||0));
+  let h = '<h2>'+esc(o.nome)+' <small style="font-size:13px;color:var(--fraco)">ANS '+o.ans+'</small></h2>';
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px"><label style="flex:1;min-width:140px">Versão do TISS<select id="tc-ver">'+['3.02.02','3.03.02','4.01.00','4.02.00','4.03.00'].map(v=>'<option'+(o.versao===v?' selected':'')+'>'+v+'</option>').join('')+'</select></label>'+
+    '<label style="flex:1;min-width:140px">Situação<select id="tc-at"><option value="1"'+(o.ativo?' selected':'')+'>Ativo</option><option value="0"'+(o.ativo?'':' selected')+'>Inativo</option></select></label></div>';
+  h += '<div class="card" style="padding:8px 10px;max-height:46vh;overflow:auto"><b>Preços ('+l.length+')</b><table style="margin-top:4px"><thead><tr><th>Código</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th><th>Desde</th></tr></thead><tbody>'+
+    l.map(x=>'<tr><td>'+esc(x.it.tabela+' · '+x.it.codigo)+'</td><td style="font-size:12.5px">'+esc(x.it.descricao||'')+'</td><td style="font-size:12px">'+(x.it.tipo==='proc'?'Procedimento':(TISS_DESP[x.it.codigo_despesa]||'Despesa'))+'</td>'+
+      '<td style="text-align:right"><input type="number" step="0.01" value="'+x.p.valor+'" data-item="'+x.it.id+'" data-orig="'+x.p.valor+'" class="tc-pr" style="width:100px;margin:0;text-align:right"></td><td style="font-size:12px">'+dataBR(x.p.vigencia_inicio)+'</td></tr>').join('')+'</tbody></table></div>';
+  h += '<div style="font-size:12.5px;color:var(--fraco);margin:4px 0 8px">Mudou um preço? Altere aqui: o valor novo vale a partir de hoje e o antigo fica no histórico.</div>';
+  h += '<div style="display:flex;gap:10px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="tissConvSalvar(\''+id+'\')">Salvar</button></div>';
+  abrirModal(h);
+}
+async function tissConvSalvar(id){
+  try{
+    const r = await sb.from('tiss_operadoras').update({ versao: val('tc-ver'), ativo: val('tc-at')==='1' }).eq('id', id); if(r.error) throw r.error;
+    const novos = Array.from(document.querySelectorAll('.tc-pr')).filter(e=>e.value!=='' && Number(e.value)!==Number(e.dataset.orig))
+      .map(e=>({ operadora_id:id, item_id:e.dataset.item, valor: tissN(e.value), vigencia_inicio: hojeISO(), origem:'manual' }));
+    if(novos.length){ const p = await sb.from('tiss_precos').upsert(novos, { onConflict:'operadora_id,item_id,vigencia_inicio' }); if(p.error) throw p.error; }
+    S.modal = null; S.tiss.carregado = false; await tissCarregar(); aviso('Convênio salvo'+(novos.length?' ('+novos.length+' preço(s) novo(s))':'')+'.');
+  }catch(e){ aviso('Não salvou: '+(e.message||e),'erro'); }
+}
+
+/* ---------- conferência com o Smart ---------- */
+function tissTelaConf(){
+  let h = '<div class="card"><b style="font-size:15px">Conferir com o Smart</b><div style="font-size:13.5px;color:var(--fraco);margin:4px 0 10px;line-height:1.5">'+
+    'Escolha um ou vários XML gerados pelo Smart. O Sistema MR lê cada lote, monta de novo com o gerador dele e compara byte a byte. '+
+    'Se sair igual, o MR gera o mesmo arquivo que a operadora já aceita. Nada é gravado: os arquivos são lidos só neste aparelho.</div>'+
+    '<input type="file" accept=".xml,text/xml" multiple onchange="tissConferir(this.files)"></div>';
+  const c = S.tiss.conf;
+  if(c.length){
+    const ok = c.filter(x=>x.identico).length;
+    h += '<div class="card"><div class="kpis">'+kpi('Arquivos', String(c.length))+kpi('Iguais ao Smart', '<span style="color:#0e9f6e">'+ok+'</span>')+kpi('Diferentes', '<span style="color:'+(c.length-ok?'#dc2626':'inherit')+'">'+(c.length-ok)+'</span>')+'</div></div>';
+    h += '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Arquivo</th><th>Convênio</th><th>TISS</th><th>Guias</th><th>Hash do Smart</th><th>Hash do MR</th><th>Resultado</th></tr></thead><tbody>'+
+      c.map(x=>'<tr><td style="font-size:12px">'+esc(x.arquivo)+'</td><td>'+esc(x.erro?'—':(S.tiss.ops.find(o=>o.ans===x.ans)||{}).nome||x.ans)+'</td><td>'+esc(x.padrao||'')+'</td><td>'+(x.guias||0)+'</td>'+
+        '<td><code style="font-size:11px">'+esc(x.hashArquivo||'')+'</code></td><td><code style="font-size:11px">'+esc(x.hashMR||'')+'</code></td>'+
+        '<td>'+(x.erro?'<span style="color:#d97706">'+esc(x.erro)+'</span>':x.identico?'<b style="color:#0e9f6e">✓ Idêntico</b>':x.hashOk?'<b style="color:#0e9f6e">✓ Hash igual</b>':'<b style="color:#dc2626">Diferente</b>')+'</td></tr>').join('')+'</tbody></table></div>';
+  }
+  return h;
+}
+async function tissConferir(files){
+  const res = [];
+  for(const f of Array.from(files||[])){
+    try{ const buf = new Uint8Array(await f.arrayBuffer()); let t = ''; for(let i=0;i<buf.length;i++) t += String.fromCharCode(buf[i]);
+      const p = (t.match(/<ans:Padrao>([^<]*)</)||[])[1]||'';
+      if(p && p < '3') { res.push({ arquivo:f.name, padrao:p, erro:'Versão antiga do TISS (2.x), fora de uso' }); continue; }
+      res.push(Object.assign({ arquivo:f.name }, TISSLer.conferir(t, DOMParser)));
+    }catch(e){ res.push({ arquivo:f.name, erro: e.message||String(e) }); }
+  }
+  S.tiss.conf = res; render();
 }
 
 </script>
