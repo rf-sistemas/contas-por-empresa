@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v142">
+<meta name="rf-versao" content="v143">
 <meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v142',
+  versao : 'v143',
   data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -7409,7 +7409,8 @@ async function agCarregar(){
       sb.from('agenda_medicos').select('*'),
       sb.from('idad_pacientes').select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').order('nome').limit(5000) ]);
     if(a.error) throw a.error; if(g.error) throw g.error;
-    Object.assign(S.ag, { lista:a.data, grade:g.data, pacs:(p.data||[]), ini, fim, carregado:true, erro:null });
+    const pp = await sb.from('particular_precos').select('*');
+    Object.assign(S.ag, { lista:a.data, grade:g.data, pacs:(p.data||[]), ppart:(pp.data||[]), ini, fim, carregado:true, erro:null });
   }catch(e){ S.ag.erro = e.message||String(e); }
   S.ag.carregando = false; if(S.tela==='idadagenda' || S.tela==='idad') render();
 }
@@ -7468,8 +7469,10 @@ function agDiaHtml(){
   });
   return h || '<div class="vazio">Nenhum médico atende neste dia. Ajuste em "Horários" ou escolha outro dia.</div>';
 }
+const AG_PAG = { avista:'Particular · à vista', cartao:'Particular · cartão de crédito' };
+function agConvRot(a){ return a.pagamento && a.pagamento!=='convenio' ? AG_PAG[a.pagamento] + (a.valor!=null?' · '+brl(+a.valor):'') : (tissOp(a.operadora_id).nome||'Convênio não informado'); }
 function agCartao(a){
-  const s = AG_ST[a.status]||AG_ST.agendado, op = tissOp(a.operadora_id).nome||'Particular';
+  const s = AG_ST[a.status]||AG_ST.agendado, op = agConvRot(a) + (a.pago ? ' · ✔ pago '+brl(+a.valor_pago||0) : '');
   const bt = (f, t, cls) => '<button class="bt '+(cls||'g')+' mini" onclick="event.stopPropagation();'+f+'">'+t+'</button>';
   const acoes = [];
   if(a.status==='agendado') acoes.push(bt('agStatus(\''+a.id+'\',\'confirmado\')','Confirmar'));
@@ -7521,9 +7524,17 @@ function agConfirmarHtml(){
 
 /* ---------- agendar / editar ---------- */
 let _agEd = null;
+function agProxLivre(pid, d){ // v143: primeiro horário livre da grade do médico (a partir de agora, se for hoje)
+  const g = agGrade(pid), ocup = new Set(S.ag.lista.filter(a=>a.profissional_id===pid && a.data===d && a.status!=='cancelado').map(a=>agMin(a.hora)));
+  const agora = new Date(), min0 = d===hojeISO() ? agora.getHours()*60+agora.getMinutes() : 0;
+  for(let m = agMin(g.inicio); m + g.duracao <= agMin(g.fim); m += g.duracao) if(m >= min0 && !ocup.has(m)) return agHora(m);
+  if(d===hojeISO()){ const m = Math.min(23*60+50, Math.ceil((min0+1)/10)*10); return agHora(m); } // fora da grade: próximos 10 minutos (vira encaixe)
+  return agHM(g.inicio);
+}
 function agNovo(pid, hora, encaixe){
+  pid = pid || S.ag.medico || (agMedicos()[0]||{}).id || ''; if(!hora && !encaixe) hora = agProxLivre(pid, S.ag.dia);
   _agEd = { id:null, profissional_id: pid || S.ag.medico || (agMedicos()[0]||{}).id || '', data: S.ag.dia, hora: hora || '', duracao: agGrade(pid||'').duracao||20, tipo:'consulta', encaixe: !!encaixe,
-    paciente_id:null, paciente_nome:'', telefone:'', carteira:'', operadora_id:'', item_id:'', origem:'recepcao', obs:'', status:'agendado' };
+    paciente_id:null, paciente_nome:'', telefone:'', carteira:'', operadora_id:'', item_id:'', origem:'recepcao', obs:'', status:'agendado', pagamento:'convenio', valor:null };
   agModal();
 }
 function agEditar(id){ const a = S.ag.lista.find(x=>x.id===id); if(!a) return; _agEd = Object.assign({}, a, { hora: agHM(a.hora) }); agModal(); }
@@ -7532,7 +7543,13 @@ function agModal(){
   const I = (k, rot, tipo) => '<label style="flex:1;min-width:140px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(a[k]==null?'':a[k])+'" onchange="_agEd.'+k+'=this.value"'+(ro?' disabled':'')+'></label>';
   const Sel = (k, rot, ops) => '<label style="flex:1;min-width:140px">'+rot+'<select onchange="_agEd.'+k+'=this.value;'+(k==='operadora_id'||k==='tipo'?'agModal()':'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(a[k]||'')===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>';
   const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
-  const procs = a.operadora_id ? tissItensDoConv(a.operadora_id, 'proc').filter(i=>S.tiss.precos.some(p=>p.operadora_id===a.operadora_id && p.item_id===i.id)) : [];
+  // v143: a lista aparece mesmo sem convênio; filtra pelo tipo (consulta x exame/cirurgia); com convênio, só o que tem preço nele
+  const ehCons = i => /CONSULTA/i.test(i.descricao||'');
+  let procs = (a.operadora_id ? tissItensDoConv(a.operadora_id, 'proc').filter(i=>S.tiss.precos.some(p=>p.operadora_id===a.operadora_id && p.item_id===i.id))
+    : S.tiss.itens.filter(i=>i.tipo==='proc' && (i.usos||0)>=20).sort((x,y)=>(y.usos||0)-(x.usos||0))).filter(i=>a.tipo==='consulta' ? ehCons(i) : !ehCons(i));
+  if(!a.operadora_id){ const vist = new Set(); procs = procs.filter(i=>{ const k = (i.descricao||'').replace(/PACOTE|PCT|UNIMED|\s+/g,' ').trim(); if(vist.has(k)) return false; vist.add(k); return true; }); }
+  if(a.tipo==='consulta' && !a.item_id && procs[0]) a.item_id = procs[0].id;
+  if(a.pagamento && a.pagamento!=='convenio' && a.item_id && a.valor==null){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===a.item_id); if(pp) a.valor = +pp.valor; }
   let h = '<h2>'+(a.id?'Agendamento':'Novo agendamento')+(a.encaixe?' <small style="font-size:12px;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</small>':'')+'</h2>';
   if(!ro) h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px">'+
     '<button type="button" class="bt mini" onclick="document.getElementById(\'ag-docfoto\').click()">'+icoCamDoc()+'Tirar foto da carteirinha / documento</button>'+
@@ -7544,9 +7561,14 @@ function agModal(){
     I('telefone','Celular / WhatsApp','tel'), I('carteira','Carteirinha'));
   h += lin(Sel('profissional_id','Médico', agMedicos().map(p=>[p.id,p.nome])), I('data','Data','date'), I('hora','Hora','time'), I('duracao','Duração (min)','number'));
   h += lin(Sel('tipo','Tipo', [['consulta','Consulta'],['exame','Exame'],['cirurgia','Cirurgia']]),
-    Sel('operadora_id','Convênio', [['','Particular / não informado']].concat(tissOpsAtivas().map(o=>[o.id,o.nome]))),
-    Sel('item_id','Procedimento previsto', [['','—']].concat(procs.map(i=>[i.id, i.codigo+' · '+(i.descricao||'')]))));
+    '<label style="flex:1;min-width:140px">Convênio / pagamento<select onchange="agConvSel(this.value)"'+(ro?' disabled':'')+'>'+
+      [['','— escolha —'],['p:avista','💵 Particular · à vista (dinheiro, Pix ou débito)'],['p:cartao','💳 Particular · cartão de crédito']].concat(tissOpsAtivas().map(o=>[o.id,o.nome]))
+        .map(o=>'<option value="'+o[0]+'"'+(((a.pagamento&&a.pagamento!=='convenio') ? 'p:'+a.pagamento : (a.operadora_id||''))===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>',
+    '<label style="flex:1;min-width:140px">Procedimento previsto<select onchange="agItemSel(this.value)"'+(ro?' disabled':'')+'>'+[['','—']].concat(procs.map(i=>[i.id, i.codigo+' · '+(i.descricao||'')])).map(o=>'<option value="'+o[0]+'"'+(String(a.item_id||'')===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>');
+  if(a.pagamento && a.pagamento!=='convenio') h += lin('<label style="flex:1;min-width:140px">Valor particular (R$)<input type="number" step="0.01" value="'+(a.valor==null?'':a.valor)+'" onchange="_agEd.valor=this.value===\'\'?null:Number(this.value)"'+(ro?' disabled':'')+'></label>',
+    '<div style="flex:2;min-width:220px;font-size:12.5px;color:var(--fraco);margin-top:20px">Particular não gera guia de convênio: no atendimento a recepção registra o pagamento e ele entra no Financeiro do IDAD.</div>');
   h += lin(Sel('origem','Marcado por', Object.entries(AG_ORIG)), '<label style="flex:1;min-width:140px;display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox"'+(a.encaixe?' checked':'')+' onchange="_agEd.encaixe=this.checked" style="width:auto;margin:0"'+(ro?' disabled':'')+'> Encaixe</label>', I('obs','Observação'));
+  h += '<div id="ag-erro" style="color:#dc2626;font-weight:700;font-size:13.5px;margin-bottom:6px"></div>';
   if(a.id) h += '<div style="font-size:13px;margin-bottom:8px">Situação: <b style="color:'+(AG_ST[a.status]||[])[1]+'">'+(AG_ST[a.status]||[''])[0]+'</b></div>';
   h += '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'+
     (a.id && !ro ? '<button class="bt g" style="color:#dc2626" onclick="agStatus(\''+a.id+'\',\'cancelado\');fecharModal()">Cancelar agendamento</button>' : '')+
@@ -7554,6 +7576,12 @@ function agModal(){
     (a.id && !ro ? '<button class="bt" onclick="agSalvar(true)">Salvar e atender</button>' : '')+'</div>';
   abrirModal(h);
 }
+function agConvSel(v){ const a = _agEd;
+  if(v.indexOf('p:')===0){ a.pagamento = v.slice(2); a.operadora_id = ''; } else { a.pagamento = 'convenio'; a.operadora_id = v; a.valor = null; }
+  a.item_id = ''; agModal(); }
+function agItemSel(v){ const a = _agEd; a.item_id = v;
+  if(a.pagamento && a.pagamento!=='convenio'){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===v); if(pp) a.valor = +pp.valor; }
+  agModal(); }
 function agPac(nome){ _agEd.paciente_nome = nome; const p = S.ag.pacs.find(x=>x.nome===nome);
   _agEd.paciente_id = p ? p.id : null;
   if(p){ if(!_agEd.telefone) _agEd.telefone = p.celular||p.telefone||''; if(!_agEd.carteira) _agEd.carteira = p.carteirinha||'';
@@ -7561,8 +7589,11 @@ function agPac(nome){ _agEd.paciente_nome = nome; const p = S.ag.pacs.find(x=>x.
     agModal(); } }
 async function agSalvar(atender){
   const a = _agEd;
-  if(!String(a.paciente_nome||'').trim()) return aviso('Informe o paciente.','erro');
-  if(!a.profissional_id || !a.data || !a.hora) return aviso('Informe médico, data e hora.','erro');
+  const erro = t => { const e = document.getElementById('ag-erro'); if(e){ e.textContent = '⚠ '+t; e.scrollIntoView({block:'center'}); } else aviso(t,'erro'); };
+  if(!String(a.paciente_nome||'').trim()) return erro('Informe o paciente.');
+  if(!a.profissional_id || !a.data) return erro('Informe o médico e a data.');
+  if(!a.hora) return erro('Informe a HORA do agendamento.');
+  if(!a.operadora_id && !(a.pagamento && a.pagamento!=='convenio')) return erro('Escolha o convênio ou a forma de pagamento particular.');
   // conflito vira encaixe
   const conflito = S.ag.lista.some(x=>x.id!==a.id && x.status!=='cancelado' && x.profissional_id===a.profissional_id && x.data===a.data && agMin(x.hora)===agMin(a.hora));
   if(conflito && !a.encaixe){ if(!confirm('Já existe paciente neste horário. Marcar como ENCAIXE?')) return; a.encaixe = true; }
@@ -7573,17 +7604,21 @@ async function agSalvar(atender){
       const rp = await sb.from('idad_pacientes').insert({ nome:String(a.paciente_nome).trim().toUpperCase(), cpf:a.cpf||null, nascimento:a.nascimento||null, celular:soDig(a.telefone)||null,
         convenio: op.nome||null, plano:a.plano||null, carteirinha:a.carteira||null, conv_validade:a.validade||null, obs:'[Criado no agendamento pelo MR em '+dataBR(hojeISO())+']' })
         .select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').maybeSingle();
-      if(rp.error) return aviso('Não criou a ficha do paciente: '+rp.error.message,'erro');
-      a.paciente_id = rp.data.id; S.ag.pacs.push(rp.data); if(S.idad) S.idad.pacOk = false; } }
+      if(rp.error) return erro('Não criou a ficha do paciente: '+rp.error.message);
+      a.paciente_id = rp.data.id; a._novaFicha = true; S.ag.pacs.push(rp.data); if(S.idad) S.idad.pacOk = false; } }
   const reg = { profissional_id:a.profissional_id, data:a.data, hora:a.hora, duracao: Number(a.duracao)||20, tipo:a.tipo, encaixe:!!a.encaixe, paciente_id:a.paciente_id||null,
     paciente_nome:String(a.paciente_nome).trim().toUpperCase(), telefone: soDig(a.telefone)||null, carteira:a.carteira||null, operadora_id:a.operadora_id||null, item_id:a.item_id||null,
+    pagamento: a.pagamento||'convenio', valor: a.pagamento && a.pagamento!=='convenio' && a.valor!=null && a.valor!=='' ? Number(a.valor) : null,
     origem:a.origem||'recepcao', obs:a.obs||null, atualizado_em:new Date().toISOString() };
   const r = a.id ? await sb.from('agenda').update(reg).eq('id', a.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
-  if(r.error) return aviso('Não salvou: '+r.error.message,'erro');
+  if(r.error) return erro('Não salvou: '+r.error.message);
+  if(r.data.data !== S.ag.dia) S.ag.dia = r.data.data;
+  if(reg.valor!=null && reg.item_id){ sb.from('particular_precos').upsert({ item_id: reg.item_id, valor: reg.valor, atualizado_em: new Date().toISOString() }).then(()=>{});
+    const k = (S.ag.ppart = S.ag.ppart||[]).find(x=>x.item_id===reg.item_id); if(k) k.valor = reg.valor; else S.ag.ppart.push({ item_id: reg.item_id, valor: reg.valor }); }
   const i = S.ag.lista.findIndex(x=>x.id===r.data.id); if(i>=0) S.ag.lista[i] = r.data; else S.ag.lista.push(r.data);
   S.modal = null;
   if(atender) return agAtender(r.data.id);
-  aviso('Agendado: '+reg.paciente_nome+' · '+dataBR(reg.data)+' '+agHM(reg.hora)+'.');
+  S.ag.medico = ''; aviso('✔ Agendado e '+(a._novaFicha?'ficha criada: ':'')+reg.paciente_nome+' · '+agNome(reg.profissional_id)+' · '+dataBR(reg.data)+' às '+agHM(reg.hora)+'.');
 }
 async function agStatus(id, st){
   const up = { status: st, atualizado_em: new Date().toISOString() };
@@ -7612,7 +7647,8 @@ async function agGradeSalvar(pid){
 /* ---------- ATENDIMENTO EM UMA TELA: do horário para a guia ---------- */
 function agAtender(id){
   const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
-  if(!a.operadora_id) return aviso('Informe o convênio no agendamento antes de atender (particular ainda não gera guia).','erro');
+  if(a.pagamento && a.pagamento!=='convenio') return agReceber(id);
+  if(!a.operadora_id) return aviso('Informe o convênio ou o pagamento particular no agendamento antes de atender.','erro');
   if(a.guia_id) return tissGuiaAbrir(a.guia_id);
   const tipo = a.tipo==='consulta' ? 'consulta' : 'sadt';
   S.tiss.filtro = a.operadora_id;
@@ -7709,6 +7745,53 @@ async function agDepoisDaGuia(f, guia){
     }
   }catch(e){ console.warn('agDepoisDaGuia', e); }
   render();
+}
+
+/* ---------- v143: PARTICULAR — receber o pagamento no atendimento e lançar no Financeiro do IDAD ---------- */
+let _agRec = null;
+function agReceber(id){
+  const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
+  if(a.pago) return aviso('Pagamento já registrado: '+brl(+a.valor_pago)+' ('+(a.forma_pag||'')+').');
+  _agRec = { id, valor: a.valor!=null ? +a.valor : '', forma: a.pagamento==='cartao' ? 'Cartão de crédito' : 'Pix', parcelas: 1, lancar: true };
+  agReceberModal();
+}
+function agReceberModal(){
+  const r = _agRec, a = S.ag.lista.find(x=>x.id===r.id), it = a.item_id ? tissIt(a.item_id) : null;
+  const formas = a.pagamento==='cartao' ? ['Cartão de crédito'] : ['Pix','Dinheiro','Cartão de débito'];
+  abrirModal('<h2>Atendimento particular · receber</h2>'+
+    '<div style="font-size:14px;margin-bottom:10px"><b>'+esc(a.paciente_nome)+'</b> · '+esc(agNome(a.profissional_id))+' · '+AG_TIPO[a.tipo]+(it?' · '+esc(it.descricao||''):'')+'<br><small style="color:var(--fraco)">'+dataBR(a.data)+' às '+agHM(a.hora)+'</small></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
+      '<label style="flex:1;min-width:140px">Valor (R$)<input type="number" step="0.01" value="'+r.valor+'" onchange="_agRec.valor=this.value"></label>'+
+      '<label style="flex:1;min-width:160px">Forma<select onchange="_agRec.forma=this.value;agReceberModal()">'+formas.map(f=>'<option'+(r.forma===f?' selected':'')+'>'+f+'</option>').join('')+'</select></label>'+
+      (r.forma==='Cartão de crédito' ? '<label style="flex:1;min-width:120px">Parcelas<select onchange="_agRec.parcelas=Number(this.value)">'+[1,2,3,4,5,6,7,8,9,10,11,12].map(n=>'<option value="'+n+'"'+(r.parcelas===n?' selected':'')+'>'+n+'x</option>').join('')+'</select></label>' : '')+
+    '</div>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><input type="checkbox"'+(r.lancar?' checked':'')+' onchange="_agRec.lancar=this.checked" style="width:auto;margin:0"> Lançar a entrada no Financeiro do IDAD</label>'+
+    '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">'+(r.forma==='Dinheiro'?'Entra no "Caixa recepção IDAD", já recebido.':r.forma==='Cartão de crédito'?'Entra como a receber (a maquininha repassa depois); confira na conciliação.':'Entra como recebido; confira na conciliação com o banco.')+'</div>'+
+    '<div id="ag-erro" style="color:#dc2626;font-weight:700;font-size:13.5px;margin-bottom:6px"></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="agReceberSalvar()">Registrar pagamento e finalizar</button></div>');
+}
+async function agReceberSalvar(){
+  const r = _agRec, a = S.ag.lista.find(x=>x.id===r.id), v = Math.round(Number(r.valor)*100)/100;
+  const erro = t => { const e = document.getElementById('ag-erro'); if(e) e.textContent = '⚠ '+t; };
+  if(!(v>0)) return erro('Informe o valor recebido.');
+  try{
+    let movId = null;
+    if(r.lancar){
+      const emp = idadEmpresa(); if(!emp) throw new Error('CNPJ do IDAD não está cadastrado em Empresas.');
+      const cx = (S.origens||[]).find(o=>/caixa recep/i.test(o.nome||''));
+      const it = a.item_id ? tissIt(a.item_id) : null, hoje = hojeISO(), cred = r.forma==='Cartão de crédito';
+      const m = await sb.from('movimentos').insert({ tipo:'entrada', empresa_id: emp.id, origem_id: r.forma==='Dinheiro' && cx ? cx.id : null,
+        descricao: 'Particular · '+AG_TIPO[a.tipo]+(it?' ('+(it.descricao||'')+')':'')+' · '+a.paciente_nome, fornecedor: a.paciente_nome, categoria: 'Atendimento particular',
+        valor: v, data_movimento: hoje, vencimento: cred ? agSomaDias(hoje, 30) : hoje, pago: !cred, data_pagamento: cred ? null : hoje,
+        observacao: '[Agenda MR · '+agNome(a.profissional_id)+' · '+r.forma+(cred?' '+r.parcelas+'x':'')+']' }).select('id').maybeSingle();
+      if(m.error) throw m.error; movId = m.data && m.data.id;
+    }
+    const up = await sb.from('agenda').update({ status:'atendido', pago:true, valor_pago:v, forma_pag:r.forma, parcelas: r.forma==='Cartão de crédito' ? r.parcelas : null, pago_em:new Date().toISOString(),
+      movimento_id: movId, atualizado_em:new Date().toISOString() }).eq('id', a.id).select().maybeSingle();
+    if(up.error) throw up.error;
+    const i = S.ag.lista.findIndex(x=>x.id===a.id); if(i>=0) S.ag.lista[i] = up.data;
+    S.modal = null; aviso('✔ Pagamento de '+brl(v)+' ('+r.forma+(r.forma==='Cartão de crédito'?' '+r.parcelas+'x':'')+') registrado'+(movId?' e lançado no Financeiro do IDAD':'')+'.');
+  }catch(e){ erro('Não registrou: '+(e.message||e)); }
 }
 
 </script>
