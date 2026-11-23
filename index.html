@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v144">
+<meta name="rf-versao" content="v145">
 <meta name="rf-data" content="2026-11-23">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v144',
+  versao : 'v145',
   data   : '23/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -7433,6 +7433,12 @@ function telaIdadAgenda(){
   const cnt = s => dl.filter(a=>a.status===s).length;
   h += '<div class="card"><div class="kpis">'+kpi('Agendados no dia', String(dl.length))+kpi('Confirmados', String(cnt('confirmado')))+kpi('Na recepção', String(cnt('chegou')))+
     kpi('Atendidos', String(cnt('atendido')))+kpi('Faltas', '<span style="color:'+(cnt('faltou')?'#dc2626':'inherit')+'">'+cnt('faltou')+'</span>')+kpi('Encaixes', String(dl.filter(a=>a.encaixe).length))+'</div></div>';
+  const fp = S.ag.lista.filter(agFaltaPagar).sort((x,y)=>(x.data+x.hora).localeCompare(y.data+y.hora));
+  if(fp.length) h += '<div class="card" style="background:var(--er-bg);border-color:var(--er-bd);color:var(--er-tx)"><b>⚠ '+fp.length+' particular'+(fp.length>1?'es':'')+' sem pagamento registrado · '+brl(fp.reduce((s,a)=>s+(+a.valor||0),0))+'</b>'+
+    fp.slice(0,8).map(a=>'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="flex:1;min-width:180px">'+esc(a.paciente_nome)+' · '+dataBR(a.data)+' '+agHM(a.hora)+' · '+(AG_PAG[a.pagamento]||'')+(a.valor!=null?' · '+brl(+a.valor):'')+'</span>'+
+      '<button class="bt mini" onclick="agReceber(\''+a.id+'\', '+(a.status==='agendado'||a.status==='confirmado'?'true':'false')+')">💰 Receber</button>'+
+      '<button class="bt g mini" onclick="agStatus(\''+a.id+'\',\'cancelado\')">Cancelar</button></div>').join('')+
+    (fp.length>8?'<div style="margin-top:6px">e mais '+(fp.length-8)+'…</div>':'')+'</div>';
   h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
     '<button class="bt g mini" onclick="agIrDia(agSomaDias(S.ag.dia,-1))">‹</button>'+
     '<input type="date" value="'+d+'" onchange="agIrDia(this.value)" style="width:auto;margin:0">'+
@@ -7483,9 +7489,12 @@ function agCartao(a){
   if(a.status==='agendado'||a.status==='confirmado') acoes.push(bt('agStatus(\''+a.id+'\',\'faltou\')','Faltou'));
   if(a.status==='atendido' && a.guia_id) acoes.push(bt('tissGuiaAbrir(\''+a.guia_id+'\')','Ver guia'));
   if(a.pago) acoes.push(bt('rcAbrirAgenda(\''+a.id+'\')','💰 Rastrear pagamento'));
+  if(agFaltaPagar(a) && a.status!=='chegou' && a.status!=='confirmado' && a.status!=='agendado') acoes.push(bt('agReceber(\''+a.id+'\')','💰 Receber',''));
+  if(a.pagamento && a.pagamento!=='convenio' && !a.pago){ const i = acoes.findIndex(x=>x.indexOf('agAtender(')>=0); if(i>=0) acoes[i] = bt('agAtender(\''+a.id+'\')','💰 Receber e atender',''); }
   return '<div onclick="agEditar(\''+a.id+'\')" style="cursor:pointer;background:'+s[2]+';border-left:4px solid '+s[1]+';border-radius:8px;padding:6px 9px;margin:3px 0">'+
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(a.paciente_nome)+'</b>'+
     (a.encaixe?'<span style="font-size:11px;font-weight:800;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</span>':'')+
+    (agFaltaPagar(a)?'<span style="font-size:11px;font-weight:800;background:#dc2626;color:#fff;border-radius:5px;padding:1px 6px">⚠ FALTA PAGAR</span>':'')+
     '<small>'+AG_TIPO[a.tipo]+(a.item_id && tissIt(a.item_id) ? ' · '+esc((tissIt(a.item_id).descricao||'').slice(0,34)) : '')+' · '+esc(op)+'</small>'+
     '<small style="color:'+s[1]+';font-weight:800">'+s[0]+'</small>'+(a.origem==='whatsapp'?'<small>📱</small>':'')+'</div>'+
     (acoes.length?'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">'+acoes.join('')+'</div>':'')+'</div>';
@@ -7544,7 +7553,7 @@ function agEditar(id){ const a = S.ag.lista.find(x=>x.id===id); if(!a) return; _
 function agModal(){
   const a = _agEd, ro = a.status==='atendido';
   const I = (k, rot, tipo) => '<label style="flex:1;min-width:140px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(a[k]==null?'':a[k])+'" onchange="_agEd.'+k+'=this.value"'+(ro?' disabled':'')+'></label>';
-  const Sel = (k, rot, ops) => '<label style="flex:1;min-width:140px">'+rot+'<select onchange="_agEd.'+k+'=this.value;'+(k==='operadora_id'||k==='tipo'?'agModal()':'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(a[k]||'')===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>';
+  const Sel = (k, rot, ops) => '<label style="flex:1;min-width:140px">'+rot+'<select onchange="_agEd.'+k+'=this.value;'+(k==='operadora_id'||k==='tipo'||k==='origem'?'agModal()':'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(a[k]||'')===String(o[0])?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>';
   const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
   // v143: a lista aparece mesmo sem convênio; filtra pelo tipo (consulta x exame/cirurgia); com convênio, só o que tem preço nele
   const ehCons = i => /CONSULTA/i.test(i.descricao||'');
@@ -7569,14 +7578,19 @@ function agModal(){
         .map(o=>'<option value="'+o[0]+'"'+(((a.pagamento&&a.pagamento!=='convenio') ? 'p:'+a.pagamento : (a.operadora_id||''))===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>',
     '<label style="flex:1;min-width:140px">Procedimento previsto<select onchange="agItemSel(this.value)"'+(ro?' disabled':'')+'>'+[['','—']].concat(procs.map(i=>[i.id, i.codigo+' · '+(i.descricao||'')])).map(o=>'<option value="'+o[0]+'"'+(String(a.item_id||'')===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>');
   if(a.pagamento && a.pagamento!=='convenio') h += lin('<label style="flex:1;min-width:140px">Valor particular (R$)<input type="number" step="0.01" value="'+(a.valor==null?'':a.valor)+'" onchange="_agEd.valor=this.value===\'\'?null:Number(this.value)"'+(ro?' disabled':'')+'></label>',
-    '<div style="flex:2;min-width:220px;font-size:12.5px;color:var(--fraco);margin-top:20px">Particular não gera guia de convênio: no atendimento a recepção registra o pagamento e ele entra no Financeiro do IDAD.</div>');
+    '<div style="flex:2;min-width:220px;font-size:12.5px;color:var(--fraco);margin-top:20px">Particular não gera guia de convênio. O pagamento entra no Financeiro do IDAD e é acompanhado em Dinheiro a caminho.</div>');
   h += lin(Sel('origem','Marcado por', Object.entries(AG_ORIG)), '<label style="flex:1;min-width:140px;display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox"'+(a.encaixe?' checked':'')+' onchange="_agEd.encaixe=this.checked" style="width:auto;margin:0"'+(ro?' disabled':'')+'> Encaixe</label>', I('obs','Observação'));
+  if(a.pagamento && a.pagamento!=='convenio' && !a.pago) h += agPagaNaHora(a)
+    ? '<div class="rc-prev">💰 <b>Paciente na recepção:</b> o pagamento é registrado agora, junto com o agendamento.</div>'
+    : '<div class="rc-prev" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00">📱 Marcado por '+esc(AG_ORIG[a.origem]||'')+': o pagamento fica <b>a receber</b> e é cobrado na chegada (o sistema não deixa atender sem pagar).</div>';
+  if(a.pago) h += '<div class="rc-prev">✔ Pago '+brl(+a.valor_pago||0)+' · '+esc(a.forma_pag||'')+'</div>';
   h += '<div id="ag-erro" style="color:#dc2626;font-weight:700;font-size:13.5px;margin-bottom:6px"></div>';
   if(a.id) h += '<div style="font-size:13px;margin-bottom:8px">Situação: <b style="color:'+(AG_ST[a.status]||[])[1]+'">'+(AG_ST[a.status]||[''])[0]+'</b></div>';
   h += '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">'+
     (a.id && !ro ? '<button class="bt g" style="color:#dc2626" onclick="agStatus(\''+a.id+'\',\'cancelado\');fecharModal()">Cancelar agendamento</button>' : '')+
-    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="agSalvar()">Salvar</button>')+
-    (a.id && !ro ? '<button class="bt" onclick="agSalvar(true)">Salvar e atender</button>' : '')+'</div>';
+    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+
+    (ro ? '' : agPagaNaHora(a) ? '<button class="bt" onclick="agSalvar(\'receber\')">💰 Agendar e receber agora</button>' : '<button class="bt" onclick="agSalvar()">Salvar</button>')+
+    (a.id && !ro && !agPagaNaHora(a) ? '<button class="bt" onclick="agSalvar(true)">Salvar e atender</button>' : '')+'</div>';
   abrirModal(h);
 }
 function agConvSel(v){ const a = _agEd;
@@ -7620,6 +7634,7 @@ async function agSalvar(atender){
     const k = (S.ag.ppart = S.ag.ppart||[]).find(x=>x.item_id===reg.item_id); if(k) k.valor = reg.valor; else S.ag.ppart.push({ item_id: reg.item_id, valor: reg.valor }); }
   const i = S.ag.lista.findIndex(x=>x.id===r.data.id); if(i>=0) S.ag.lista[i] = r.data; else S.ag.lista.push(r.data);
   S.modal = null;
+  if(atender==='receber'){ S.ag.medico = ''; render(); return agReceber(r.data.id, true); }
   if(atender) return agAtender(r.data.id);
   S.ag.medico = ''; aviso('✔ Agendado e '+(a._novaFicha?'ficha criada: ':'')+reg.paciente_nome+' · '+agNome(reg.profissional_id)+' · '+dataBR(reg.data)+' às '+agHM(reg.hora)+'.');
 }
@@ -7650,7 +7665,7 @@ async function agGradeSalvar(pid){
 /* ---------- ATENDIMENTO EM UMA TELA: do horário para a guia ---------- */
 function agAtender(id){
   const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
-  if(a.pagamento && a.pagamento!=='convenio') return agReceber(id);
+  if(a.pagamento && a.pagamento!=='convenio'){ if(a.pago){ agStatus(id,'atendido'); return aviso('✔ '+a.paciente_nome+' atendido (pagamento já registrado: '+brl(+a.valor_pago||0)+').'); } return agReceber(id); }
   if(!a.operadora_id) return aviso('Informe o convênio ou o pagamento particular no agendamento antes de atender.','erro');
   if(a.guia_id) return tissGuiaAbrir(a.guia_id);
   const tipo = a.tipo==='consulta' ? 'consulta' : 'sadt';
@@ -7752,10 +7767,10 @@ async function agDepoisDaGuia(f, guia){
 
 /* ---------- v143: PARTICULAR — receber o pagamento no atendimento e lançar no Financeiro do IDAD ---------- */
 let _agRec = null;
-function agReceber(id){
+function agReceber(id, agendando){
   const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
   if(a.pago) return aviso('Pagamento já registrado: '+brl(+a.valor_pago)+' ('+(a.forma_pag||'')+').');
-  _agRec = { id, valor: a.valor!=null ? +a.valor : '', forma: a.pagamento==='cartao' ? 'Cartão de crédito' : 'Pix', parcelas: 1, lancar: true };
+  _agRec = { id, valor: a.valor!=null ? +a.valor : '', forma: a.pagamento==='cartao' ? 'Cartão de crédito' : 'Pix', parcelas: 1, lancar: true, agendando: !!agendando };
   agReceberModal();
 }
 /* v144: a janela de receber mostra quanto vai cair na conta, com a taxa da maquininha e as datas previstas */
@@ -7767,7 +7782,7 @@ function agReceberModal(){
   const prev = !pl.length ? '' : r.forma==='Dinheiro' ? 'Fica no <b>Caixa recepção IDAD</b> até o depósito no banco.' :
     '<b>Vai cair na conta: '+brl(liq)+'</b>'+(tx?' (taxa '+String(tx).replace('.',',')+'% · '+brl(v-liq)+')':'')+' · '+
     (pl.length===1 ? 'previsto '+dataBR(pl[0].previsto) : pl.length+' parcelas de '+brl(pl[0].liquido)+', a 1ª em '+dataBR(pl[0].previsto));
-  abrirModal('<h2>Atendimento particular · receber</h2>'+
+  abrirModal('<h2>'+(r.agendando?'✔ Agendado · receber agora':'Atendimento particular · receber')+'</h2>'+
     '<div style="font-size:14px;margin-bottom:10px"><b>'+esc(a.paciente_nome)+'</b> · '+esc(agNome(a.profissional_id))+' · '+AG_TIPO[a.tipo]+(it?' · '+esc(it.descricao||''):'')+'<br><small style="color:var(--fraco)">'+dataBR(a.data)+' às '+agHM(a.hora)+'</small></div>'+
     '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
       '<label style="flex:1;min-width:140px">Valor (R$)<input type="number" step="0.01" value="'+r.valor+'" onchange="_agRec.valor=this.value;agReceberModal()"></label>'+
@@ -7778,7 +7793,7 @@ function agReceberModal(){
     '<label style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><input type="checkbox"'+(r.lancar?' checked':'')+' onchange="_agRec.lancar=this.checked" style="width:auto;margin:0"> Lançar a entrada no Financeiro do IDAD</label>'+
     '<div style="font-size:12.5px;color:var(--fraco);margin-bottom:10px">O pagamento entra em <b>Dinheiro a caminho</b> e é acompanhado até chegar na conta.</div>'+
     '<div id="ag-erro" style="color:#dc2626;font-weight:700;font-size:13.5px;margin-bottom:6px"></div>'+
-    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="fecharModal()">Fechar</button><button class="bt" onclick="agReceberSalvar()">Registrar pagamento e finalizar</button></div>');
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="bt g" onclick="agReceberFechar()">'+(r.agendando?'Paciente não pagou agora':'Fechar')+'</button><button class="bt" onclick="agReceberSalvar()">'+(r.agendando?'Registrar pagamento':'Registrar pagamento e finalizar')+'</button></div>');
 }
 async function agReceberSalvar(){
   const r = _agRec, a = S.ag.lista.find(x=>x.id===r.id), v = Math.round(Number(r.valor)*100)/100;
@@ -7803,28 +7818,42 @@ async function agReceberSalvar(){
     const rows = pl.map((p,i)=>Object.assign({}, p, { empresa_id: emp.id, agenda_id: a.id, movimento_id: movs[i]||null, paciente_nome: a.paciente_nome, forma: r.forma, recebido_por: quem }));
     const ins = await sb.from('idad_receb').insert(rows).select();
     if(ins.error) throw ins.error;
-    const up = await sb.from('agenda').update({ status:'atendido', pago:true, valor_pago:v, forma_pag:r.forma, parcelas: r.forma==='Cartão de crédito' ? r.parcelas : null, pago_em:new Date().toISOString(),
+    const stNovo = r.agendando ? (a.status==='agendado' ? 'confirmado' : a.status) : 'atendido';
+    const up = await sb.from('agenda').update({ status: stNovo, confirmado_em: stNovo==='confirmado' ? new Date().toISOString() : a.confirmado_em, pago:true, valor_pago:v, forma_pag:r.forma, parcelas: r.forma==='Cartão de crédito' ? r.parcelas : null, pago_em:new Date().toISOString(),
       movimento_id: movs[0]||null, atualizado_em:new Date().toISOString() }).eq('id', a.id).select().maybeSingle();
     if(up.error) throw up.error;
     const i = S.ag.lista.findIndex(x=>x.id===a.id); if(i>=0) S.ag.lista[i] = up.data;
     if(S.rc.carregado) S.rc.lista = S.rc.lista.concat(ins.data||[]);
+    if(S.rc.agPend) S.rc.agPend = S.rc.agPend.filter(x=>x.id!==a.id);
     S.modal = null; aviso('✔ Pagamento de '+brl(v)+' ('+r.forma+(r.forma==='Cartão de crédito'?' '+r.parcelas+'x':'')+') registrado'+(movs.length?' e lançado no Financeiro do IDAD':'')+'. Acompanhe em Dinheiro a caminho.');
   }catch(e){ erro('Não registrou: '+(e.message||e)); }
+}
+
+/* ---------- v145 (Renato, 23/11/2026): particular marcado na recepção paga na hora; o que ficar sem pagar fica em vermelho ---------- */
+function agPagaNaHora(a){ return a && a.pagamento && a.pagamento!=='convenio' && !a.pago && (a.origem||'recepcao')==='recepcao'; }
+function agReceberFechar(){
+  const r = _agRec, a = r && S.ag.lista.find(x=>x.id===r.id); fecharModal();
+  if(a && !a.pago) aviso('⚠ '+a.paciente_nome+' ficou SEM PAGAMENTO registrado. Fica em vermelho na Agenda até receber.','erro');
+}
+/* particular que já devia estar pago: marcado na recepção, já chegou/foi atendido, ou o dia já passou */
+function agFaltaPagar(a){
+  if(!a || !a.pagamento || a.pagamento==='convenio' || a.pago || a.status==='cancelado' || a.status==='faltou') return false;
+  return (a.origem||'recepcao')==='recepcao' || a.status==='chegou' || a.status==='atendido' || a.data < hojeISO();
 }
 
 /* ============ v144 (Renato, 23/11/2026): DINHEIRO A CAMINHO — rastreio do pagamento particular até a conta ============
    Etapas: recebido na recepção → no caixa (dinheiro) → a caminho (Pix, maquininha, depósito) → na conta (conferido no extrato).
    Tabelas: idad_receb (uma linha por pagamento ou por parcela), idad_caixa_fech (fechamento do caixa do dia),
    idad_receb_config (taxas e prazos da maquininha). Acesso: o mesmo da agenda (cpe_ve_agenda). */
-S.rc = { carregado:false, carregando:false, mes: hojeISO().slice(0,7), lista:[], fech:[], cfg:null, erro:null, dataCx: hojeISO() };
+S.rc = { agPend:[], carregado:false, carregando:false, mes: hojeISO().slice(0,7), lista:[], fech:[], cfg:null, erro:null, dataCx: hojeISO() };
 const RC_PADRAO = { maquininha:'Stone', taxa_debito:1.5, prazo_debito:1, antecipa:false,
   taxas_credito:[4.5,4.3,6.9,8.5,10.1,11.8,13.2,14.6,16.0,17.4,18.8,20.2] };
 const RC_IC = { 'Pix':'⚡', 'Dinheiro':'💵', 'Cartão de débito':'💳', 'Cartão de crédito':'💳' };
 const rc2 = v => Math.round((+v||0)*100)/100;
 (function(){ if(document.getElementById('rc-css')) return; document.head.insertAdjacentHTML('beforeend','<style id="rc-css">'+
-  '.rc-pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:560px){.rc-pipe{grid-template-columns:repeat(2,1fr)}}'+
+  '.rc-pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}@media(max-width:560px){.rc-pipe{grid-template-columns:repeat(2,1fr)}}'+
   '.rc-st{border-radius:10px;padding:9px 6px;text-align:center;border:1px solid var(--linha)}.rc-st .l{font-size:11.5px;color:var(--fraco)}.rc-st .n{font-size:17px;font-weight:800;margin:2px 0}.rc-st .q{font-size:11.5px}'+
-  '.rc-st.s1{border-color:#9fe3c7;background:rgba(19,185,129,.08)}.rc-st.s2{border-color:#ffd59a;background:rgba(255,182,72,.10)}.rc-st.s3{border-color:#9fdcec;background:rgba(0,184,217,.08)}.rc-st.s4{border-color:#a9c6f7;background:rgba(10,108,240,.08)}'+
+  '.rc-st.s0{border-color:#d7c6f5;background:rgba(124,77,255,.07)}.rc-st.s1{border-color:#9fe3c7;background:rgba(19,185,129,.08)}.rc-st.s2{border-color:#ffd59a;background:rgba(255,182,72,.10)}.rc-st.s3{border-color:#9fdcec;background:rgba(0,184,217,.08)}.rc-st.s4{border-color:#a9c6f7;background:rgba(10,108,240,.08)}'+
   '.rc-seta{text-align:center;color:var(--fraco);font-size:11.5px;margin-top:7px}'+
   '.rc-lin{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid var(--linha2);cursor:pointer}.rc-lin:first-child{border-top:0}'+
   '.rc-ic{width:32px;height:32px;border-radius:8px;background:var(--fundo2);display:flex;align-items:center;justify-content:center;font-size:16px;flex:0 0 32px}'+
@@ -7866,13 +7895,15 @@ async function rcCarregar(){
   const e = idadEmpresa(); if(!e){ S.rc.erro = 'O CNPJ do IDAD não está cadastrado.'; render(); return; }
   if(S.rc.carregando) return; S.rc.carregando = true;
   const ini = S.rc.mes+'-01';
-  const [l, f] = await Promise.all([
+  const fimMes = agSomaDias(ini, 40).slice(0,7)+'-01';
+  const [l, f, ap] = await Promise.all([
     sb.from('idad_receb').select('*').eq('empresa_id', e.id).or('etapa.neq.conta,recebido_em.gte.'+ini).order('recebido_em',{ascending:false}),
-    sb.from('idad_caixa_fech').select('*').eq('empresa_id', e.id).gte('data', agSomaDias(ini,-40)).order('data',{ascending:false}) ]);
+    sb.from('idad_caixa_fech').select('*').eq('empresa_id', e.id).gte('data', agSomaDias(ini,-40)).order('data',{ascending:false}),
+    sb.from('agenda').select('*').in('pagamento',['avista','cartao']).eq('pago',false).not('status','in','("cancelado","faltou")').gte('data', agSomaDias(ini,-31)).lt('data', fimMes).order('data').order('hora') ]);
   S.rc.cfg = null; await rcCfgCarregar();
   S.rc.carregando = false;
   if(l.error){ S.rc.erro = l.error.message; render(); return; }
-  S.rc.lista = l.data||[]; S.rc.fech = f.data||[]; S.rc.erro = null; S.rc.carregado = true; render();
+  S.rc.lista = l.data||[]; S.rc.fech = f.data||[]; S.rc.agPend = ap.data||[]; S.rc.erro = null; S.rc.carregado = true; render();
 }
 function rcResumo(){
   if(!S.rc.carregado) return 'do pagamento particular até a conta';
@@ -7921,12 +7952,18 @@ function telaIdadReceb(){
   const camTxt = [nPix?nPix+' Pix':'', nDeb?nDeb+' débito':'', nCr?nCr+' parcela'+(nCr>1?'s':''):'', nDep?nDep+' depósito'+(nDep>1?'s':''):''].filter(Boolean).join(' + ') || 'nada';
   h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Mês</b><input type="month" value="'+mes+'" onchange="S.rc.mes=this.value;S.rc.carregado=false;render()" style="width:auto;margin:0">'+
     '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📅 Agenda</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
+  const AP = S.rc.agPend, apAtr = AP.filter(agFaltaPagar);
   h += '<div class="card"><b style="display:block;margin-bottom:8px">Onde está o dinheiro</b><div class="rc-pipe">'+
+    '<div class="rc-st s0"><div class="l">📅 Agendado · a receber</div><div class="n">'+brl(rc2(AP.reduce((s,a)=>s+(+a.valor||0),0)))+'</div><div class="q">'+AP.length+' agendado'+(AP.length===1?'':'s')+(apAtr.length?' · <b class="rc-er">'+apAtr.length+' sem pagar</b>':'')+'</div></div>'+
     '<div class="rc-st s1"><div class="l">💵 Recebido na recepção</div><div class="n">'+brl(sm(doMes,'bruto'))+'</div><div class="q">'+nG+' paciente'+(nG===1?'':'s')+'</div></div>'+
     '<div class="rc-st s2"><div class="l">🏪 No caixa (falta depositar)</div><div class="n">'+brl(sm(cx,'liquido'))+'</div><div class="q">'+cx.length+' em dinheiro</div></div>'+
     '<div class="rc-st s3"><div class="l">🚚 A caminho</div><div class="n">'+brl(sm(cam,'liquido'))+'</div><div class="q">'+camTxt+'</div></div>'+
     '<div class="rc-st s4"><div class="l">🏦 Na conta (conferido)</div><div class="n">'+brl(sm(conta,'liquido'))+'</div><div class="q">'+conta.length+' conferido'+(conta.length===1?'':'s')+'</div></div>'+
-    '</div><div class="rc-seta">recepção → caixa → maquininha / Pix / depósito → extrato do banco</div></div>';
+    '</div><div class="rc-seta">agenda → recepção → caixa → maquininha / Pix / depósito → extrato do banco</div></div>';
+  if(AP.length) h += '<div class="card"><b style="display:block;margin-bottom:4px">Agendados particulares · a receber</b>'+AP.map(a=>{ const atr = agFaltaPagar(a);
+      return '<div class="rc-lin" style="cursor:default"><div class="rc-ic">📅</div><div class="m"><b>'+esc(a.paciente_nome)+'</b><small>'+(AG_PAG[a.pagamento]||'')+' · '+dataBR(a.data)+' '+agHM(a.hora)+' · '+esc(AG_ORIG[a.origem]||'')+'</small></div>'+
+        '<div class="r">'+(a.valor!=null?brl(+a.valor):'<span class="rc-er">sem valor</span>')+'<small class="'+(atr?'rc-er':'rc-wa')+'">'+(atr?'⚠ falta pagar':'● paga na chegada')+'</small>'+
+        '<button class="bt mini" style="margin-top:4px" onclick="rcReceberAgenda(\''+a.id+'\')">💰 Receber</button></div></div>'; }).join('')+'</div>';
   const grupos = rcGrupos(L.filter(x=>String(x.recebido_em).slice(0,7)===mes || x.etapa!=='conta'));
   h += '<div class="card"><b style="display:block;margin-bottom:4px">Pacientes particulares</b>'+(grupos.length ? grupos.map(g=>{ const s = rcSituacao(g, sug);
       return '<div class="rc-lin" onclick="rcDetalhe(\''+g.key+'\')"><div class="rc-ic">'+(RC_IC[g.forma]||'💰')+'</div><div class="m"><b>'+esc(g.nome||'')+'</b><small>'+esc(g.forma)+(g.rows.length>1?' '+g.rows.length+'x':'')+' · '+dataBR(String(g.recebido_em).slice(0,10))+'</small></div>'+
@@ -7959,6 +7996,8 @@ async function rcFechar(){
   const doDia = S.rc.lista.filter(x=>String(x.recebido_em).slice(0,10)===dc), sm = a => rc2(a.reduce((s,x)=>s+(+x.bruto),0));
   const sis = sm(doDia.filter(x=>x.forma==='Dinheiro')), cont = el && el.value!=='' ? rc2(el.value) : null;
   if(cont===null) return aviso('Informe quanto foi contado na gaveta (pode ser 0).','erro');
+  const sem = S.rc.agPend.filter(a=>a.data===dc && agFaltaPagar(a));
+  if(sem.length) return aviso('⚠ Não dá para fechar o caixa: '+sem.length+' particular'+(sem.length>1?'es':'')+' de '+dataBR(dc)+' sem pagamento ('+sem.map(a=>a.paciente_nome).join(', ')+'). Receba ou cancele antes.','erro');
   let obs = null;
   if(Math.abs(cont-sis)>=0.01){ obs = prompt('O dinheiro contado ('+brl(cont)+') não bate com o sistema ('+brl(sis)+'). Escreva o motivo da diferença:'); if(obs===null) return; }
   const f = await sb.from('idad_caixa_fech').insert({ empresa_id:e.id, data:dc, dinheiro_sis:sis, dinheiro_contado:cont, pix: sm(doDia.filter(x=>x.forma==='Pix')), maquininha: sm(doDia.filter(x=>/^Cart/.test(x.forma))), obs, fechado_por: rcQuem() }).select().maybeSingle();
@@ -8067,6 +8106,14 @@ async function rcCfgSalvar(){
   const q = await sb.from('idad_receb_config').upsert(row).select().maybeSingle();
   if(q.error) return aviso('Não salvou: '+q.error.message,'erro');
   S.rc.cfg = q.data; S.modal = null; render(); aviso('✔ Taxas salvas. Valem para os próximos pagamentos.','ok');
+}
+
+/* v145: receber direto da lista de agendados (carrega o agendamento na agenda se precisar) */
+async function rcReceberAgenda(id){
+  let a = (S.ag.lista||[]).find(x=>x.id===id);
+  if(!a){ a = S.rc.agPend.find(x=>x.id===id); if(!a) return; S.ag.lista = (S.ag.lista||[]).concat([a]); }
+  if(!S.tiss.carregado && typeof tissCarregar==='function') await tissCarregar();
+  agReceber(id, a.status==='agendado' || a.status==='confirmado');
 }
 
 </script>
