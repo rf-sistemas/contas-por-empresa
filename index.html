@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v157">
+<meta name="rf-versao" content="v158">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v157',
+  versao : 'v158',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadfixas' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -546,6 +546,7 @@ function renderBase(){
   else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
+  else if(S.tela==='idadfixas')  corpo = telaIdadFixas();
   else if(S.tela==='idadconv')  corpo = telaIdadConv();
   else if(S.tela==='idadtiss')  corpo = telaIdadTiss();   // v140
   else if(S.tela==='idadagenda') corpo = telaIdadAgenda(); // v141
@@ -3855,7 +3856,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4270,8 +4271,9 @@ async function idadCarregar(){
   try{ const a = await sb.from('idad_itens').select('*').order('nome'), b = await sb.from('idad_movs').select('*').order('data');
     S.idad.itens = a.data||[]; S.idad.movs = b.data||[]; }catch(e){}
   try{ const o = await sb.from('idad_obra').select('*').order('data',{ascending:false}); S.idad.obra = o.data||[]; }catch(e){}
+  try{ const fx = await sb.from('idad_obra_fixas').select('*'); S.idad.fixas = fx.data||[]; }catch(e){ S.idad.fixas = []; }
   try{ const f = await sb.from('cartao_faturas').select('*').order('vencimento',{ascending:false}); S.idad.faturas = f.data||[]; }catch(e){ S.idad.faturas = []; }   // v124
-  S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac' || S.tela==='idadobra') render();
+  S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac' || S.tela==='idadobra' || S.tela==='idadfixas') render();
 }
 function idadAbrirFinanceiro(){ const e = idadEmpresa(); if(!e) return aviso('CNPJ do IDAD não está cadastrado em Empresas.','erro'); irPara('painel'); S.aberta = e.id; render(); }
 function telaIdad(){
@@ -4907,7 +4909,8 @@ function telaIdadObra(){
   const cards = obraCartoes(), movC = S.movimentos.filter(m=>cards.some(o=>o.id===m.origem_id));
   const aPagarC = movC.filter(m=>!m.pago && m.tipo==='saida').reduce((s,m)=>s+(+m.valor||0),0);
   h += '<div class="card"><div class="kpis">'+kpi('Total na obra', brl(t.t))+kpi('A pagar nos cartões (todas as parcelas)', brl(aPagarC))+
-    kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+'</div></div>';
+    kpi('Compras sem destino', String(movC.filter(m=>obraDestino(m).k==='sem').length))+kpi('Cartões', String(cards.length))+
+    '<div class="kpi" style="cursor:pointer;border:2px solid #0a6cf0" onclick="irPara(\'idadfixas\')" title="Abrir Despesas fixas"><small>Despesas fixas ›</small><b>'+brl(fixasTotalMes())+'</b><small style="text-transform:none;letter-spacing:0">por mês · '+(S.idad.fixas||[]).filter(x=>fixaVigente(x, fixasMes())).length+' ativas</small></div>'+'</div></div>';
   // v125: os cartões e as compras foram para Financeiro › Cartões e contas (de lá cada compra vai para a obra, pessoal ou CNPJ)
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:220px">💳 As faturas dos cartões e a separação das compras (obra / pessoal / CNPJ) ficam em <b>Financeiro › Cartões e contas</b>. O que for marcado como obra aparece aqui.</span>'+
     (veCartoes()?'<button class="bt" onclick="S.idad.obraAba=null;irPara(\'origens\')">Abrir Cartões e contas</button>':'')+'</div>';
@@ -4923,6 +4926,74 @@ function telaIdadObra(){
   return h+'<div class="card" style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Etapa</th><th>Fornecedor</th><th style="text-align:right">Valor</th><th>Situação</th></tr></thead><tbody>'+
     l.map(x=>'<tr style="cursor:pointer" onclick="obraAbrir(\''+x.id+'\')"><td>'+dataBR(x.data)+'</td><td><b>'+esc(x.descricao)+'</b>'+(x.nf?'<br><small style="color:var(--fraco)">NF '+esc(x.nf)+'</small>':'')+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+esc(x.etapa||'—')+'</td><td>'+esc(x.fornecedor||'—')+'</td>'+
       '<td style="text-align:right;font-weight:800">'+brl(+x.valor)+'</td><td><span style="font-weight:700;color:'+(x.pago?'var(--verde)':'#d97706')+'">'+(x.pago?'Pago'+(x.pago_por?' · '+esc(x.pago_por):''):'A pagar')+'</span></td></tr>').join('')+'</tbody></table></div>';
+}
+/* ===== v158 (Renato, 24/11/2026): DESPESAS FIXAS da obra — caixa ao lado de "Cartões" na Obra do IDAD.
+   Cadastro das despesas que se repetem todo mês (descrição, valor, dia de vencimento, categoria, fornecedor, início/fim).
+   "Lançar no mês" cria os gastos A PAGAR na Obra (idad_obra.fixa_id + competencia AAAA-MM; índice único impede lançar duas vezes). */
+function fixasMes(){ return S.idad.fixasMes || hojeISO().slice(0,7); }
+function fixaVigente(x, comp){ const ini = x.inicio ? x.inicio.slice(0,7) : '0000-00', fim = x.fim ? x.fim.slice(0,7) : '9999-99'; return x.ativo && comp>=ini && comp<=fim; }
+function fixasTotalMes(comp){ return (S.idad.fixas||[]).filter(x=>fixaVigente(x, comp||fixasMes())).reduce((s,x)=>s+(+x.valor||0),0); }
+function telaIdadFixas(){
+  if(!S.idad.carregado) idadCarregar();
+  let h = '<div class="secao"><b>DESPESAS FIXAS</b><span>Obra do IDAD · gastos que se repetem todo mês</span></div>';
+  if(!S.idad.carregado) return h+'<div class="vazio">Carregando…</div>';
+  const comp = fixasMes(), l = (S.idad.fixas||[]).slice().sort((a,b)=>(b.ativo-a.ativo)||((a.dia_venc||99)-(b.dia_venc||99))||String(a.descricao).localeCompare(String(b.descricao)));
+  const vig = l.filter(x=>fixaVigente(x, comp)), lanc = S.idad.obra.filter(o=>o.fixa_id && o.competencia===comp);
+  const falta = vig.filter(x=>!lanc.some(o=>o.fixa_id===x.id));
+  h += '<div class="card"><div class="kpis">'+kpi('Total fixo por mês', brl(fixasTotalMes(comp)))+kpi('Despesas ativas', String(vig.length))+
+    kpi('Lançadas em '+comp.slice(5)+'/'+comp.slice(0,4), String(lanc.length)+' de '+vig.length)+kpi('Pago no mês', brl(lanc.filter(o=>o.pago).reduce((s,o)=>s+(+o.valor||0),0)))+'</div></div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label style="margin:0;display:flex;gap:8px;align-items:center">Mês <input type="month" value="'+comp+'" style="width:170px;margin:0" onchange="S.idad.fixasMes=this.value;render()"></label><span style="flex:1"></span>'+
+    (podeEditar() && falta.length ? '<button class="bt g" onclick="fixasLancarMes()">Lançar no mês ('+falta.length+')</button>' : '')+
+    (podeEditar()?'<button class="bt" onclick="fixaAbrir()">+ Despesa fixa</button>':'')+'</div>';
+  if(!l.length) return h+'<div class="vazio">Nenhuma despesa fixa cadastrada. Toque em <b>+ Despesa fixa</b> (ex.: aluguel de andaime, vigia, mão de obra mensal).</div>';
+  return h+'<div class="card" style="overflow-x:auto"><table><thead><tr><th>Vence</th><th>Descrição</th><th>Categoria</th><th>Fornecedor</th><th>Forma</th><th style="text-align:right">Valor/mês</th><th>'+comp.slice(5)+'/'+comp.slice(0,4)+'</th></tr></thead><tbody>'+
+    l.map(x=>{ const o = lanc.find(y=>y.fixa_id===x.id), v = fixaVigente(x, comp);
+      const st = !v ? '<span style="color:var(--fraco)">'+(x.ativo?'fora do período':'inativa')+'</span>' : !o ? '<span style="color:#d97706;font-weight:700">não lançada</span>' : o.pago ? '<span style="color:var(--verde);font-weight:700">Pago</span>' : '<span style="color:#d97706;font-weight:700">A pagar</span>';
+      return '<tr style="cursor:pointer'+(x.ativo?'':';opacity:.55')+'" onclick="fixaAbrir(\''+x.id+'\')"><td>'+(x.dia_venc?'dia '+x.dia_venc:'—')+'</td><td><b>'+esc(x.descricao)+'</b>'+(x.fim?'<br><small style="color:var(--fraco)">até '+dataBR(x.fim)+'</small>':'')+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+esc(x.fornecedor||'—')+'</td><td>'+esc(x.forma_pag||'—')+'</td>'+
+        '<td style="text-align:right;font-weight:800">'+brl(+x.valor)+'</td><td>'+st+'</td></tr>'; }).join('')+'</tbody></table></div>';
+}
+function fixaAbrir(id){
+  const x = id ? S.idad.fixas.find(o=>o.id===id) : { ativo:true, inicio: hojeISO().slice(0,7)+'-01' }, ro = podeEditar() ? '' : ' disabled';
+  const dl = (i, ops) => '<datalist id="'+i+'">'+ops.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>';
+  abrirModal('<h2>'+(id?'Despesa fixa':'Nova despesa fixa')+'</h2><input type="hidden" id="fx-id" value="'+(id||'')+'">'+
+    '<label>Descrição *</label><input id="fx-desc"'+ro+' value="'+esc(x.descricao||'')+'" placeholder="Ex.: Aluguel de andaime">'+
+    '<div class="lin"><div><label>Valor por mês (R$) *</label><input id="fx-valor" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+(x.valor!=null?x.valor:'')+'"></div>'+
+      '<div><label>Dia do vencimento</label><input id="fx-dia" type="number" min="1" max="31"'+ro+' value="'+(x.dia_venc||'')+'"></div>'+
+      '<div><label>Categoria</label><input id="fx-cat" list="fx-cats"'+ro+' value="'+esc(x.categoria||'')+'">'+dl('fx-cats', OBRA_CATS)+'</div></div>'+
+    '<div class="lin"><div><label>Fornecedor</label><input id="fx-forn"'+ro+' value="'+esc(x.fornecedor||'')+'"></div>'+
+      '<div><label>Forma de pagamento</label><input id="fx-forma" list="fx-formas"'+ro+' value="'+esc(x.forma_pag||'')+'">'+dl('fx-formas',['Pix','Boleto','Cartão de crédito','Transferência','Dinheiro','Débito automático'])+'</div></div>'+
+    '<div class="lin"><div><label>Começa em</label><input id="fx-ini" type="date"'+ro+' value="'+(x.inicio||'')+'"></div><div><label>Termina em (opcional)</label><input id="fx-fim" type="date"'+ro+' value="'+(x.fim||'')+'"></div>'+
+      '<label style="display:flex;gap:8px;align-items:center;text-transform:none;font-size:14px;cursor:pointer;padding-top:22px"><input type="checkbox" id="fx-ativo" style="width:auto"'+ro+(x.ativo?' checked':'')+'> Ativa</label></div>'+
+    '<label>Observações</label><textarea id="fx-obs"'+ro+' rows="2">'+esc(x.obs||'')+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+(podeEditar()?'<button class="bt" onclick="fixaSalvar()">Salvar</button>'+(id?'<button class="bt g" style="color:var(--vermelho)" onclick="fixaExcluir(\''+id+'\')">Excluir</button>':''):'')+
+      '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
+}
+async function fixaSalvar(){
+  const id = val('fx-id'), g = k => val(k).trim()||null;
+  const reg = { descricao:g('fx-desc'), valor:Number(val('fx-valor')), dia_venc: val('fx-dia') ? Number(val('fx-dia')) : null, categoria:g('fx-cat'), fornecedor:g('fx-forn'), forma_pag:g('fx-forma'),
+    inicio:g('fx-ini'), fim:g('fx-fim'), ativo:document.getElementById('fx-ativo').checked, obs:g('fx-obs') };
+  if(!reg.descricao) return aviso('Informe a descrição.','erro');
+  if(!(reg.valor>0)) return aviso('Informe o valor por mês.','erro');
+  if(reg.dia_venc!=null && !(reg.dia_venc>=1 && reg.dia_venc<=31)) return aviso('Dia do vencimento entre 1 e 31.','erro');
+  const r = id ? await sb.from('idad_obra_fixas').update(reg).eq('id',id).select().maybeSingle() : await sb.from('idad_obra_fixas').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  if(id){ const i = S.idad.fixas.findIndex(o=>o.id===id); S.idad.fixas[i] = r.data; } else S.idad.fixas.push(r.data);
+  S.modal = null; aviso('Despesa fixa salva.','ok');
+}
+async function fixaExcluir(id){ if(!confirm('Excluir esta despesa fixa? Os gastos já lançados na obra continuam lá.')) return;
+  const r = await sb.from('idad_obra_fixas').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.idad.fixas = S.idad.fixas.filter(o=>o.id!==id); S.idad.obra.forEach(o=>{ if(o.fixa_id===id) o.fixa_id = null; }); S.modal = null; aviso('Despesa fixa excluída.','ok'); }
+async function fixasLancarMes(){
+  const comp = fixasMes(), [a, m] = comp.split('-').map(Number), ult = new Date(a, m, 0).getDate();
+  const falta = (S.idad.fixas||[]).filter(x=>fixaVigente(x, comp) && !S.idad.obra.some(o=>o.fixa_id===x.id && o.competencia===comp));
+  if(!falta.length) return aviso('Todas as despesas fixas deste mês já foram lançadas.');
+  if(!confirm('Lançar '+falta.length+' despesa(s) fixa(s) em '+comp.slice(5)+'/'+comp.slice(0,4)+' como A PAGAR na Obra do IDAD? Total: '+brl(falta.reduce((s,x)=>s+(+x.valor||0),0)))) return;
+  const regs = falta.map(x=>({ data: comp+'-'+String(Math.min(x.dia_venc||1, ult)).padStart(2,'0'), descricao: x.descricao+' ('+comp.slice(5)+'/'+comp.slice(0,4)+')', valor:+x.valor,
+    categoria:x.categoria||null, fornecedor:x.fornecedor||null, forma_pag:x.forma_pag||null, pago:false, obs:'Despesa fixa', fixa_id:x.id, competencia:comp }));
+  const r = await sb.from('idad_obra').insert(regs).select();
+  if(r.error) return aviso('Não lançou: '+r.error.message,'erro');
+  S.idad.obra = (r.data||[]).concat(S.idad.obra).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  aviso('✔ '+r.data.length+' despesa(s) fixa(s) lançada(s) na obra.','ok'); render();
 }
 function obraAbrir(id){
   const x = id ? S.idad.obra.find(o=>o.id===id) : { data: hojeISO() }, ro = podeEditar() ? '' : ' disabled';
