@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v149">
+<meta name="rf-versao" content="v150">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v149',
+  versao : 'v150',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4356,6 +4356,19 @@ const PAC_ABAS = {
 const PAC_BOTOES = [['dados','Dados Complementares'],['conv2','Conv. Secundário'],['guias','Guias'],['prontuario','Prontuário'],['quest','Questionários'],['acomp','Acompanhantes'],['trat','Trat. Ambulatorial']];
 function pacTodosCampos(){ const r=[]; PAC_LINHAS.forEach(l=>{ if(Array.isArray(l)) l.forEach(c=>r.push(c)); }); Object.values(PAC_ABAS).forEach(a=>a[1].forEach(l=>l.forEach(c=>r.push(c)))); return r; }
 function pacConvenios(){ const v = {}; ['SUS','Particular'].concat(S.idad.pac.map(x=>x.convenio), S.idad.pac.map(x=>x.conv2)).forEach(c=>{ if(c) v[c]=1; }); return Object.keys(v).sort(); }
+/* v150 (Renato, 24/11/2026): sexo preenchido sozinho pelo primeiro nome (só se estiver vazio; a recepção pode trocar) */
+const SX_F = new Set('ISABEL,RAQUEL,MABEL,BEATRIZ,LUZ,CARMEN,KAREN,ELLEN,HELEN,KELLEN,RUTH,MIRIAM,ESTER,ESTHER,NOEMI,NOEME,KELLY,KELI,KEILA,DAIANE,SUELI,SUELY,ROSELI,ROSELY,NEIDE,CLEIDE,IVONE,SIMONE,ALINE,ELIANE,CRISTIANE,ADRIANE,LUCIANE,JAQUELINE,JACQUELINE,MICHELE,MICHELLE,GISELE,GISELLE,DANIELE,DANIELLE,RAFAELE,GABRIELE,GABRIELLE,ARIANE,TATIANE,VIVIANE,LILIANE,MARILENE,IRENE,HELENE,ELIENE,JOSIANE,DEISE,DAIANE,CLARICE,ALICE,BERENICE,EUNICE,DENISE,LOUISE,ELISE,IRIS,ALINE,INES,INÊS,LIZ,LIS,THAIS,TAIS,LAIS,DORIS,NAIR,ALAIR,IARA,YASMIN,JASMIN,EVELYN,EVELIN,SHIRLEY,NATALY,NATALI,ARLETE,ARLETTE,ODETE,ELIZETE,ELISETE,MARLENE,DARLENE,JOSELENE,NILZETE,ZILDETE,ANE,CLEONICE,NAIARA,NOELI,NOELY,ARACELI,MARIZE,VALDETE,EDINALVA,JUCILEIDE,NEUZA,NEUSA,TEREZINHA,EDILEUZA,MARIA,ANA,LUANA'.split(','));
+const SX_M = new Set('LUCA,LUCAS,JOSUA,JOSHUA,NOAH,NOA,JOSE,JORGE,HENRIQUE,FELIPE,FILIPE,ALEXANDRE,VICENTE,DANTE,MOISES,ELIAS,ISAIAS,MATIAS,TOMAS,TOMÁS,ANDRE,ANDRÉ,RENE,RENÊ,JOSUE,JOSUÉ,ELISEU,DAVI,DAVID,LEVI,RAVI,CAUÃ,CAUA,KAUA,KAUÃ,IURI,YURI,RUI,ALI,JOAQUIM,ADRIANO,MOACIR,MOACYR,NAZARE,CLEBER,CLEITON,WELLINGTON,JEAN,JOAO,JOÃO,ALLAN,ALAN,RUAN,WILLIAN,WILLIAM,IVAN,RENAN,BRENO,BRUNO,GIOVANE,GIOVANNE,GEOVANE,JEOVANE,ENZO,DIOGENES,EUGENIO,EUGÊNIO,MARCUS,MARCOS,WESLEY,WESLLEY,SIDNEY,SYDNEY,RODNEY,CLAUDINEY,VALNEY,DIRCEU,ROMEU,MATEUS,MATHEUS'.split(','));
+function pacSexoPorNome(nome){
+  const n = String(nome||'').trim().split(/\s+/)[0].toUpperCase(); if(n.length<2) return '';
+  const s = n.normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if(SX_F.has(n)||SX_F.has(s)) return 'F'; if(SX_M.has(n)||SX_M.has(s)) return 'M';
+  if(/A$/.test(s)) return 'F';
+  if(/(ANE|INE|ELE|ELLE|ETE|ETTE|IDE|ICE|ENE|ILE|ISE|IZE|EIA|ELI|ELY|ANI|ANY)$/.test(s)) return 'F';
+  if(/[EORSLZUMKDTN]$/.test(s)) return 'M';
+  return '';
+}
+function pacNomeMudou(v){ const sx = document.getElementById('pc-sexo'); if(sx && !sx.value){ const g = pacSexoPorNome(v); if(g){ sx.value = g; if(_pacReg) _pacReg.sexo = g; } } }
 /* v149 (Renato, 24/11/2026): campos que o IDAD NÃO usa ficam em cinza e travados, igual ao Smart */
 const PAC_CINZA = new Set(['arquivo','acomodacao','matr_emp','grupo_sang','altura','peso','email','ramal']);
 function pacCampo(c, p, ro){
@@ -4375,7 +4388,7 @@ function pacCampo(c, p, ro){
       t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
       t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
     const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
-    inp = '<input id="pc-'+k+'"'+ro+ex+' style="'+cz+'width:'+w+'px" value="'+esc(vv)+'">';
+    inp = '<input id="pc-'+k+'"'+ro+ex+(k==='nome'?' onchange="pacNomeMudou(this.value)"':'')+' style="'+cz+'width:'+w+'px" value="'+esc(vv)+'">';
   }
   return '<span class="pxf">'+lb+inp+'</span>';
 }
@@ -4567,6 +4580,7 @@ async function pacBuscaCEP(c){ c = soDig(c); if(c.length!==8) return;
   }catch(e){} }
 async function idadPacSalvar(){
   pacLerTela();
+  if(!_pacReg.sexo && _pacReg.nome){ const g = pacSexoPorNome(_pacReg.nome); if(g) _pacReg.sexo = g; }
   const id = val('pc-id'), reg = {};
   pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg' && t!=='pront') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
   reg.obs = _pacReg.obs||null;
