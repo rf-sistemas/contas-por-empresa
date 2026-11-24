@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v147">
+<meta name="rf-versao" content="v148">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v147',
+  versao : 'v148',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4377,9 +4377,10 @@ function pacCampo(c, p, ro){
 var _pacAba = null, _pacReg = null;
 function idadPacAbrir(id){
   const p = id ? Object.assign({}, S.idad.pac.find(x=>x.id===id)) : { data_registro: hojeISO(), pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
-  _pacReg = p; _pacAba = null; pacDesenhar(id);
+  _pacReg = p; _pacAba = null; _pacTela = 'ficha'; if(_pacOS.pid!==id) _pacOS = { pid:null, lista:[], sel:null }; pacDesenhar(id);
 }
 function pacDesenhar(id){
+  if(id && _pacTela==='os' && agPode()){ const p = _pacReg; return abrirModal('<style>.modal{max-width:1180px}</style><h2>'+esc(p.nome||'')+' <small style="font-size:13px;color:var(--fraco)">Reg. '+(p.prontuario||'')+(p.convenio?' · '+esc(p.convenio)+(p.carteirinha?' · cart. '+esc(p.carteirinha):''):'')+'</small></h2>'+pacAbasHtml(id)+pacOsHtml(id)+'<div style="display:flex;gap:8px;margin-top:16px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>'); }
   const p = _pacReg, ro = podeEditar() ? '' : ' disabled';
   const linha = l => l==='linha' ? '<div class="pxsep"></div>' : '<div class="pxr">'+l.map(c=>pacCampo(c,p,ro)).join('')+'</div>';
   abrirModal('<style>.modal{max-width:1180px}.pxr{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:0 0 8px}'+
@@ -4389,6 +4390,7 @@ function pacDesenhar(id){
     '.pxbt button.on{background:var(--ouro);color:#fff;border-color:var(--ouro)}.pxaba{border:1px solid var(--linha);border-radius:10px;padding:12px;margin-top:10px}'+
     '@media(max-width:620px){.pxf{flex-wrap:wrap}.pxf input,.pxf select{width:100%!important}}</style>'+
     '<h2>Atendimento ao Paciente'+(id?' · Reg. '+(p.prontuario||''):' · novo')+'</h2>'+
+    pacAbasHtml(id)+
     (podeEditar() ? pacBarraDoc() : '')+
     '<input type="hidden" id="pc-id" value="'+(id||'')+'"><datalist id="pc-convs">'+pacConvenios().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
     PAC_LINHAS.map(linha).join('')+
@@ -4466,6 +4468,88 @@ async function pacLerDocumento(inp){
 function pacLerTela(){ pacTodosCampos().forEach(([k,rot,t])=>{ const e = document.getElementById('pc-'+k); if(!e) return;
   if(t==='check') _pacReg[k] = e.checked; else { let v = String(e.value||'').trim(); if(['cpf','tel','cep'].indexOf(t)>=0) v = soDig(v); if(t==='num') v = v ? Number(v.replace(',','.')) : ''; _pacReg[k] = v==='' ? null : v; } });
   const o = document.getElementById('pc-obs'); if(o) _pacReg.obs = o.value.trim()||null; }
+/* ---------- v148 (Renato, 24/11/2026): Cadastro do paciente com duas abas LIGADAS ao mesmo paciente, como o Smart:
+   1 · Ficha do paciente  ·  2 · Lançamento (ordem de serviço) — F10 troca de uma para a outra. Cada atendimento (linha da agenda) é uma OS. ---------- */
+var _pacTela = 'ficha', _pacOS = { pid:null, lista:[], sel:null, carregando:false, erro:null };
+function pacAbasHtml(id){
+  if(!id || !agPode()) return '';
+  const t = (k, ico, rot, extra) => '<button type="button" onclick="pacTrocar(\''+k+'\',\''+id+'\')" style="background:none;border:0;border-bottom:3px solid '+(_pacTela===k?'#0a6cf0':'transparent')+';color:'+(_pacTela===k?'#0a6cf0':'var(--fraco)')+';font-weight:800;padding:8px 12px;cursor:pointer;font-size:14px">'+ico+' '+rot+(extra||'')+'</button>';
+  return '<div id="pc-tabs" style="display:flex;gap:4px;border-bottom:1px solid var(--linha);margin:0 0 12px;flex-wrap:wrap">'+
+    t('ficha','🪪','1 · Ficha do paciente')+t('os','📋','2 · Lançamento (OS)',' <span style="font-size:11px;background:#e8f1ff;color:#0a6cf0;border-radius:6px;padding:1px 6px">F10</span>')+'</div>';
+}
+function pacTrocar(t, id){
+  if(_pacTela==='ficha' && document.getElementById('pc-nome')){ pacLerTela(); const o = document.getElementById('pc-obs'); if(o) _pacReg.obs = o.value; }
+  _pacTela = t; if(t==='os' && _pacOS.pid!==id) pacOsCarregar(id); pacDesenhar(id);
+}
+async function pacOsCarregar(id){
+  _pacOS = { pid:id, lista:[], sel:null, carregando:true, erro:null };
+  try{
+    if(!S.tiss.carregado) await tissCarregar();
+    const r = await sb.from('agenda').select('*').eq('paciente_id', id).order('data',{ascending:false}).order('hora',{ascending:false}).limit(300);
+    if(r.error) throw r.error;
+    _pacOS.lista = (r.data||[]).filter(a=>a.status!=='cancelado');
+    _pacOS.sel = (_pacOS.lista[0]||{}).id || null;
+    _pacOS.lista.forEach(a=>{ if(!S.ag.lista.some(x=>x.id===a.id)) S.ag.lista.push(a); }); // para Guia/Pagamento acharem a OS
+  }catch(e){ _pacOS.erro = e.message||String(e); }
+  _pacOS.carregando = false;
+  if(_pacTela==='os' && _pacReg && document.getElementById('pc-tabs')) pacDesenhar(id);
+}
+function pacOsItens(a){ // itens da OS: os da guia, se já tem guia; senão o procedimento previsto no agendamento
+  const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null;
+  if(g && g.dados && g.dados.form){ const st = TISS_ST[g.status]||['—','#666'];
+    return [...(g.dados.form.procs||[]), ...(g.dados.form.desps||[])].map(x=>{ const it = tissIt(x.itemId)||{};
+      return { cod: it.codigo, desc: it.descricao, qtd: x.qtd||1, tab: it.tabela, valor: tissN((+x.valor||0)*(+x.qtd||1)*(+x.red||1)), st: st[0], cor: st[1] }; }); }
+  if(!a.item_id) return [];
+  const it = tissIt(a.item_id)||{}, part = a.pagamento && a.pagamento!=='convenio';
+  const v = part ? (a.valor!=null?+a.valor:null) : tissPreco(a.operadora_id, a.item_id, a.data);
+  return [{ cod: it.codigo, desc: it.descricao, qtd:1, tab: it.tabela, valor: v, st: part ? (a.pago?'Pago':'A receber') : 'A faturar', cor: part ? (a.pago?'#047857':'#dc2626') : '#d97706' }];
+}
+function pacOsHtml(id){
+  const p = _pacReg;
+  if(_pacOS.carregando || _pacOS.pid!==id) return '<div class="vazio">Carregando os lançamentos do paciente…</div>';
+  if(_pacOS.erro) return '<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(_pacOS.erro)+'</b></div>';
+  const l = _pacOS.lista, a = l.find(x=>x.id===_pacOS.sel);
+  const nova = '<button class="bt" onclick="pacOsNova(\''+id+'\')">+ Nova OS</button>';
+  if(!a) return '<div class="vazio">Nenhum lançamento para este paciente ainda.<br><br>'+nova+'</div>';
+  const B = (rot, v) => '<div style="border:1px solid var(--linha);border-radius:8px;padding:4px 9px;flex:1;min-width:150px"><div style="font-size:11px;color:var(--fraco)">'+rot+'</div><div style="font-weight:700">'+(v?esc(String(v)):'—')+'</div></div>';
+  const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form || {};
+  const prof = S.tiss.profs.find(x=>x.id===(gf.profId||a.profissional_id)) || {};
+  const part = a.pagamento && a.pagamento!=='convenio';
+  const itens = pacOsItens(a), tot = itens.reduce((s,x)=>s+(+x.valor||0),0);
+  let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+    B('OS', dataBR(a.data)+' '+agHM(a.hora)+(a.encaixe?' · encaixe':''))+B('Atendimento', (AG_TIPO[a.tipo]||a.tipo)+' · '+((AG_ST[a.status]||[''])[0]))+
+    B('Convênio / pagamento', part ? AG_PAG[a.pagamento] : (tissOp(a.operadora_id).nome||''))+B('Setor','Recepção IDAD')+'</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+B('Médico', prof.nome)+B('Guia (prestador)', g?g.numero_guia_prestador:'')+B('G. operadora', gf.numeroGuiaOperadora)+B('Senha', gf.senha)+'</div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd</th><th>Tab.</th><th style="text-align:right">Valor</th><th>Status fat.</th></tr></thead><tbody>'+
+    (itens.length ? itens.map(x=>'<tr><td>'+esc(x.cod||'—')+'</td><td>'+esc(x.desc||'')+'</td><td>'+x.qtd+'</td><td>'+esc(x.tab||'')+'</td><td style="text-align:right;font-weight:700">'+(x.valor==null?'—':brl(x.valor))+'</td><td style="color:'+x.cor+';font-weight:700">'+esc(x.st)+'</td></tr>').join('')
+      : '<tr><td colspan="6" style="color:var(--fraco)">Sem procedimento informado. Use “Guia TISS” para lançar.</td></tr>')+'</tbody></table></div>';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">'+
+    '<span style="color:var(--fraco)">Total ('+itens.length+' ite'+(itens.length===1?'m':'ns')+'): <b style="color:var(--texto)">'+brl(tot)+'</b></span>'+
+    '<span style="display:flex;gap:6px;flex-wrap:wrap">'+
+      (part ? '' : '<button class="bt g" onclick="pacOsGuia(\''+a.id+'\')">'+(a.guia_id?'Ver guia TISS':'Gerar guia TISS')+'</button>')+
+      (part ? '<button class="bt g" onclick="pacOsPagar(\''+a.id+'\')">'+(a.pago?'💰 Rastrear pagamento':'💰 Pagamento')+'</button>' : '')+
+      '<button class="bt g" onclick="pacOsEditar(\''+a.id+'\')">Editar OS</button>'+nova+'</span></div>';
+  if(l.length>1) h += '<div style="margin-top:14px;font-weight:800;font-size:13px;color:var(--fraco)">OUTRAS OS DO PACIENTE</div>'+
+    '<div style="overflow-x:auto"><table><tbody>'+l.filter(x=>x.id!==a.id).map(x=>{ const s = AG_ST[x.status]||['','#666'];
+      return '<tr style="cursor:pointer" onclick="_pacOS.sel=\''+x.id+'\';pacDesenhar(\''+id+'\')"><td>'+dataBR(x.data)+' '+agHM(x.hora)+'</td><td>'+(AG_TIPO[x.tipo]||'')+'</td><td>'+esc(agConvRot(x))+'</td><td>'+esc(agNome(x.profissional_id)||'')+'</td><td style="color:'+s[1]+';font-weight:700">'+s[0]+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  return h;
+}
+function pacOsGuia(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.guia_id) return tissGuiaAbrir(a.guia_id); agAtender(aid); }
+function pacOsPagar(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.pago) return rcAbrirAgenda(aid); agReceber(aid); }
+function pacOsEditar(aid){ if(!S.ag.carregado && !S.ag.carregando) agCarregar(); agEditar(aid); }
+async function pacOsNova(id){
+  if(!S.ag.carregado){ aviso('Carregando a agenda…'); await agCarregar(); }
+  const p = S.idad.pac.find(x=>x.id===id) || _pacReg || {};
+  S.ag.dia = hojeISO(); agNovo('', '', true);
+  const d = new Date(), hora = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  const op = p.convenio ? tissOpsAtivas().find(o=>permNorm(o.nome)===permNorm(p.convenio)) || tissOpsAtivas().find(o=>permNorm(p.convenio).indexOf(permNorm(o.nome))>=0 || permNorm(o.nome).indexOf(permNorm(p.convenio))>=0) : null;
+  Object.assign(_agEd, { paciente_id:id, paciente_nome:p.nome||'', telefone:p.celular||p.telefone||'', carteira:p.carteirinha||'', operadora_id: op?op.id:'', hora, data: hojeISO(), encaixe:true, origem:'recepcao' });
+  _pacOS.pid = null; agModal();
+}
+document.addEventListener('keydown', e=>{ // F10 troca Ficha ⇄ Lançamento, como no Smart
+  if(e.key!=='F10' || !document.getElementById('pc-tabs') || !_pacReg || !_pacReg.id) return;
+  e.preventDefault(); pacTrocar(_pacTela==='ficha'?'os':'ficha', _pacReg.id);
+});
 function pacAba(a, id){ pacLerTela(); _pacAba = _pacAba===a ? null : a; pacDesenhar(id||null); }
 function pacProprio(){ const set=(k,v)=>{ const e=document.getElementById('pc-'+k); if(e) e.value=v; };
   set('titular', val('pc-nome')); set('titular_cpf', val('pc-cpf')); }
