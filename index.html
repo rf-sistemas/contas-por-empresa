@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v150">
+<meta name="rf-versao" content="v151">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v150',
+  versao : 'v151',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4340,7 +4340,7 @@ const PAC_LINHAS = [
   [['plano','Plano','text',null,200],['lotacao','Lot.','text',null,200],['matr_emp','Matr. Emp.','text',null,200]],
   [['conv_validade','Valid.','date',null,150],['dt_val','Dt.Val.','date',null,150],['profissao','Profissão','text',null,250]],
   [['grupo_sang','G Sang.','select',['A+','A-','B+','B-','AB+','AB-','O+','O-'],80],['altura','Altura','num',null,80],['peso','Peso','num',null,80],['estado_civil','Estado Civil','select',['Solteiro','Casado','União estável','Divorciado','Viúvo'],140],['local_trabalho','Local Trab.','text',null,220]],
-  [['cns','CNS','text',null,180],['ocupacao','Ocupação','text',null,260],['titular_cpf','CPF','cpf',null,150],['_proprio2','Próprio','proprio']],
+  [['cns','CNS','text',null,180],['ocupacao','Ocupação','text',null,260],['titular_cpf','CPF do titular','cpf',null,150],['_proprio2','Próprio','proprio']],
   [['rg','RG','text',null,140],['rg_orgao','Órgão','text',null,70],['rg_uf','','select',UFS,70],['rg_emissao','','date',null,150],['rg_complemento','Complemento','text',null,250]],
   [['tratamento','Tratam.','text',null,140],['cid','CID','text',null,110],['medico','Médico','text',null,280]],
   [['email','e-mail','text',null,260],['celular','Celular','tel',null,150],['sms','SMS','check'],['whatsapp','Whatsapp','check'],['tel2','Tel 2','tel',null,150],['ramal','Ramal','text',null,80]],
@@ -4356,6 +4356,26 @@ const PAC_ABAS = {
 const PAC_BOTOES = [['dados','Dados Complementares'],['conv2','Conv. Secundário'],['guias','Guias'],['prontuario','Prontuário'],['quest','Questionários'],['acomp','Acompanhantes'],['trat','Trat. Ambulatorial']];
 function pacTodosCampos(){ const r=[]; PAC_LINHAS.forEach(l=>{ if(Array.isArray(l)) l.forEach(c=>r.push(c)); }); Object.values(PAC_ABAS).forEach(a=>a[1].forEach(l=>l.forEach(c=>r.push(c)))); return r; }
 function pacConvenios(){ const v = {}; ['SUS','Particular'].concat(S.idad.pac.map(x=>x.convenio), S.idad.pac.map(x=>x.conv2)).forEach(c=>{ if(c) v[c]=1; }); return Object.keys(v).sort(); }
+/* v151 (Renato/Sandra, 24/11/2026): campos obrigatórios em AMARELO, como no Smart; ao preencher ficam VERDE-CLARO.
+   CID passa a ser obrigatório. Os campos do convênio só cobram quando o paciente tem convênio (particular não). */
+const PAC_OBRIG = ['cid','nome_mae','estado_civil','rg_orgao','rg_uf','celular','endereco','bairro','cidade'];
+const PAC_OBRIG_CONV = ['titular','carteirinha','plano','lotacao','dt_val','titular_cpf'];
+function pacTemConv(){ const c = document.getElementById('pc-convenio'); const v = permNorm(c ? c.value : (_pacReg&&_pacReg.convenio)||''); return !!v && v.indexOf('PARTICULAR')<0; }
+function pacObrigatorios(){ return PAC_OBRIG.concat(pacTemConv() ? PAC_OBRIG_CONV : []); }
+function pacCores(){
+  const ob = pacObrigatorios(), maeDesc = (document.getElementById('pc-mae_desconhecida')||{}).checked;
+  PAC_OBRIG.concat(PAC_OBRIG_CONV).forEach(k=>{ const e = document.getElementById('pc-'+k); if(!e) return;
+    const exige = ob.indexOf(k)>=0 && !(k==='nome_mae' && maeDesc);
+    e.style.backgroundColor = !exige ? '' : (String(e.value||'').trim() ? '#dcf7e6' : '#fff36b');
+    e.style.color = exige ? '#111' : ''; });
+}
+function pacFaltando(){
+  const maeDesc = !!_pacReg.mae_desconhecida, rot = {}; pacTodosCampos().forEach(([k,r])=>rot[k]=r);
+  rot.rg_uf = 'UF do RG'; rot.titular_cpf = 'CPF do titular'; rot.nome_mae = 'Mãe';
+  return pacObrigatorios().filter(k=>!(k==='nome_mae' && maeDesc) && !String(_pacReg[k]==null?'':_pacReg[k]).trim()).map(k=>rot[k]||k);
+}
+document.addEventListener('input', e=>{ if(e.target && e.target.id && e.target.id.indexOf('pc-')===0) pacCores(); });
+document.addEventListener('change', e=>{ if(e.target && e.target.id && e.target.id.indexOf('pc-')===0) pacCores(); });
 /* v150 (Renato, 24/11/2026): sexo preenchido sozinho pelo primeiro nome (só se estiver vazio; a recepção pode trocar) */
 const SX_F = new Set('ISABEL,RAQUEL,MABEL,BEATRIZ,LUZ,CARMEN,KAREN,ELLEN,HELEN,KELLEN,RUTH,MIRIAM,ESTER,ESTHER,NOEMI,NOEME,KELLY,KELI,KEILA,DAIANE,SUELI,SUELY,ROSELI,ROSELY,NEIDE,CLEIDE,IVONE,SIMONE,ALINE,ELIANE,CRISTIANE,ADRIANE,LUCIANE,JAQUELINE,JACQUELINE,MICHELE,MICHELLE,GISELE,GISELLE,DANIELE,DANIELLE,RAFAELE,GABRIELE,GABRIELLE,ARIANE,TATIANE,VIVIANE,LILIANE,MARILENE,IRENE,HELENE,ELIENE,JOSIANE,DEISE,DAIANE,CLARICE,ALICE,BERENICE,EUNICE,DENISE,LOUISE,ELISE,IRIS,ALINE,INES,INÊS,LIZ,LIS,THAIS,TAIS,LAIS,DORIS,NAIR,ALAIR,IARA,YASMIN,JASMIN,EVELYN,EVELIN,SHIRLEY,NATALY,NATALI,ARLETE,ARLETTE,ODETE,ELIZETE,ELISETE,MARLENE,DARLENE,JOSELENE,NILZETE,ZILDETE,ANE,CLEONICE,NAIARA,NOELI,NOELY,ARACELI,MARIZE,VALDETE,EDINALVA,JUCILEIDE,NEUZA,NEUSA,TEREZINHA,EDILEUZA,MARIA,ANA,LUANA'.split(','));
 const SX_M = new Set('LUCA,LUCAS,JOSUA,JOSHUA,NOAH,NOA,JOSE,JORGE,HENRIQUE,FELIPE,FILIPE,ALEXANDRE,VICENTE,DANTE,MOISES,ELIAS,ISAIAS,MATIAS,TOMAS,TOMÁS,ANDRE,ANDRÉ,RENE,RENÊ,JOSUE,JOSUÉ,ELISEU,DAVI,DAVID,LEVI,RAVI,CAUÃ,CAUA,KAUA,KAUÃ,IURI,YURI,RUI,ALI,JOAQUIM,ADRIANO,MOACIR,MOACYR,NAZARE,CLEBER,CLEITON,WELLINGTON,JEAN,JOAO,JOÃO,ALLAN,ALAN,RUAN,WILLIAN,WILLIAM,IVAN,RENAN,BRENO,BRUNO,GIOVANE,GIOVANNE,GEOVANE,JEOVANE,ENZO,DIOGENES,EUGENIO,EUGÊNIO,MARCUS,MARCOS,WESLEY,WESLLEY,SIDNEY,SYDNEY,RODNEY,CLAUDINEY,VALNEY,DIRCEU,ROMEU,MATEUS,MATHEUS'.split(','));
@@ -4398,6 +4418,7 @@ function idadPacAbrir(id){
   _pacReg = p; _pacAba = null; _pacTela = 'ficha'; if(_pacOS.pid!==id) _pacOS = { pid:null, lista:[], sel:null }; pacDesenhar(id);
 }
 function pacDesenhar(id){
+  setTimeout(pacCores, 0);
   if(id && _pacTela==='os' && agPode()){ const p = _pacReg; return abrirModal('<style>.modal{max-width:1180px}</style><h2>'+esc(p.nome||'')+' <small style="font-size:13px;color:var(--fraco)">Reg. '+(p.prontuario||'')+(p.convenio?' · '+esc(p.convenio)+(p.carteirinha?' · cart. '+esc(p.carteirinha):''):'')+'</small></h2>'+pacAbasHtml(id)+pacOsHtml(id)+'<div style="display:flex;gap:8px;margin-top:16px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>'); }
   const p = _pacReg, ro = podeEditar() ? '' : ' disabled';
   const linha = l => l==='linha' ? '<div class="pxsep"></div>' : '<div class="pxr">'+l.map(c=>pacCampo(c,p,ro)).join('')+'</div>';
@@ -4585,6 +4606,7 @@ async function idadPacSalvar(){
   pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg' && t!=='pront') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
   reg.obs = _pacReg.obs||null;
   if(!reg.nome) return aviso('Informe o nome do paciente.','erro');
+  { const f = pacFaltando(); if(f.length){ pacCores(); return aviso('Preencha os campos obrigatórios (em amarelo): '+f.join(', ')+'.','erro'); } }
   if(reg.cpf && !validaCPF(reg.cpf)) return aviso('CPF do paciente inválido — confira os dígitos.','erro');
   if(reg.titular_cpf && !validaCPF(reg.titular_cpf)) return aviso('CPF do titular inválido.','erro');
   if(reg.cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===reg.cpf)) return aviso('Já existe paciente com este CPF.','erro');
