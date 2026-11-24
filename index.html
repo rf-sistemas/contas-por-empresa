@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v156">
+<meta name="rf-versao" content="v157">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v156',
+  versao : 'v157',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4672,7 +4672,7 @@ function osConvMudou(){ const e = _osEd, opId = e.conv && e.conv.indexOf('p:')<0
   e.itens.forEach(x=>{ if(x.auto!==false && opId){ const v = tissPreco(opId, x.itemId, e.data); x.valor = v; } }); pacDesenhar(_pacReg.id); }
 function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].replace(/[\s.\-]/g,'').toUpperCase(), opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
   if(!cod){ e.itens[i].itemId = null; return pacDesenhar(_pacReg.id); }
-  const lst = (opId ? tissItensDoConv(opId) : S.tiss.itens), norm = c => String(c||'').replace(/[\s.\-]/g,'').toUpperCase();
+  const lst = (opId ? tissItensDoConv(opId) : S.tiss.itens.slice().sort((a,b)=>((S.ag.ppart||[]).some(p=>p.item_id===b.id)-(S.ag.ppart||[]).some(p=>p.item_id===a.id)) || (b.usos||0)-(a.usos||0))), norm = c => String(c||'').replace(/[\s.\-]/g,'').toUpperCase();
   const it = lst.find(x=>norm(x.codigo)===cod) || S.tiss.itens.find(x=>norm(x.codigo)===cod);
   if(!it){ aviso('Código não encontrado na tabela. Cadastre em Convênios e preços.','erro'); return pacDesenhar(_pacReg.id); }
   const x = e.itens[i]; x.itemId = it.id; x.auto = true; x.codConv = '';
