@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v145">
-<meta name="rf-data" content="2026-11-23">
+<meta name="rf-versao" content="v146">
+<meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -248,8 +248,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v145',
-  data   : '23/11/2026',
+  versao : 'v146',
+  data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -7090,7 +7090,7 @@ function tissGuiaNova(tipo){
   const opId = S.tiss.filtro || '', ct = S.tiss.contratos.find(c=>c.operadora_id===opId && c.principal);
   S.tiss.form = { id:null, tipo, opId, ctId: ct?ct.id:'', paciente:'', pacienteId:null, carteira:'', rn:'N', numeroGuia:'', numeroGuiaOperadora:'', senha:'', dataAut:'', validadeSenha:'',
     data: hojeISO(), profId:'', tipoConsulta:'1', regime:'01', acidente:'9', carater:'1', tipoAtend:'23', indicacao:'', solProfId:'', solNome:'', obs:'',
-    guiaSolic:'', localNome:'', localCodigo:'', localCnes:'', procs:[], desps:[] };
+    guiaSolic:'', localNome:'', localCodigo:'', localCnes:'', procs:[], desps:[], validadeCart:'', nomeSocial:'', cobertura:'', saudeOcup:'' };
   if(tipo==='consulta') tissFormConsultaPadrao();
   tissGuiaModal();
 }
@@ -7105,6 +7105,7 @@ function tissGuiaAbrir(id){
   tissGuiaModal();
 }
 function tissGuiaModal(){
+  if(S.tiss.form && S.tiss.form.tipo==='consulta') return tissGuiaConsultaModal();
   const f = S.tiss.form, ro = f.status && f.status!=='aberta';
   const opsOpt = tissOpsAtivas().map(o=>'<option value="'+o.id+'"'+(f.opId===o.id?' selected':'')+'>'+esc(o.nome)+' · ANS '+o.ans+'</option>').join('');
   const cts = S.tiss.contratos.filter(c=>c.operadora_id===f.opId);
@@ -7143,10 +7144,122 @@ function tissGuiaModal(){
     '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="tissGuiaSalvar()">'+(f.agendaId && !f.id ? 'Finalizar atendimento e gerar guia' : 'Salvar guia')+'</button>')+'</div>';
   abrirModal(h);
 }
+/* ---------- v146: Guia de Consulta no formato do papel TISS (idêntica à guia impressa da operadora / Smart) ---------- */
+const TISS_UF_IBGE = { '11':'RO','12':'AC','13':'AM','14':'RR','15':'PA','16':'AP','17':'TO','21':'MA','22':'PI','23':'CE','24':'RN','25':'PB','26':'PE','27':'AL','28':'SE','29':'BA','31':'MG','32':'ES','33':'RJ','35':'SP','41':'PR','42':'SC','43':'RS','50':'MS','51':'MT','52':'GO','53':'DF' };
+const TISS_GC = {
+  acidente: [['9','Não acidente'],['0','Trabalho'],['1','Trânsito'],['2','Outros acidentes']],
+  cobertura: [['','—'],['01','Atendimento em sala de emergência'],['02','Cobertura PCD'],['03','Cobertura de longa permanência']],
+  regime: [['01','Ambulatorial'],['02','Internação'],['03','Hospital-dia'],['04','Domiciliar'],['05','Urgência/emergência']],
+  saude: [['','—'],['01','Admissional'],['02','Demissional'],['03','Periódico'],['04','Retorno ao trabalho'],['05','Mudança de função'],['06','Promoção à saúde']],
+  tipo: [['1','Primeira consulta'],['2','Retorno'],['3','Pré-natal'],['4','Por encaminhamento']] };
+function tissGcV4(f){ return parseInt(String(tissOp(f.opId).versao||'4'),10) >= 4; }
+function tissGcDados(f){ // tudo o que aparece no papel, já resolvido
+  const op = tissOp(f.opId), ct = tissCt(f.ctId), pr = ct.tiss_prestadores || {}, prof = S.tiss.profs.find(p=>p.id===f.profId) || {};
+  const x = f.procs[0] || {}, it = tissIt(x.itemId);
+  const cod = ct.executante==='cnpj' ? mascaraCNPJ(ct.cnpj||pr.cnpj||'') : (ct.codigo_operadora||'');
+  return { op, ct, pr, prof, it, valor: x.valor, ans: op.ans||'', codOp: cod, contratado: String(pr.nome||'').toUpperCase(), cnes: ct.cnes||pr.cnes||'',
+    conselho: prof.id ? (prof.conselho||'06') : '', numero: prof.numero||'', uf: prof.id ? (TISS_UF_IBGE[prof.uf||'29']||prof.uf||'') : '', cbo: prof.cbo||'' };
+}
+function tissGcCss(){ return '.gc{background:#fff;color:#111;border:1.5px solid #333;border-radius:6px;padding:10px 12px;font-family:Arial,Helvetica,sans-serif}'+
+  '.gc .gch{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}.gc .gch .op{font-weight:800;font-size:19px;min-width:150px;color:#1f3b73}'+
+  '.gc .gch .tt{flex:1;text-align:center;font-weight:800;font-size:20px;letter-spacing:.5px}.gc .gch .tt small{display:block;font-size:10px;font-weight:400;letter-spacing:0}.gc .gch .ng{font-size:13px;font-weight:700;text-align:right}'+
+  '.gc .gch .ng input{width:150px;display:inline-block;margin:0 0 0 4px;font-weight:700;padding:4px 6px}'+
+  '.gc .gcs{background:#d6d6d6;font-weight:800;font-size:12.5px;padding:3px 6px;margin:8px 0 6px;border-radius:2px}'+
+  '.gc .gcl{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}'+
+  '.gc .gcb{border:1px solid #555;border-radius:4px;padding:2px 6px 4px;min-height:42px;box-sizing:border-box;display:flex;flex-direction:column;background:#fff}'+
+  '.gc .gcb>span{font-size:10.5px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+  '.gc .gcb input,.gc .gcb select{border:0;border-bottom:1px dashed #bbb;border-radius:0;padding:3px 2px;margin:2px 0 0;font-size:15px;font-weight:600;background:transparent;width:100%;color:#000;box-shadow:none}'+
+  '.gc .gcb input:disabled,.gc .gcb select:disabled{border-bottom-color:transparent;opacity:1;-webkit-text-fill-color:#000}'+
+  '.gc .gcb .v{font-size:15px;font-weight:600;padding:3px 2px;min-height:20px;margin-top:2px}.gc .gcb .v.auto{color:#000}.gc .gcb small{font-size:10.5px;color:#9a6700}'+
+  '.gc .gcass{min-height:64px}.gc .gcr{font-size:10.5px;color:#444;margin-top:6px}'; }
+function tissGuiaConsultaModal(){
+  const f = S.tiss.form, ro = !!(f.status && f.status!=='aberta'), d = tissGcDados(f), v4 = tissGcV4(f), dis = ro?' disabled':'';
+  const opsOpt = tissOpsAtivas().map(o=>'<option value="'+o.id+'"'+(f.opId===o.id?' selected':'')+'>'+esc(o.nome)+' · ANS '+o.ans+'</option>').join('');
+  const cts = S.tiss.contratos.filter(c=>c.operadora_id===f.opId);
+  const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
+  const pacs = (S.idad && S.idad.pac) || [];
+  const B = (n, rot, corpo, w) => '<div class="gcb" style="flex:'+(w||1)+';min-width:'+Math.max(90, Math.round((w||1)*70))+'px"><span>'+n+' - '+rot+'</span>'+corpo+'</div>';
+  const In = (k, tipo, extra, ph) => '<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'"'+(ph?' placeholder="'+ph+'"':'')+' onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+dis+'>';
+  const Se = (k, ops, extra, off) => '<select onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro||off?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k]||'')===String(o[0])?' selected':'')+'>'+(o[0]?o[0]+' - ':'')+o[1]+'</option>').join('')+'</select>';
+  const V = t => '<div class="v auto">'+(t?esc(t):'&nbsp;')+'</div>';
+  let h = '<style>.modal{max-width:1120px}'+tissGcCss()+'</style>';
+  h += '<h2 style="margin:0 0 6px">'+(f.agendaId && !f.id ? 'Atendimento · ' : '')+'Guia de Consulta'+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
+  if(typeof agBarraAtendimento==='function') h += agBarraAtendimento();
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px"><label style="flex:2;min-width:220px">Convênio<select onchange="tissFormOp(this.value)"'+dis+'><option value="">Escolha…</option>'+opsOpt+'</select></label>'+
+    '<label style="flex:2;min-width:220px">Faturar como<select onchange="S.tiss.form.ctId=this.value;tissGuiaModal()"'+dis+'>'+cts.map(c=>'<option value="'+c.id+'"'+(f.ctId===c.id?' selected':'')+'>'+esc(c.rotulo)+(c.ativo?'':' (sem envio há 1 ano)')+'</option>').join('')+'</select></label></div>';
+  h += '<div class="gc"><div class="gch"><div class="op">'+esc(d.op.nome||'Convênio')+'</div><div class="tt">GUIA DE CONSULTA<small>Padrão TISS'+(d.op.versao?' '+esc(d.op.versao):'')+'</small></div>'+
+    '<div class="ng">2 - Nº Guia no Prestador:<input value="'+esc(f.numeroGuia||'')+'" placeholder="automático" onchange="S.tiss.form.numeroGuia=this.value"'+dis+'></div></div>';
+  h += '<div class="gcl">'+B(1,'Registro ANS',V(d.ans),1)+B(3,'Número da Guia Atribuído pela Operadora',In('numeroGuiaOperadora'),3)+'</div>';
+  h += '<div class="gcs">Dados do Beneficiário</div>';
+  h += '<div class="gcl">'+B(4,'Número da carteira',In('carteira'),3)+B(5,'Validade da Carteira',In('validadeCart','date'),1.4)+B(6,'Atendimento a RN (Sim ou Não)',Se('rn',[['N','Não'],['S','Sim']]),1.2)+'</div>';
+  h += '<div class="gcl">'+B(7,'Nome','<input list="tg-pacs" value="'+esc(f.paciente||'')+'" onchange="tissFormPac(this.value)"'+dis+'><datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',1)+'</div>';
+  h += '<div class="gcl">'+B(26,'Nome Social',In('nomeSocial'),1)+'</div>';
+  h += '<div class="gcs">Dados do Contratado</div>';
+  h += '<div class="gcl">'+B(9,'Código na Operadora',V(d.codOp),2)+B(10,'Nome do Contratado',V(d.contratado),4)+B(11,'Código CNES',V(d.cnes),1.2)+'</div>';
+  h += '<div class="gcl">'+B(12,'Nome do Profissional Executante','<select onchange="S.tiss.form.profId=this.value;tissGuiaModal()"'+dis+'><option value="">—</option>'+profs.map(p=>'<option value="'+p.id+'"'+(f.profId===p.id?' selected':'')+'>'+esc(p.nome)+(p.ativo?'':' (antigo)')+'</option>').join('')+'</select>',4)+
+    B(13,'Conselho Profissional',V(d.conselho),1)+B(14,'Número no Conselho',V(d.numero),1.3)+B(15,'UF',V(d.uf),.7)+B(16,'Código CBO',V(d.cbo),1)+'</div>';
+  h += '<div class="gcs">Dados do Atendimento / Procedimento Realizado</div>';
+  h += '<div class="gcl">'+B(17,'Indicação de Acidente (acidente ou doença relacionada)',Se('acidente',TISS_GC.acidente),2)+B(27,'Indicador de Cobertura Especial',Se('cobertura',TISS_GC.cobertura,'',!v4),1.6)+
+    B(28,'Regime de Atendimento',Se('regime',TISS_GC.regime),1.4)+B(29,'Saúde Ocupacional',Se('saudeOcup',TISS_GC.saude,'',!v4),1.4)+'</div>';
+  const dl = '<datalist id="dl-gcproc">'+tissItensDoConv(f.opId,'proc').slice(0,400).map(i=>'<option value="'+esc(tissItemRot(i))+'">').join('')+'</datalist>';
+  h += '<div class="gcl">'+B(18,'Data do Atendimento',In('data','date',';tissGcRecalc()'),1.3)+B(19,'Tipo de Consulta',Se('tipoConsulta',TISS_GC.tipo),1.4)+B(20,'Tabela',V(d.it?d.it.tabela:''),.7)+
+    B(21,'Código do Procedimento','<input list="dl-gcproc" value="'+esc(d.it?tissItemRot(d.it):'')+'" onchange="tissGcProc(this.value)"'+dis+'>'+dl,3)+
+    B(22,'Valor do Procedimento','<input type="number" step="0.01" value="'+(d.valor==null?'':d.valor)+'" onchange="tissGcValor(this.value)"'+dis+'>'+(d.it && d.valor==null?'<small>sem preço neste convênio</small>':''),1.3)+'</div>';
+  h += '<div class="gcl">'+B(23,'Observação / Justificativa',In('obs'),1)+'</div>';
+  h += '<div class="gcl">'+B(24,'Assinatura do Profissional Executante','<div class="gcass"></div>',1)+B(25,'Assinatura do Beneficiário ou Responsável','<div class="gcass"></div>',1)+'</div>';
+  h += '<div class="gcr">'+esc(tissGcRodape(f))+'</div></div>';
+  if(!v4) h += '<div style="font-size:12px;color:var(--fraco);margin-top:6px">Os campos 27 e 29 só existem no padrão TISS 4 — este convênio está na versão '+esc(d.op.versao||'?')+'.</div>';
+  h += '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px">'+
+    (f.id && f.status==='aberta' ? '<button class="bt g" style="color:#dc2626" onclick="tissGuiaCancelar()">Cancelar guia</button>' : '')+
+    (f.id ? '<button class="bt g" onclick="tissGcImprimir()">Imprimir guia</button>' : '')+
+    '<button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="tissGuiaSalvar()">'+(f.agendaId && !f.id ? 'Finalizar atendimento e gerar guia' : 'Salvar guia')+'</button>')+'</div>';
+  abrirModal(h);
+}
+function tissGcRodape(f){ const u = (S.perfil && (S.perfil.nome || S.perfil.email)) || '';
+  return 'Sistema MR // Guia '+(f.numeroGuia||'(nº na gravação)')+' // '+dataBR(f.data)+' // '+String(u).toUpperCase()+' // RECEPÇÃO IDAD'; }
+function tissGcProc(rot){ const f = S.tiss.form, cod = String(rot||'').split(' · ')[0].trim();
+  const it = tissItensDoConv(f.opId,'proc').find(i=>tissItemRot(i)===rot) || S.tiss.itens.find(i=>i.tipo==='proc' && i.codigo===cod) || S.tiss.itens.find(i=>i.codigo===cod);
+  if(!it){ aviso('Código não encontrado na tabela. Cadastre em Convênios e preços.','erro'); return tissGuiaModal(); }
+  f.procs = [{ itemId: it.id, qtd:1, valor: tissPreco(f.opId, it.id, f.data), red:1, auto:true }]; tissGuiaModal(); }
+function tissGcValor(v){ const f = S.tiss.form; if(!f.procs[0]) return aviso('Informe primeiro o código do procedimento.','erro');
+  f.procs[0].valor = v===''?null:Number(v); f.procs[0].auto = false; }
+function tissGcRecalc(){ const f = S.tiss.form; f.procs.forEach(x=>{ if(x.auto!==false){ const v = tissPreco(f.opId, x.itemId, f.data); if(v!=null) x.valor = v; } }); tissGuiaModal(); }
+function tissGcImprimir(){
+  const f = S.tiss.form, d = tissGcDados(f), op = (lista, v) => v || '';
+  const B = (n, rot, val, w, alto) => '<td colspan="'+(w||1)+'"><div class="b'+(alto?' a':'')+'"><span>'+n+' - '+rot+'</span><b>'+(val?esc(String(val)):'&nbsp;')+'</b></div></td>';
+  const L = (...c) => '<table class="l"><tr>'+c.join('')+'</tr></table>';
+  const S2 = t => '<div class="s">'+t+'</div>';
+  const valor = d.valor==null ? '' : Number(d.valor).toFixed(2).replace('.',',');
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Guia de Consulta '+esc(f.numeroGuia||'')+'</title><style>'+
+    '@page{size:A4 landscape;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0}.g{border:1.5px solid #000;border-radius:6px;padding:8px 10px}'+
+    '.h{display:flex;align-items:center}.h .o{font-weight:800;font-size:20px;width:30%}.h .t{flex:1;text-align:center;font-weight:800;font-size:22px}.h .t small{display:block;font-size:10px;font-weight:400}.h .n{width:30%;text-align:right;font-weight:700;font-size:14px}'+
+    '.l{width:calc(100% + 8px);border-collapse:separate;border-spacing:4px 0;margin:0 -4px 5px;table-layout:fixed}.l td{padding:0;vertical-align:top}'+
+    '.b{border:1px solid #000;border-radius:4px;padding:2px 6px 3px;min-height:34px}.b span{display:block;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.b b{display:block;font-size:14px;font-weight:400;margin-top:2px;white-space:nowrap;overflow:hidden}.b.a{min-height:58px}'+
+    '.s{background:#ccc;font-weight:800;font-size:11.5px;padding:2px 6px;margin:6px 0 5px}.r{font-size:9.5px;margin-top:6px}</style></head><body><div class="g">'+
+    '<div class="h"><div class="o">'+esc(d.op.nome||'')+'</div><div class="t">GUIA DE CONSULTA<small>'+esc(d.op.versao||'')+'</small></div><div class="n">2 - Nº Guia no Prestador: '+esc(f.numeroGuia||'')+'</div></div>'+
+    L(B(1,'Registro ANS',d.ans,1),B(3,'Número da Guia Atribuído pela Operadora',f.numeroGuiaOperadora,3))+S2('Dados do Beneficiário')+
+    L(B(4,'Número da carteira',f.carteira,3),B(5,'Validade da Carteira',f.validadeCart?dataBR(f.validadeCart):'',2),B(6,'Atendimento a RN (Sim ou Não)',f.rn||'N',1))+
+    L(B(7,'Nome',String(f.paciente||'').toUpperCase(),1))+L(B(26,'Nome Social',String(f.nomeSocial||'').toUpperCase(),1))+S2('Dados do Contratado')+
+    L(B(9,'Código na Operadora',d.codOp,2),B(10,'Nome do Contratado',d.contratado,4),B(11,'Código CNES',d.cnes,1))+
+    L(B(12,'Nome do Profissional Executante',String(d.prof.nome||'').toUpperCase(),5),B(13,'Conselho Profissional',d.conselho,1),B(14,'Número no Conselho',d.numero,1),B(15,'UF',d.uf,1),B(16,'Código CBO',d.cbo,1))+
+    S2('Dados do Atendimento / Procedimento Realizado')+
+    L(B(17,'Indicação de Acidente (acidente ou doença relacionada)',f.acidente||'9',2),B(27,'Indicador de Cobertura Especial',f.cobertura,2),B(28,'Regime de Atendimento',f.regime||'01',1),B(29,'Saúde Ocupacional',f.saudeOcup,1))+
+    L(B(18,'Data do Atendimento',dataBR(f.data),2),B(19,'Tipo de Consulta',f.tipoConsulta||'1',1),B(20,'Tabela',d.it?d.it.tabela:'',1),B(21,'Código do Procedimento',d.it?d.it.codigo:'',2),B(22,'Valor do Procedimento',valor,2))+
+    L(B(23,'Observação / Justificativa',f.obs,1))+L(B(24,'Assinatura do Profissional Executante','',1,1),B(25,'Assinatura do Beneficiário ou Responsável','',1,1))+
+    '<div class="r">'+esc(tissGcRodape(f))+'</div></div></body></html>';
+  let fr = document.getElementById('gc-print'); if(fr) fr.remove();
+  fr = document.createElement('iframe'); fr.id = 'gc-print'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
+  const doc = fr.contentWindow.document; doc.open(); doc.write(html); doc.close();
+  setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ aviso('Não abriu a impressão: '+e.message,'erro'); } }, 300);
+}
 function tissFormOp(id){ const f = S.tiss.form; f.opId = id; const ct = S.tiss.contratos.find(c=>c.operadora_id===id && c.principal) || S.tiss.contratos.find(c=>c.operadora_id===id);
   f.ctId = ct?ct.id:''; if(f.tipo==='consulta') tissFormConsultaPadrao(); else tissFormRecalc(); tissGuiaModal(); }
 function tissFormPac(nome){ const f = S.tiss.form; f.paciente = nome; const p = ((S.idad&&S.idad.pac)||[]).find(x=>x.nome===nome);
-  f.pacienteId = p ? p.id : null; if(p && p.carteirinha && !f.carteira){ f.carteira = p.carteirinha; tissGuiaModal(); } }
+  f.pacienteId = p ? p.id : null; let mud = false;
+  if(p && p.carteirinha && !f.carteira){ f.carteira = p.carteirinha; mud = true; }
+  if(p && p.conv_validade && !f.validadeCart){ f.validadeCart = String(p.conv_validade).slice(0,10); mud = true; }
+  if(p && p.nome_social && !f.nomeSocial){ f.nomeSocial = p.nome_social; mud = true; }
+  if(mud || f.tipo==='consulta') tissGuiaModal(); }
 function tissFormRecalc(){ const f = S.tiss.form; [...f.procs, ...f.desps].forEach(x=>{ if(x.auto!==false){ const v = tissPreco(f.opId, x.itemId, f.data); if(v!=null) x.valor = v; } });
   const e = document.getElementById('tg-itens'); if(e) e.innerHTML = tissItensHtml(); }
 function tissItemRot(i){ return i ? i.codigo+' · '+(i.descricao||'') : ''; }
@@ -7201,7 +7314,7 @@ function tissModelo(f, numeroGuia){
   const base = { ans: op.ans, numeroGuiaPrestador: numeroGuia, carteira: soDig(f.carteira)||f.carteira, atendimentoRN: f.rn||'N', observacao: f.obs||undefined };
   if(f.tipo==='consulta'){ const x = f.procs[0], it = tissIt(x.itemId);
     return Object.assign(base, { numeroGuiaOperadora: f.numeroGuiaOperadora||undefined, contratado, cnes, profissional: pf(prof), indicacaoAcidente: f.acidente||'9',
-      regimeAtendimento: f.regime||'01', data: f.data, tipoConsulta: f.tipoConsulta||'1', procedimento: { tabela: it.tabela, codigo: it.codigo, valor: tissN(+x.valor||0) } }); }
+      regimeAtendimento: f.regime||'01', coberturaEspecial: tissGcV4(f) ? (f.cobertura||undefined) : undefined, saudeOcupacional: tissGcV4(f) ? (f.saudeOcup||undefined) : undefined, data: f.data, tipoConsulta: f.tipoConsulta||'1', procedimento: { tabela: it.tabela, codigo: it.codigo, valor: tissN(+x.valor||0) } }); }
   const equipe = [{ cpf: prof.cpf||undefined, codigoOperadora: prof.cpf?undefined:undefined, nome: prof.nome, conselho: prof.conselho||'06', numero: prof.numero, uf: prof.uf||'29', cbo: prof.cbo }];
   const procs = f.procs.map(x=>{ const it = tissIt(x.itemId), vu = tissN(+x.valor||0), red = Number(x.red||1);
     return { data: f.data, horaInicial: hora, horaFinal: hora, tabela: it.tabela, codigo: it.codigo, descricao: it.descricao, quantidade: x.qtd||1, reducao: red,
@@ -7672,7 +7785,7 @@ function agAtender(id){
   S.tiss.filtro = a.operadora_id;
   tissGuiaNova(tipo);
   const f = S.tiss.form;
-  Object.assign(f, { agendaId: a.id, paciente: a.paciente_nome, pacienteId: a.paciente_id, carteira: a.carteira||'', telefone: a.telefone||'', data: a.data, profId: a.profissional_id,
+  Object.assign(f, { agendaId: a.id, paciente: a.paciente_nome, pacienteId: a.paciente_id, carteira: a.carteira||'', validadeCart: a.validade ? String(a.validade).slice(0,10) : '', telefone: a.telefone||'', data: a.data, profId: a.profissional_id,
     solProfId: tipo==='sadt' ? a.profissional_id : '', tipoAtend: tipo==='sadt' ? '23' : f.tipoAtend });
   if(tipo==='consulta') tissFormConsultaPadrao();
   else if(a.item_id){ f.procs = [{ itemId:a.item_id, qtd:1, red:1, valor: tissPreco(a.operadora_id, a.item_id, a.data), auto:true }];
