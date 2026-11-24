@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v155">
+<meta name="rf-versao" content="v156">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v155',
+  versao : 'v156',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4531,6 +4531,7 @@ async function pacOsCarregar(id){
   _pacOS = { pid:id, lista:[], sel:null, carregando:true, erro:null }; _osEd = null;
   try{
     if(!S.tiss.carregado) await tissCarregar();
+    if(!S.ag.ppart){ const pp = await sb.from('particular_precos').select('*'); S.ag.ppart = pp.data||[]; }
     const r = await sb.from('agenda').select('*').eq('paciente_id', id).order('data',{ascending:false}).order('hora',{ascending:false}).limit(300);
     if(r.error) throw r.error;
     _pacOS.lista = (r.data||[]).filter(a=>a.status!=='cancelado');
@@ -4697,6 +4698,9 @@ async function osGravar(quieto){
   if(!e.id){ reg.status = 'chegou'; reg.encaixe = true; reg.origem = 'recepcao'; reg.chegou_em = reg.atualizado_em; }
   const r = e.id ? await sb.from('agenda').update(reg).eq('id', e.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
   if(r.error){ aviso('Não gravou a OS: '+r.error.message,'erro'); return false; }
+  if(part){ // v156: preço particular digitado fica guardado para as próximas vezes
+    e.itens.filter(x=>x.itemId && x.valor!=null && x.valor!=='').forEach(x=>{ const v = Number(x.valor); sb.from('particular_precos').upsert({ item_id:x.itemId, valor:v, atualizado_em:new Date().toISOString() }).then(()=>{});
+      const k = (S.ag.ppart = S.ag.ppart||[]).find(y=>y.item_id===x.itemId); if(k) k.valor = v; else S.ag.ppart.push({ item_id:x.itemId, valor:v }); }); }
   const a = r.data, i = _pacOS.lista.findIndex(x=>x.id===a.id); if(i>=0) _pacOS.lista[i] = a; else _pacOS.lista.unshift(a);
   const j = S.ag.lista.findIndex(x=>x.id===a.id); if(j>=0) S.ag.lista[j] = a; else S.ag.lista.push(a);
   _pacOS.sel = a.id; _osEd = osDeAgenda(a, p); _osEd._pid = p.id;
