@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v151">
+<meta name="rf-versao" content="v152">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v151',
+  versao : 'v152',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -520,7 +520,14 @@ function nomeEmpresa(id){ const e=S.empresas.find(x=>x.id===id); return e ? (e.a
 function nomeOrigem(id){ const o=S.origens.find(x=>x.id===id); return o ? o.nome+(o.identificador?' ·'+o.identificador:'') : '—'; }
 
 /* ===================== render ===================== */
-function render(){
+function render(){ // v152: guarda o que foi digitado na janela aberta e devolve depois de redesenhar (antes a cor e o texto sumiam)
+  const salvo = []; document.querySelectorAll('.modal [id]').forEach(e=>{ if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.tagName) && e.type!=='file') salvo.push([e.id, e.type==='checkbox'?null:e.value, e.type==='checkbox'?e.checked:null]); });
+  const mesmo = !!S.modal && S.modal===S._modalDesenhado; // só devolve se é a MESMA janela (não uma janela nova/redesenhada)
+  renderBase(); S._modalDesenhado = S.modal;
+  if(mesmo) salvo.forEach(([id,v,c])=>{ const e = document.getElementById(id); if(!e) return; if(c!==null) e.checked = c; else if(v!==null) e.value = v; });
+  if(document.getElementById('pc-id') && typeof pacCores==='function') pacCores();
+}
+function renderBase(){
   const app = document.getElementById('app');
   if(S.anesTok){ app.innerHTML = telaAnesValidar(); return; }
   if(!S.user){ app.innerHTML = telaLogin(); return; }
@@ -4415,7 +4422,7 @@ function pacCampo(c, p, ro){
 var _pacAba = null, _pacReg = null;
 function idadPacAbrir(id){
   const p = id ? Object.assign({}, S.idad.pac.find(x=>x.id===id)) : { data_registro: hojeISO(), pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
-  _pacReg = p; _pacAba = null; _pacTela = 'ficha'; if(_pacOS.pid!==id) _pacOS = { pid:null, lista:[], sel:null }; pacDesenhar(id);
+  _pacReg = p; _pacAba = null; _pacTela = 'ficha'; _osEd = null; _osMenu = 'itens'; if(_pacOS.pid!==id) _pacOS = { pid:null, lista:[], sel:null }; pacDesenhar(id);
 }
 function pacDesenhar(id){
   setTimeout(pacCores, 0);
@@ -4521,7 +4528,7 @@ function pacTrocar(t, id){
   _pacTela = t; if(t==='os' && _pacOS.pid!==id) pacOsCarregar(id); pacDesenhar(id);
 }
 async function pacOsCarregar(id){
-  _pacOS = { pid:id, lista:[], sel:null, carregando:true, erro:null };
+  _pacOS = { pid:id, lista:[], sel:null, carregando:true, erro:null }; _osEd = null;
   try{
     if(!S.tiss.carregado) await tissCarregar();
     const r = await sb.from('agenda').select('*').eq('paciente_id', id).order('data',{ascending:false}).order('hora',{ascending:false}).limit(300);
@@ -4543,36 +4550,158 @@ function pacOsItens(a){ // itens da OS: os da guia, se já tem guia; senão o pr
   const v = part ? (a.valor!=null?+a.valor:null) : tissPreco(a.operadora_id, a.item_id, a.data);
   return [{ cod: it.codigo, desc: it.descricao, qtd:1, tab: it.tabela, valor: v, st: part ? (a.pago?'Pago':'A receber') : 'A faturar', cor: part ? (a.pago?'#047857':'#dc2626') : '#d97706' }];
 }
+/* ---------- v152 (Renato/Sandra, 24/11/2026): a OS vira FORMULÁRIO igual à "Ordem de Serviços" do Smart — lança e grava ali mesmo.
+   Campos extras da OS ficam em agenda.os (jsonb); nº da OS em agenda.os_numero (sequência no banco). ---------- */
+var _osEd = null, _osMenu = 'itens';
+const OS_ATEND = ['Assistencial','Ocupacional','Cortesia','Retorno'];
+const OS_TPATD = [['04','04 - Consulta'],['23','23 - Exame'],['05','05 - Exame ambulatorial'],['03','03 - Outras terapias'],['07','07 - Pequena cirurgia'],['22','22 - Telessaúde']];
+const OS_SAIDA = [['','—'],['1','1 - Retorno'],['2','2 - Retorno com SADT'],['3','3 - Referência'],['4','4 - Internação'],['5','5 - Alta'],['6','6 - Óbito']];
+function osItensDe(a){ const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form;
+  if(gf) return [...(gf.procs||[]), ...(gf.desps||[])].map(x=>({ itemId:x.itemId, qtd:x.qtd||1, valor:x.valor, red:x.red||1, stExe:'Executado', setor:'CON', profId:gf.profId||a.profissional_id, senha:gf.senha||'', auto:x.auto }));
+  if(!a.item_id) return [];
+  const part = a.pagamento && a.pagamento!=='convenio';
+  return [{ itemId:a.item_id, qtd:1, valor: part ? (a.valor!=null?+a.valor:null) : tissPreco(a.operadora_id, a.item_id, a.data), stExe: a.status==='atendido'?'Executado':'Pendente', setor:'CON', profId:a.profissional_id, senha:'', auto:!part }]; }
+function osDeAgenda(a, p){ const o = a.os || {}, g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form || {};
+  return { id:a.id, os_numero:a.os_numero, status:a.status, guia_id:a.guia_id, pago:a.pago, data:a.data, hora:agHM(a.hora),
+    urg:o.urg||'N', atend:o.atend||'Assistencial', goper:o.goper||gf.numeroGuiaOperadora||'', conv: a.pagamento && a.pagamento!=='convenio' ? 'p:'+a.pagamento : (a.operadora_id||''),
+    plano:o.plano!=null?o.plano:(p.plano||''), origem:o.origem||'', setor:o.setor||'RECEPÇÃO IDAD', guia:g?g.numero_guia_prestador:(o.guia||''), guiaPrinc:o.guiaPrinc||'',
+    profId:a.profissional_id||'', solic:o.solic||a.data, obs:a.obs||'', cpf:o.cpf!=null?o.cpf:(p.cpf||''), matric:a.carteira||p.carteirinha||'', cid:o.cid!=null?o.cid:(p.cid||''), cidDesc:o.cidDesc||'',
+    tipo:a.tipo||'consulta', tempo:o.tempo||'', tempoUn:o.tempoUn||'D', indClin:o.indClin||'', acidente:o.acidente||'9', obsTiss:o.obsTiss||'', entrega:o.entrega||'', lotacao:o.lotacao!=null?o.lotacao:(p.lotacao||''),
+    externo:o.externo||'', tpAtd:o.tpAtd||(a.tipo==='consulta'?'04':'23'), saida:o.saida||'', regime:o.regime||'01', saudeOcup:o.saudeOcup||'', cobertura:o.cobertura||'',
+    ocorrencias:o.ocorrencias||[], itens: o.itens && o.itens.length ? o.itens : osItensDe(a) }; }
+function osNovaEd(p){ const d = new Date();
+  const op = p.convenio ? tissOpsAtivas().find(o=>permNorm(o.nome)===permNorm(p.convenio)) || tissOpsAtivas().find(o=>permNorm(p.convenio).indexOf(permNorm(o.nome))>=0 || permNorm(o.nome).indexOf(permNorm(p.convenio))>=0) : null;
+  const ed = osDeAgenda({ data:hojeISO(), hora:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'), tipo:'consulta', operadora_id: op?op.id:'', pagamento: p.convenio && /PARTICULAR/i.test(p.convenio) ? 'avista' : 'convenio', carteira:p.carteirinha, status:'chegou' }, p);
+  ed.id = null; ed.os_numero = null; ed.status = 'chegou';
+  if(ed.conv && ed.conv.indexOf('p:')<0){ const it = tissItensDoConv(ed.conv,'proc').find(i=>/CONSULTA/i.test(i.descricao||'')); if(it) ed.itens = [{ itemId:it.id, qtd:1, valor:tissPreco(ed.conv, it.id, ed.data), stExe:'Pendente', setor:'CON', profId:'', senha:'', auto:true }]; }
+  return ed; }
 function pacOsHtml(id){
   const p = _pacReg;
   if(_pacOS.carregando || _pacOS.pid!==id) return '<div class="vazio">Carregando os lançamentos do paciente…</div>';
   if(_pacOS.erro) return '<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(_pacOS.erro)+'</b></div>';
-  const l = _pacOS.lista, a = l.find(x=>x.id===_pacOS.sel);
-  const nova = '<button class="bt" onclick="pacOsNova(\''+id+'\')">+ Nova OS</button>';
-  if(!a) return '<div class="vazio">Nenhum lançamento para este paciente ainda.<br><br>'+nova+'</div>';
-  const B = (rot, v) => '<div style="border:1px solid var(--linha);border-radius:8px;padding:4px 9px;flex:1;min-width:150px"><div style="font-size:11px;color:var(--fraco)">'+rot+'</div><div style="font-weight:700">'+(v?esc(String(v)):'—')+'</div></div>';
-  const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form || {};
-  const prof = S.tiss.profs.find(x=>x.id===(gf.profId||a.profissional_id)) || {};
-  const part = a.pagamento && a.pagamento!=='convenio';
-  const itens = pacOsItens(a), tot = itens.reduce((s,x)=>s+(+x.valor||0),0);
-  let h = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
-    B('OS', dataBR(a.data)+' '+agHM(a.hora)+(a.encaixe?' · encaixe':''))+B('Atendimento', (AG_TIPO[a.tipo]||a.tipo)+' · '+((AG_ST[a.status]||[''])[0]))+
-    B('Convênio / pagamento', part ? AG_PAG[a.pagamento] : (tissOp(a.operadora_id).nome||''))+B('Setor','Recepção IDAD')+'</div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+B('Médico', prof.nome)+B('Guia (prestador)', g?g.numero_guia_prestador:'')+B('G. operadora', gf.numeroGuiaOperadora)+B('Senha', gf.senha)+'</div>';
-  h += '<div style="overflow-x:auto"><table><thead><tr><th>Código</th><th>Descrição</th><th>Qtd</th><th>Tab.</th><th style="text-align:right">Valor</th><th>Status fat.</th></tr></thead><tbody>'+
-    (itens.length ? itens.map(x=>'<tr><td>'+esc(x.cod||'—')+'</td><td>'+esc(x.desc||'')+'</td><td>'+x.qtd+'</td><td>'+esc(x.tab||'')+'</td><td style="text-align:right;font-weight:700">'+(x.valor==null?'—':brl(x.valor))+'</td><td style="color:'+x.cor+';font-weight:700">'+esc(x.st)+'</td></tr>').join('')
-      : '<tr><td colspan="6" style="color:var(--fraco)">Sem procedimento informado. Use “Guia TISS” para lançar.</td></tr>')+'</tbody></table></div>';
-  h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px">'+
-    '<span style="color:var(--fraco)">Total ('+itens.length+' ite'+(itens.length===1?'m':'ns')+'): <b style="color:var(--texto)">'+brl(tot)+'</b></span>'+
-    '<span style="display:flex;gap:6px;flex-wrap:wrap">'+
-      (part ? '' : '<button class="bt g" onclick="pacOsGuia(\''+a.id+'\')">'+(a.guia_id?'Ver guia TISS':'Gerar guia TISS')+'</button>')+
-      (part ? '<button class="bt g" onclick="pacOsPagar(\''+a.id+'\')">'+(a.pago?'💰 Rastrear pagamento':'💰 Pagamento')+'</button>' : '')+
-      '<button class="bt g" onclick="pacOsEditar(\''+a.id+'\')">Editar OS</button>'+nova+'</span></div>';
-  if(l.length>1) h += '<div style="margin-top:14px;font-weight:800;font-size:13px;color:var(--fraco)">OUTRAS OS DO PACIENTE</div>'+
-    '<div style="overflow-x:auto"><table><tbody>'+l.filter(x=>x.id!==a.id).map(x=>{ const s = AG_ST[x.status]||['','#666'];
-      return '<tr style="cursor:pointer" onclick="_pacOS.sel=\''+x.id+'\';pacDesenhar(\''+id+'\')"><td>'+dataBR(x.data)+' '+agHM(x.hora)+'</td><td>'+(AG_TIPO[x.tipo]||'')+'</td><td>'+esc(agConvRot(x))+'</td><td>'+esc(agNome(x.profissional_id)||'')+'</td><td style="color:'+s[1]+';font-weight:700">'+s[0]+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  if(!_osEd || (_osEd._pid!==id)){ const a = _pacOS.lista.find(x=>x.id===_pacOS.sel); _osEd = a ? osDeAgenda(a, p) : osNovaEd(p); _osEd._pid = id; }
+  const e = _osEd, ro = e.status==='atendido' && e.guia_id ? ' disabled' : '';
+  const In = (k, w, tipo, extra) => '<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(e[k]==null?'':e[k])+'" style="width:'+w+'px" onchange="_osEd.'+k+'=this.value'+(extra||'')+'"'+ro+'>';
+  const Se = (k, ops, w, extra) => '<select style="width:'+w+'px" onchange="_osEd.'+k+'=this.value'+(extra||'')+'"'+ro+'>'+ops.map(o=>{ const v = Array.isArray(o)?o[0]:o, t = Array.isArray(o)?o[1]:o; return '<option value="'+esc(v)+'"'+(String(e[k]||'')===String(v)?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</select>';
+  const F = (rot, campo) => '<span class="osf"><span class="osl">'+rot+'</span>'+campo+'</span>';
+  const R = (...c) => '<div class="osr">'+c.join('')+'</div>';
+  const profs = [['','—']].concat(S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome)).map(x=>[x.id, x.nome]));
+  const convs = [['','— escolha —'],['p:avista','Particular · à vista'],['p:cartao','Particular · cartão de crédito']].concat(tissOpsAtivas().map(o=>[o.id, o.nome]));
+  const prof = S.tiss.profs.find(x=>x.id===e.profId)||{};
+  let h = '<style>.osbox{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-bottom:8px}.osr{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:6px}'+
+    '.osf{display:inline-flex;align-items:center;gap:6px}.osl{font-size:12.5px;font-weight:800;white-space:nowrap}.osf input,.osf select{margin:0;padding:6px 8px}'+
+    '.oshd{background:#0e8a9a;color:#fff;font-weight:800;padding:5px 10px;border-radius:8px 8px 0 0;font-size:13px}.osmn button{display:block;width:100%;text-align:left;margin:0 0 4px}'+
+    '.ostb input,.ostb select{margin:0;padding:5px 6px}.ostb td{padding:3px 4px}@media(max-width:700px){.osf{flex-wrap:wrap}.osf input,.osf select{width:100%!important}}</style>';
+  h += '<div class="oshd">Ordem de Serviços '+(e.os_numero?'nº '+e.os_numero:'(nova)')+(e.status?' · '+esc((AG_ST[e.status]||[''])[0]):'')+(e.guia_id?' · guia gerada':'')+'</div><div class="osbox" style="border-radius:0 0 10px 10px">';
+  h += R(F('OS:', '<input disabled value="'+(e.os_numero||'nova')+'" style="width:90px">'), F('Data:', In('data',150,'date')+In('hora',100,'time')), F('Urg.:', Se('urg',[['N','N'],['S','S']],60)), F('Atend.:', Se('atend',OS_ATEND,150)),
+    F('G. Oper.:', In('goper',170)));
+  h += R(F('Conv.:', Se('conv',convs,240,';osConvMudou()')), '<button type="button" class="bt g mini" onclick="osInfoConv()">Info…</button>', F('Plano:', In('plano',170)), F('Origem:', In('origem',140)));
+  h += R(F('Setor:', In('setor',160)), F('Guia:', '<input disabled value="'+esc(e.guia||'')+'" style="width:120px" placeholder="na geração">'), F('Guia Principal:', In('guiaPrinc',120)),
+    F('Méd.:', '<input disabled value="'+esc(prof.numero||'')+'" style="width:70px">'+Se('profId',profs,240,';pacDesenhar(_pacReg.id)')), F('Solic.:', In('solic',150,'date')));
+  h += R(F('Obs.:', '<input value="'+esc(e.obs||'')+'" style="width:520px;max-width:100%" onchange="_osEd.obs=this.value"'+ro+'>'));
+  h += '</div><div class="osbox"><div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:4px 18px">';
+  h += '<div>'+R(F('CPF/CNPJ:', In('cpf',150)), F('Matric.:', In('matric',190)))+
+    R(F('CID:', In('cid',80)+In('cidDesc',260)))+
+    R(F('Tipo:', Se('tipo',[['consulta','Consulta'],['exame','Exame'],['cirurgia','Cirurgia']],130)), F('Tempo:', In('tempo',60,'number')+Se('tempoUn',[['D','dias'],['M','meses'],['A','anos']],90)))+
+    R(F('Ind. Clín.:', In('indClin',360)))+
+    R(F('Acidente:', Se('acidente',[['9','9 - Não acidente'],['0','0 - Trabalho'],['1','1 - Trânsito'],['2','2 - Outros']],170)), F('Obs. TISS:', In('obsTiss',220)))+
+    R(F('Entrega:', In('entrega',150,'date')), F('Lotação:', In('lotacao',150)), F('Externo:', In('externo',100)))+'</div>';
+  h += '<div>'+R(F('Tp Atd:', Se('tpAtd',OS_TPATD,220)))+R(F('Saída:', Se('saida',OS_SAIDA,220)))+
+    R(F('Regime Atend.:', Se('regime',[['01','01 - Ambulatorial'],['02','02 - Internação'],['03','03 - Hospital-dia'],['04','04 - Domiciliar'],['05','05 - Urgência/emergência']],200)))+
+    R(F('Saúde Ocup.:', Se('saudeOcup',TISS_GC.saude,200)))+R(F('Cobertura Esp.:', Se('cobertura',TISS_GC.cobertura,200)))+'</div></div></div>';
+  // menu lateral + conteúdo
+  const mn = [['itens','Itens da OS'],['atend','Atendimentos'],['docs','Documentos'],['obs','Observação'],['orc','Orçamentos'],['ocor','Ocorrências']];
+  h += '<div style="display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px"><div class="osmn">'+mn.map(m=>'<button type="button" class="bt '+(_osMenu===m[0]?'':'g ')+'mini" onclick="_osMenu=\''+m[0]+'\';pacDesenhar(\''+id+'\')">'+m[1]+'</button>').join('')+'</div><div>'+osMenuHtml(id, ro)+'</div></div>';
+  h += '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px">'+
+    '<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="bt g mini" onclick="aviso(\'Trat. Ambulatorial — em construção no Sistema MR.\')">Trat. Ambulatorial</button>'+
+      '<button class="bt g mini" onclick="osDeposito()">Depósito</button><button class="bt g mini" onclick="_osMenu=\'ocor\';pacDesenhar(\''+id+'\')">Registro de Ocorrências</button></span>'+
+    '<span style="display:flex;gap:6px;flex-wrap:wrap">'+(e.id?'<button class="bt g" onclick="_osEd=osNovaEd(_pacReg);_osEd._pid=\''+id+'\';_osMenu=\'itens\';pacDesenhar(\''+id+'\')">+ Nova OS</button>':'')+
+      (ro?'':'<button class="bt g" onclick="osGravar()">Gravar OS</button>')+
+      (e.conv && e.conv.indexOf('p:')===0 ? '' : '<button class="bt" onclick="osGuia()">'+(e.guia_id?'Ver guia TISS':'Gravar e gerar guia TISS')+'</button>')+
+      (e.conv && e.conv.indexOf('p:')===0 && !e.pago ? '<button class="bt" onclick="osDeposito()">💰 Receber</button>' : '')+'</span></div>';
   return h;
 }
+function osMenuHtml(id, ro){
+  const e = _osEd;
+  if(_osMenu==='atend'){ const l = _pacOS.lista; if(!l.length) return '<div class="vazio">Nenhuma OS anterior.</div>';
+    return '<table><thead><tr><th>OS</th><th>Data</th><th>Tipo</th><th>Convênio</th><th>Médico</th><th>Situação</th></tr></thead><tbody>'+l.map(x=>{ const s = AG_ST[x.status]||['','#666'];
+      return '<tr style="cursor:pointer'+(x.id===e.id?';background:#e8f1ff':'')+'" onclick="osAbrir(\''+x.id+'\',\''+id+'\')"><td>'+(x.os_numero||'—')+'</td><td>'+dataBR(x.data)+' '+agHM(x.hora)+'</td><td>'+(AG_TIPO[x.tipo]||'')+'</td><td>'+esc(agConvRot(x))+'</td><td>'+esc(agNome(x.profissional_id))+'</td><td style="color:'+s[1]+';font-weight:700">'+s[0]+'</td></tr>'; }).join('')+'</tbody></table>'; }
+  if(_osMenu==='obs') return '<textarea rows="5" style="width:100%" onchange="_osEd.obs=this.value"'+ro+'>'+esc(e.obs||'')+'</textarea>';
+  if(_osMenu==='ocor') return (e.ocorrencias.length ? '<table><tbody>'+e.ocorrencias.map(o=>'<tr><td style="white-space:nowrap">'+esc(o.em)+'</td><td>'+esc(o.por||'')+'</td><td>'+esc(o.txt)+'</td></tr>').join('')+'</tbody></table>' : '<div style="color:var(--fraco)">Nenhuma ocorrência registrada.</div>')+
+    '<div style="display:flex;gap:6px;margin-top:8px"><input id="os-ocor" placeholder="Nova ocorrência" style="flex:1;margin:0"><button class="bt mini" onclick="osOcorrencia()">Registrar</button></div>';
+  if(_osMenu!=='itens') return '<div style="color:var(--fraco);font-size:13.5px">Em construção no Sistema MR.</div>';
+  const opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+  const dl = '<datalist id="os-dl">'+(opId ? tissItensDoConv(opId) : S.tiss.itens).slice(0,500).map(i=>'<option value="'+esc(tissItemRot(i))+'">').join('')+'</datalist>';
+  const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
+  const tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
+  const stFat = e.guia_id ? ((TISS_ST[(S.tiss.guias.find(g=>g.id===e.guia_id)||{}).status]||['Faturado'])[0]) : (e.conv && e.conv.indexOf('p:')===0 ? (e.pago?'Pago':'A receber') : 'A faturar');
+  return dl+'<div style="overflow-x:auto"><table class="ostb"><thead><tr><th>Tp</th><th>Código / descrição</th><th>Qtd</th><th>St Exe</th><th>St Fat</th><th>Setor</th><th>Médico</th><th>Senha</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+    e.itens.map((x,i)=>{ const it = tissIt(x.itemId);
+      return '<tr><td>'+(it ? (it.tipo==='proc'?'S':(it.codigo_despesa==='02'?'D':'M')) : '')+'</td>'+
+        '<td><input list="os-dl" value="'+esc(it?tissItemRot(it):'')+'" style="min-width:260px" onchange="osItemSet('+i+',this.value)"'+ro+'></td>'+
+        '<td><input type="number" step="any" value="'+(x.qtd||1)+'" style="width:60px" onchange="_osEd.itens['+i+'].qtd=Number(this.value)||1;pacDesenhar(\''+id+'\')"'+ro+'></td>'+
+        '<td><select onchange="_osEd.itens['+i+'].stExe=this.value"'+ro+'>'+['Pendente','Executado'].map(v=>'<option'+(x.stExe===v?' selected':'')+'>'+v+'</option>').join('')+'</select></td>'+
+        '<td style="white-space:nowrap">'+esc(stFat)+'</td>'+
+        '<td><input value="'+esc(x.setor||'CON')+'" style="width:60px" onchange="_osEd.itens['+i+'].setor=this.value"'+ro+'></td>'+
+        '<td><select onchange="_osEd.itens['+i+'].profId=this.value"'+ro+'><option value="">(o da OS)</option>'+profs.map(p=>'<option value="'+p.id+'"'+(x.profId===p.id?' selected':'')+'>'+esc(p.nome.split(' ').slice(0,2).join(' '))+'</option>').join('')+'</select></td>'+
+        '<td><input value="'+esc(x.senha||'')+'" style="width:90px" onchange="_osEd.itens['+i+'].senha=this.value"'+ro+'></td>'+
+        '<td style="text-align:right"><input type="number" step="0.01" value="'+(x.valor==null?'':x.valor)+'" style="width:95px;text-align:right" onchange="_osEd.itens['+i+'].valor=this.value===\'\'?null:Number(this.value);_osEd.itens['+i+'].auto=false;pacDesenhar(\''+id+'\')"'+ro+'></td>'+
+        '<td>'+(ro?'':'<button class="bt g mini" onclick="_osEd.itens.splice('+i+',1);pacDesenhar(\''+id+'\')">✕</button>')+'</td></tr>'; }).join('')+
+    '</tbody></table></div>'+(ro?'':'<button class="bt g mini" style="margin-top:6px" onclick="_osEd.itens.push({itemId:null,qtd:1,valor:null,stExe:\'Pendente\',setor:\'CON\',profId:\'\',senha:\'\',auto:true});pacDesenhar(\''+id+'\')">+ item</button>')+
+    '<div style="text-align:right;margin-top:6px">Totais ('+e.itens.length+' ite'+(e.itens.length===1?'m':'ns')+'): <b>'+brl(tot)+'</b></div>';
+}
+function osAbrir(aid, pid){ const a = _pacOS.lista.find(x=>x.id===aid); if(!a) return; _pacOS.sel = aid; _osEd = osDeAgenda(a, _pacReg); _osEd._pid = pid; _osMenu = 'itens'; pacDesenhar(pid); }
+function osConvMudou(){ const e = _osEd, opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+  e.itens.forEach(x=>{ if(x.auto!==false && opId){ const v = tissPreco(opId, x.itemId, e.data); x.valor = v; } }); pacDesenhar(_pacReg.id); }
+function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].trim(), opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+  const it = (opId ? tissItensDoConv(opId) : S.tiss.itens).find(x=>tissItemRot(x)===rot) || S.tiss.itens.find(x=>x.codigo===cod);
+  if(!it){ aviso('Código não encontrado na tabela. Cadastre em Convênios e preços.','erro'); return pacDesenhar(_pacReg.id); }
+  const x = e.itens[i]; x.itemId = it.id; x.auto = true;
+  x.valor = opId ? tissPreco(opId, it.id, e.data) : (((S.ag.ppart||[]).find(p=>p.item_id===it.id)||{}).valor ?? x.valor);
+  if(i===0) e.tipo = /CONSULTA/i.test(it.descricao||'') ? 'consulta' : e.tipo==='consulta' ? 'exame' : e.tipo;
+  pacDesenhar(_pacReg.id); }
+function osInfoConv(){ const e = _osEd; if(!e.conv) return aviso('Escolha o convênio.','erro'); if(e.conv.indexOf('p:')===0) return aviso('Particular: pagamento na recepção (à vista ou cartão).');
+  const o = tissOp(e.conv), ct = S.tiss.contratos.filter(c=>c.operadora_id===o.id);
+  aviso(o.nome+' · ANS '+o.ans+' · TISS '+(o.versao||'?')+(ct.length?' · faturar como: '+ct.map(c=>c.rotulo).join(' / '):'')); }
+function osOcorrencia(){ const v = (document.getElementById('os-ocor')||{}).value; if(!String(v||'').trim()) return;
+  _osEd.ocorrencias.push({ em: dataBR(hojeISO())+' '+tissHora().slice(0,5), por: (S.perfil&&(S.perfil.nome||S.perfil.email))||'', txt: String(v).trim() }); if(_osEd.id) osGravar(true); else pacDesenhar(_pacReg.id); }
+async function osGravar(quieto){
+  const e = _osEd, p = _pacReg;
+  if(!e.conv) return aviso('Escolha o convênio ou o particular.','erro'), false;
+  if(!e.profId) return aviso('Escolha o médico (Méd.).','erro'), false;
+  if(!e.data || !e.hora) return aviso('Informe a data e a hora da OS.','erro'), false;
+  if(e.itens.some(x=>!x.itemId)) return aviso('Há item sem código.','erro'), false;
+  const part = e.conv.indexOf('p:')===0, tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
+  const os = {}; ['urg','atend','goper','plano','origem','setor','guiaPrinc','solic','cpf','cid','cidDesc','tempo','tempoUn','indClin','acidente','obsTiss','entrega','lotacao','externo','tpAtd','saida','regime','saudeOcup','cobertura','ocorrencias','itens'].forEach(k=>os[k]=e[k]);
+  const reg = { profissional_id:e.profId, data:e.data, hora:e.hora, tipo:e.tipo||'consulta', paciente_id:p.id, paciente_nome:String(p.nome||'').toUpperCase(), telefone: soDig(p.celular||p.telefone)||null,
+    carteira:e.matric||null, operadora_id: part?null:e.conv, item_id:(e.itens[0]||{}).itemId||null, pagamento: part?e.conv.slice(2):'convenio', valor: part?tot:null, obs:e.obs||null, os, atualizado_em:new Date().toISOString() };
+  if(!e.id){ reg.status = 'chegou'; reg.encaixe = true; reg.origem = 'recepcao'; reg.chegou_em = reg.atualizado_em; }
+  const r = e.id ? await sb.from('agenda').update(reg).eq('id', e.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
+  if(r.error){ aviso('Não gravou a OS: '+r.error.message,'erro'); return false; }
+  const a = r.data, i = _pacOS.lista.findIndex(x=>x.id===a.id); if(i>=0) _pacOS.lista[i] = a; else _pacOS.lista.unshift(a);
+  const j = S.ag.lista.findIndex(x=>x.id===a.id); if(j>=0) S.ag.lista[j] = a; else S.ag.lista.push(a);
+  _pacOS.sel = a.id; _osEd = osDeAgenda(a, p); _osEd._pid = p.id;
+  if(!quieto) aviso('✔ OS nº '+a.os_numero+' gravada.');
+  pacDesenhar(p.id); return a;
+}
+async function osGuia(){
+  const e = _osEd; if(e.guia_id) return tissGuiaAbrir(e.guia_id);
+  const a = await osGravar(true); if(!a) return;
+  const procs = [], desps = [];
+  e.itens.forEach(x=>{ const it = tissIt(x.itemId); (it && it.tipo!=='proc' ? desps : procs).push({ itemId:x.itemId, qtd:x.qtd||1, valor:x.valor, red:1, auto:x.auto }); });
+  if(!procs.length) return aviso('A OS precisa de pelo menos um procedimento para gerar a guia.','erro');
+  const cons = procs.length===1 && !desps.length && /CONSULTA/i.test((tissIt(procs[0].itemId)||{}).descricao||'');
+  S.tiss.filtro = e.conv; tissGuiaNova(cons ? 'consulta' : 'sadt');
+  const f = S.tiss.form, p = _pacReg;
+  Object.assign(f, { agendaId:a.id, paciente:p.nome, pacienteId:p.id, carteira:e.matric||'', data:e.data, profId:e.profId, solProfId:e.profId, procs, desps,
+    numeroGuiaOperadora:e.goper||'', senha:(e.itens.find(x=>x.senha)||{}).senha||'', acidente:e.acidente||'9', regime:e.regime||'01', carater: e.urg==='S'?'2':'1',
+    tipoAtend:e.tpAtd||'23', indicacao:e.indClin||'', obs:e.obsTiss||'', cobertura:e.cobertura||'', saudeOcup:e.saudeOcup||'', nomeSocial:p.nome_social||'',
+    validadeCart: p.dt_val||p.conv_validade||'', tipoConsulta: e.tipo==='consulta' ? '1' : f.tipoConsulta, telefone:p.celular||'' });
+  tissGuiaModal();
+}
+function osDeposito(){ const e = _osEd; if(!e.id) return aviso('Grave a OS primeiro.','erro');
+  if(!(e.conv && e.conv.indexOf('p:')===0)) return aviso('Depósito é para atendimento particular.');
+  const a = S.ag.lista.find(x=>x.id===e.id); if(!a) return; if(a.pago) return rcAbrirAgenda(a.id); agReceber(a.id); }
 function pacOsGuia(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.guia_id) return tissGuiaAbrir(a.guia_id); agAtender(aid); }
 function pacOsPagar(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.pago) return rcAbrirAgenda(aid); agReceber(aid); }
 function pacOsEditar(aid){ if(!S.ag.carregado && !S.ag.carregando) agCarregar(); agEditar(aid); }
