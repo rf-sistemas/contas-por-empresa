@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v158">
+<meta name="rf-versao" content="v159">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v158',
+  versao : 'v159',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4272,6 +4272,7 @@ async function idadCarregar(){
     S.idad.itens = a.data||[]; S.idad.movs = b.data||[]; }catch(e){}
   try{ const o = await sb.from('idad_obra').select('*').order('data',{ascending:false}); S.idad.obra = o.data||[]; }catch(e){}
   try{ const fx = await sb.from('idad_obra_fixas').select('*'); S.idad.fixas = fx.data||[]; }catch(e){ S.idad.fixas = []; }
+  try{ const cx = await sb.from('idad_fixa_caixas').select('*').order('ordem'); S.idad.fixaCaixas = cx.data||[]; }catch(e){ S.idad.fixaCaixas = []; }
   try{ const f = await sb.from('cartao_faturas').select('*').order('vencimento',{ascending:false}); S.idad.faturas = f.data||[]; }catch(e){ S.idad.faturas = []; }   // v124
   S.idad.carregado = true; S.idad.carregando = false; if(S.tela==='idad' || S.tela==='idadpac' || S.tela==='idadobra' || S.tela==='idadfixas') render();
 }
@@ -4940,22 +4941,33 @@ function telaIdadFixas(){
   const comp = fixasMes(), l = (S.idad.fixas||[]).slice().sort((a,b)=>(b.ativo-a.ativo)||((a.dia_venc||99)-(b.dia_venc||99))||String(a.descricao).localeCompare(String(b.descricao)));
   const vig = l.filter(x=>fixaVigente(x, comp)), lanc = S.idad.obra.filter(o=>o.fixa_id && o.competencia===comp);
   const falta = vig.filter(x=>!lanc.some(o=>o.fixa_id===x.id));
-  h += '<div class="card"><div class="kpis">'+kpi('Total fixo por mês', brl(fixasTotalMes(comp)))+kpi('Despesas ativas', String(vig.length))+
-    kpi('Lançadas em '+comp.slice(5)+'/'+comp.slice(0,4), String(lanc.length)+' de '+vig.length)+kpi('Pago no mês', brl(lanc.filter(o=>o.pago).reduce((s,o)=>s+(+o.valor||0),0)))+'</div></div>';
+  // v159 (Renato, 24/11/2026): as despesas fixas ficam em CAIXAS com nome (Wellington = caixa 1, Cartão = 2, Empréstimo = 3, Negociar = 4, A vencer = 5…)
+  const cxs = S.idad.fixaCaixas||[], cxSel = S.idad.fixaCx||'';
+  const cxBox = (c, i) => { const its = vig.filter(x=>x.caixa_id===c.id), tot = its.reduce((s2,x)=>s2+(+x.valor||0),0), pend = its.filter(x=>{ const o = lanc.find(y=>y.fixa_id===x.id); return !o || !o.pago; }).length, on = cxSel===c.id;
+    return '<div class="kpi" style="cursor:pointer;'+(on?'border:2px solid #0a6cf0;background:#e8f1ff':'')+'" onclick="S.idad.fixaCx=(S.idad.fixaCx===\''+c.id+'\'?\'\':\''+c.id+'\');render()"><small>Caixa '+(i+1)+' · '+esc(c.nome)+'</small><b>'+brl(tot)+'</b><small style="text-transform:none;letter-spacing:0">'+its.length+' despesa'+(its.length===1?'':'s')+(pend?' · '+pend+' em aberto':'')+'</small></div>'; };
+  const sem = vig.filter(x=>!x.caixa_id || !cxs.some(c=>c.id===x.caixa_id));
+  h += '<div class="card"><div class="kpis">'+cxs.map(cxBox).join('')+
+    (sem.length ? '<div class="kpi" style="cursor:pointer;'+(cxSel==='sem'?'border:2px solid #0a6cf0;background:#e8f1ff':'')+'" onclick="S.idad.fixaCx=(S.idad.fixaCx===\'sem\'?\'\':\'sem\');render()"><small>Sem caixa</small><b>'+brl(sem.reduce((s2,x)=>s2+(+x.valor||0),0))+'</b><small style="text-transform:none;letter-spacing:0">'+sem.length+' despesa(s)</small></div>' : '')+
+    (podeEditar()?'<div class="kpi" style="cursor:pointer;border:2px dashed #9ab;display:flex;align-items:center;justify-content:center" onclick="fixaCaixaNova()"><b style="font-size:16px">+ Caixa</b></div>':'')+'</div>'+
+    '<div style="margin-top:10px;color:var(--fraco);font-size:13.5px">Total fixo por mês: <b style="color:var(--texto)">'+brl(fixasTotalMes(comp))+'</b> · lançadas em '+comp.slice(5)+'/'+comp.slice(0,4)+': <b style="color:var(--texto)">'+lanc.length+' de '+vig.length+'</b> · pago no mês: <b style="color:var(--texto)">'+brl(lanc.filter(o=>o.pago).reduce((s2,o)=>s2+(+o.valor||0),0))+'</b></div></div>';
+  if(cxSel && cxSel!=='sem'){ const c = cxs.find(x=>x.id===cxSel); if(c && podeEditar()) h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">Mostrando só a caixa '+esc(c.nome)+'</b><button class="bt g mini" onclick="fixaCaixaRenomear(\''+c.id+'\')">Renomear</button><button class="bt g mini" style="color:var(--vermelho)" onclick="fixaCaixaExcluir(\''+c.id+'\')">Excluir caixa</button><button class="bt g mini" onclick="S.idad.fixaCx=\'\';render()">Ver todas</button></div>'; }
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label style="margin:0;display:flex;gap:8px;align-items:center">Mês <input type="month" value="'+comp+'" style="width:170px;margin:0" onchange="S.idad.fixasMes=this.value;render()"></label><span style="flex:1"></span>'+
     (podeEditar() && falta.length ? '<button class="bt g" onclick="fixasLancarMes()">Lançar no mês ('+falta.length+')</button>' : '')+
     (podeEditar()?'<button class="bt" onclick="fixaAbrir()">+ Despesa fixa</button>':'')+'</div>';
+  const lf = !cxSel ? l : cxSel==='sem' ? l.filter(x=>!x.caixa_id || !cxs.some(c=>c.id===x.caixa_id)) : l.filter(x=>x.caixa_id===cxSel);
   if(!l.length) return h+'<div class="vazio">Nenhuma despesa fixa cadastrada. Toque em <b>+ Despesa fixa</b> (ex.: aluguel de andaime, vigia, mão de obra mensal).</div>';
-  return h+'<div class="card" style="overflow-x:auto"><table><thead><tr><th>Vence</th><th>Descrição</th><th>Categoria</th><th>Fornecedor</th><th>Forma</th><th style="text-align:right">Valor/mês</th><th>'+comp.slice(5)+'/'+comp.slice(0,4)+'</th></tr></thead><tbody>'+
-    l.map(x=>{ const o = lanc.find(y=>y.fixa_id===x.id), v = fixaVigente(x, comp);
+  if(l.length && !lf.length) return h+'<div class="vazio">Nenhuma despesa nesta caixa. Toque em <b>+ Despesa fixa</b>.</div>';
+  return h+'<div class="card" style="overflow-x:auto"><table><thead><tr><th>Caixa</th><th>Vence</th><th>Descrição</th><th>Categoria</th><th>Fornecedor</th><th>Forma</th><th style="text-align:right">Valor/mês</th><th>'+comp.slice(5)+'/'+comp.slice(0,4)+'</th></tr></thead><tbody>'+
+    lf.map(x=>{ const o = lanc.find(y=>y.fixa_id===x.id), v = fixaVigente(x, comp), cx = cxs.find(c=>c.id===x.caixa_id);
       const st = !v ? '<span style="color:var(--fraco)">'+(x.ativo?'fora do período':'inativa')+'</span>' : !o ? '<span style="color:#d97706;font-weight:700">não lançada</span>' : o.pago ? '<span style="color:var(--verde);font-weight:700">Pago</span>' : '<span style="color:#d97706;font-weight:700">A pagar</span>';
-      return '<tr style="cursor:pointer'+(x.ativo?'':';opacity:.55')+'" onclick="fixaAbrir(\''+x.id+'\')"><td>'+(x.dia_venc?'dia '+x.dia_venc:'—')+'</td><td><b>'+esc(x.descricao)+'</b>'+(x.fim?'<br><small style="color:var(--fraco)">até '+dataBR(x.fim)+'</small>':'')+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+esc(x.fornecedor||'—')+'</td><td>'+esc(x.forma_pag||'—')+'</td>'+
+      return '<tr style="cursor:pointer'+(x.ativo?'':';opacity:.55')+'" onclick="fixaAbrir(\''+x.id+'\')"><td>'+(cx?esc(cx.nome):'<span style="color:var(--fraco)">—</span>')+'</td><td>'+(x.dia_venc?'dia '+x.dia_venc:'—')+'</td><td><b>'+esc(x.descricao)+'</b>'+(x.fim?'<br><small style="color:var(--fraco)">até '+dataBR(x.fim)+'</small>':'')+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+esc(x.fornecedor||'—')+'</td><td>'+esc(x.forma_pag||'—')+'</td>'+
         '<td style="text-align:right;font-weight:800">'+brl(+x.valor)+'</td><td>'+st+'</td></tr>'; }).join('')+'</tbody></table></div>';
 }
 function fixaAbrir(id){
   const x = id ? S.idad.fixas.find(o=>o.id===id) : { ativo:true, inicio: hojeISO().slice(0,7)+'-01' }, ro = podeEditar() ? '' : ' disabled';
   const dl = (i, ops) => '<datalist id="'+i+'">'+ops.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>';
   abrirModal('<h2>'+(id?'Despesa fixa':'Nova despesa fixa')+'</h2><input type="hidden" id="fx-id" value="'+(id||'')+'">'+
+    '<label>Caixa</label><select id="fx-caixa"'+ro+'><option value="">— sem caixa —</option>'+(S.idad.fixaCaixas||[]).map((c,i)=>'<option value="'+c.id+'"'+((x.caixa_id||(!id && S.idad.fixaCx))===c.id?' selected':'')+'>Caixa '+(i+1)+' · '+esc(c.nome)+'</option>').join('')+'</select>'+
     '<label>Descrição *</label><input id="fx-desc"'+ro+' value="'+esc(x.descricao||'')+'" placeholder="Ex.: Aluguel de andaime">'+
     '<div class="lin"><div><label>Valor por mês (R$) *</label><input id="fx-valor" type="number" step="0.01" inputmode="decimal"'+ro+' value="'+(x.valor!=null?x.valor:'')+'"></div>'+
       '<div><label>Dia do vencimento</label><input id="fx-dia" type="number" min="1" max="31"'+ro+' value="'+(x.dia_venc||'')+'"></div>'+
@@ -4971,7 +4983,7 @@ function fixaAbrir(id){
 async function fixaSalvar(){
   const id = val('fx-id'), g = k => val(k).trim()||null;
   const reg = { descricao:g('fx-desc'), valor:Number(val('fx-valor')), dia_venc: val('fx-dia') ? Number(val('fx-dia')) : null, categoria:g('fx-cat'), fornecedor:g('fx-forn'), forma_pag:g('fx-forma'),
-    inicio:g('fx-ini'), fim:g('fx-fim'), ativo:document.getElementById('fx-ativo').checked, obs:g('fx-obs') };
+    inicio:g('fx-ini'), fim:g('fx-fim'), ativo:document.getElementById('fx-ativo').checked, obs:g('fx-obs'), caixa_id: val('fx-caixa')||null };
   if(!reg.descricao) return aviso('Informe a descrição.','erro');
   if(!(reg.valor>0)) return aviso('Informe o valor por mês.','erro');
   if(reg.dia_venc!=null && !(reg.dia_venc>=1 && reg.dia_venc<=31)) return aviso('Dia do vencimento entre 1 e 31.','erro');
@@ -4983,6 +4995,16 @@ async function fixaSalvar(){
 async function fixaExcluir(id){ if(!confirm('Excluir esta despesa fixa? Os gastos já lançados na obra continuam lá.')) return;
   const r = await sb.from('idad_obra_fixas').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
   S.idad.fixas = S.idad.fixas.filter(o=>o.id!==id); S.idad.obra.forEach(o=>{ if(o.fixa_id===id) o.fixa_id = null; }); S.modal = null; aviso('Despesa fixa excluída.','ok'); }
+async function fixaCaixaNova(){ const n = prompt('Nome da nova caixa:'); if(!n || !n.trim()) return;
+  const ordem = (S.idad.fixaCaixas||[]).reduce((m,c)=>Math.max(m, c.ordem||0), 0) + 1;
+  const r = await sb.from('idad_fixa_caixas').insert({ nome:n.trim(), ordem }).select().maybeSingle(); if(r.error) return aviso('Não criou: '+r.error.message,'erro');
+  (S.idad.fixaCaixas = S.idad.fixaCaixas||[]).push(r.data); S.idad.fixaCx = r.data.id; aviso('Caixa '+r.data.nome+' criada.','ok'); render(); }
+async function fixaCaixaRenomear(id){ const c = S.idad.fixaCaixas.find(x=>x.id===id); const n = prompt('Novo nome da caixa:', c.nome); if(!n || !n.trim()) return;
+  const r = await sb.from('idad_fixa_caixas').update({ nome:n.trim() }).eq('id',id); if(r.error) return aviso('Não renomeou: '+r.error.message,'erro'); c.nome = n.trim(); render(); }
+async function fixaCaixaExcluir(id){ const c = S.idad.fixaCaixas.find(x=>x.id===id), n = (S.idad.fixas||[]).filter(x=>x.caixa_id===id).length;
+  if(!confirm('Excluir a caixa '+c.nome+'?'+(n?' As '+n+' despesa(s) dela ficam "sem caixa" (não são apagadas).':''))) return;
+  const r = await sb.from('idad_fixa_caixas').delete().eq('id',id); if(r.error) return aviso('Não excluiu: '+r.error.message,'erro');
+  S.idad.fixaCaixas = S.idad.fixaCaixas.filter(x=>x.id!==id); S.idad.fixas.forEach(x=>{ if(x.caixa_id===id) x.caixa_id = null; }); S.idad.fixaCx = ''; render(); }
 async function fixasLancarMes(){
   const comp = fixasMes(), [a, m] = comp.split('-').map(Number), ult = new Date(a, m, 0).getDate();
   const falta = (S.idad.fixas||[]).filter(x=>fixaVigente(x, comp) && !S.idad.obra.some(o=>o.fixa_id===x.id && o.competencia===comp));
