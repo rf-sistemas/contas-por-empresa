@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v153">
+<meta name="rf-versao" content="v154">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v153',
+  versao : 'v154',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4553,6 +4553,8 @@ function pacOsItens(a){ // itens da OS: os da guia, se já tem guia; senão o pr
 /* ---------- v152 (Renato/Sandra, 24/11/2026): a OS vira FORMULÁRIO igual à "Ordem de Serviços" do Smart — lança e grava ali mesmo.
    Campos extras da OS ficam em agenda.os (jsonb); nº da OS em agenda.os_numero (sequência no banco). ---------- */
 var _osEd = null, _osMenu = 'itens';
+/* v154: setores (salas) do IDAD — mesma lista e siglas do Smart */
+const OS_SETORES = [['3','COMPRAS'],['CON','CONSULTÓRIOS'],['DUP','DUPLEX SCAN'],['REC','RECEPÇÃO'],['RE2','RECEPÇÃO 2'],['RDO','RECEPÇÃO DOPPLER'],['REX','RECEPÇÃO IDAD'],['SCI','SALA DE CIRURGIA'],['SCP','SALA DE CIRURGIA PH/MANO'],['SPR','SALA DE PROCEDIMENTOS'],['SMR','SALA MANOMETRIA ANO RETAL'],['ULT','ULTRASOM']];
 const OS_ATEND = ['Assistencial','Ocupacional','Cortesia','Retorno'];
 const OS_TPATD = [['04','04 - Consulta'],['23','23 - Exame'],['05','05 - Exame ambulatorial'],['03','03 - Outras terapias'],['07','07 - Pequena cirurgia'],['22','22 - Telessaúde']];
 const OS_SAIDA = [['','—'],['1','1 - Retorno'],['2','2 - Retorno com SADT'],['3','3 - Referência'],['4','4 - Internação'],['5','5 - Alta'],['6','6 - Óbito']];
@@ -4591,7 +4593,7 @@ function pacOsHtml(id){
   let h = '<style>.osbox{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-bottom:8px}.osr{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:6px}'+
     '.osf{display:inline-flex;align-items:center;gap:6px}.osl{font-size:12.5px;font-weight:800;white-space:nowrap}.osf input,.osf select{margin:0;padding:6px 8px}'+
     '.oshd{background:#0e8a9a;color:#fff;font-weight:800;padding:5px 10px;border-radius:8px 8px 0 0;font-size:13px}.osmn button{display:block;width:100%;text-align:left;margin:0 0 4px}'+
-    '.ostb input,.ostb select{margin:0;padding:5px 6px}.ostb td{padding:3px 4px}@media(max-width:700px){.osf{flex-wrap:wrap}.osf input,.osf select{width:100%!important}}</style>';
+    '.ostb input,.ostb select{margin:0;padding:5px 6px}.ostb select{min-width:118px}.ostb td{padding:3px 4px}@media(max-width:700px){.osf{flex-wrap:wrap}.osf input,.osf select{width:100%!important}}</style>';
   h += '<div class="oshd">Ordem de Serviços '+(e.os_numero?'nº '+e.os_numero:'(nova)')+(e.status?' · '+esc((AG_ST[e.status]||[''])[0]):'')+(e.guia_id?' · guia gerada':'')+'</div><div class="osbox" style="border-radius:0 0 10px 10px">';
   h += R(F('OS:', '<input disabled value="'+(e.os_numero||'nova')+'" style="width:90px">'), F('Data:', In('data',150,'date')+In('hora',100,'time')), F('Urg.:', Se('urg',[['N','N'],['S','S']],60)), F('Atend.:', Se('atend',OS_ATEND,150)),
     F('G. Oper.:', In('goper',170)));
@@ -4631,18 +4633,18 @@ function osMenuHtml(id, ro){
     '<div style="display:flex;gap:6px;margin-top:8px"><input id="os-ocor" placeholder="Nova ocorrência" style="flex:1;margin:0"><button class="bt mini" onclick="osOcorrencia()">Registrar</button></div>';
   if(_osMenu!=='itens') return '<div style="color:var(--fraco);font-size:13.5px">Em construção no Sistema MR.</div>';
   const opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
-  const dl = '<datalist id="os-dl">'+(opId ? tissItensDoConv(opId) : S.tiss.itens).slice(0,500).map(i=>'<option value="'+esc(tissItemRot(i))+'">').join('')+'</datalist>';
   const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
   const tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
   const stFat = e.guia_id ? ((TISS_ST[(S.tiss.guias.find(g=>g.id===e.guia_id)||{}).status]||['Faturado'])[0]) : (e.conv && e.conv.indexOf('p:')===0 ? (e.pago?'Pago':'A receber') : 'A faturar');
-  return dl+'<div style="overflow-x:auto"><table class="ostb"><thead><tr><th>Tp</th><th>Código / descrição</th><th>Qtd</th><th>St Exe</th><th>St Fat</th><th>Setor</th><th>Médico</th><th>Senha</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+  return '<div style="overflow-x:auto"><table class="ostb"><thead><tr><th>Tp</th><th>Código</th><th>Descrição</th><th>Qtd</th><th>St Exe</th><th>St Fat</th><th>Setor</th><th>Médico</th><th>Senha</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
     e.itens.map((x,i)=>{ const it = tissIt(x.itemId);
       return '<tr'+(it?'':' style="background:#cfe6ff"')+'><td>'+(it ? (it.tipo==='proc'?'S':(it.codigo_despesa==='02'?'D':'M')) : 'S')+'</td>'+
-        '<td><input id="os-cod-'+i+'" list="os-dl" value="'+esc(it?tissItemRot(it):'')+'" placeholder="digite o código e Enter" style="min-width:260px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" onchange="osItemSet('+i+',this.value)"'+ro+'></td>'+
+        '<td><input id="os-cod-'+i+'" inputmode="numeric" autocomplete="off" value="'+esc(it?it.codigo:'')+'" placeholder="código + Enter" style="width:120px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}" onchange="osItemSet('+i+',this.value)"'+ro+'></td>'+
+        '<td style="min-width:220px;font-weight:600">'+esc(it?it.descricao||'':'')+'</td>'+
         '<td><input type="number" step="any" value="'+(x.qtd||1)+'" style="width:60px" onchange="_osEd.itens['+i+'].qtd=Number(this.value)||1;pacDesenhar(\''+id+'\')"'+ro+'></td>'+
         '<td><select onchange="_osEd.itens['+i+'].stExe=this.value"'+ro+'>'+['Pendente','Executado'].map(v=>'<option'+(x.stExe===v?' selected':'')+'>'+v+'</option>').join('')+'</select></td>'+
         '<td style="white-space:nowrap">'+esc(stFat)+'</td>'+
-        '<td><input value="'+esc(x.setor||'CON')+'" style="width:60px" onchange="_osEd.itens['+i+'].setor=this.value"'+ro+'></td>'+
+        '<td><select style="min-width:200px" onchange="_osEd.itens['+i+'].setor=this.value"'+ro+'>'+OS_SETORES.map(o=>'<option value="'+o[0]+'"'+((x.setor||'CON')===o[0]?' selected':'')+'>'+o[1]+' ('+o[0]+')</option>').join('')+((x.setor && !OS_SETORES.some(o=>o[0]===x.setor))?'<option selected>'+esc(x.setor)+'</option>':'')+'</select></td>'+
         '<td><select onchange="_osEd.itens['+i+'].profId=this.value"'+ro+'><option value="">(o da OS)</option>'+profs.map(p=>'<option value="'+p.id+'"'+(x.profId===p.id?' selected':'')+'>'+esc(p.nome.split(' ').slice(0,2).join(' '))+'</option>').join('')+'</select></td>'+
         '<td><input value="'+esc(x.senha||'')+'" style="width:90px" onchange="_osEd.itens['+i+'].senha=this.value"'+ro+'></td>'+
         '<td style="text-align:right"><input type="number" step="0.01" value="'+(x.valor==null?'':x.valor)+'" style="width:95px;text-align:right" onchange="_osEd.itens['+i+'].valor=this.value===\'\'?null:Number(this.value);_osEd.itens['+i+'].auto=false;pacDesenhar(\''+id+'\')"'+ro+'></td>'+
@@ -4660,8 +4662,10 @@ document.addEventListener('keydown', e=>{ if(e.key!=='F3' || !document.getElemen
 function osAbrir(aid, pid){ const a = _pacOS.lista.find(x=>x.id===aid); if(!a) return; _pacOS.sel = aid; _osEd = osDeAgenda(a, _pacReg); _osEd._pid = pid; _osMenu = 'itens'; pacDesenhar(pid); }
 function osConvMudou(){ const e = _osEd, opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
   e.itens.forEach(x=>{ if(x.auto!==false && opId){ const v = tissPreco(opId, x.itemId, e.data); x.valor = v; } }); pacDesenhar(_pacReg.id); }
-function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].trim(), opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
-  const it = (opId ? tissItensDoConv(opId) : S.tiss.itens).find(x=>tissItemRot(x)===rot) || S.tiss.itens.find(x=>x.codigo===cod);
+function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].replace(/[\s.\-]/g,'').toUpperCase(), opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+  if(!cod){ e.itens[i].itemId = null; return pacDesenhar(_pacReg.id); }
+  const lst = (opId ? tissItensDoConv(opId) : S.tiss.itens), norm = c => String(c||'').replace(/[\s.\-]/g,'').toUpperCase();
+  const it = lst.find(x=>norm(x.codigo)===cod) || S.tiss.itens.find(x=>norm(x.codigo)===cod);
   if(!it){ aviso('Código não encontrado na tabela. Cadastre em Convênios e preços.','erro'); return pacDesenhar(_pacReg.id); }
   const x = e.itens[i]; x.itemId = it.id; x.auto = true;
   x.valor = opId ? tissPreco(opId, it.id, e.data) : (((S.ag.ppart||[]).find(p=>p.item_id===it.id)||{}).valor ?? x.valor);
