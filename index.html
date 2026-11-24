@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v148">
+<meta name="rf-versao" content="v149">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v148',
+  versao : 'v149',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4335,7 +4335,7 @@ const PAC_LINHAS = [
   [['prontuario','Reg.','reg',null,90],['nome','Nome','text',null,420],['sexo','Sexo','select',['F','M'],70],['nascimento','Nasc.','date',null,150],['_idade','','idade',null,90]],
   [['data_registro','Dt Reg.','date',null,140],['convenio','Conv.','conv',null,200],['telefone','Fone','tel',null,140],['cpf','CPF','cpf',null,140],['_proprio1','Próprio','proprio'],['vip','VIP','check'],['produtor_rural','Produtor Rural','check']],
   'linha',
-  [['pront','Pront.','text',null,110],['status','Status','text',null,120],['arquivo','Arq.','text',null,100],['titular','Titular','text',null,300]],
+  [['pront','Pront.','pront',null,110],['status','Status','text',null,120],['arquivo','Arq.','text',null,100],['titular','Titular','text',null,300]],
   [['carteirinha','Matric.','text',null,180],['acomodacao','Acomodação','text',null,150],['nome_mae','Mãe','text',null,300],['mae_desconhecida','Desconhecida','check']],
   [['plano','Plano','text',null,200],['lotacao','Lot.','text',null,200],['matr_emp','Matr. Emp.','text',null,200]],
   [['conv_validade','Valid.','date',null,150],['dt_val','Dt.Val.','date',null,150],['profissao','Profissão','text',null,250]],
@@ -4356,21 +4356,26 @@ const PAC_ABAS = {
 const PAC_BOTOES = [['dados','Dados Complementares'],['conv2','Conv. Secundário'],['guias','Guias'],['prontuario','Prontuário'],['quest','Questionários'],['acomp','Acompanhantes'],['trat','Trat. Ambulatorial']];
 function pacTodosCampos(){ const r=[]; PAC_LINHAS.forEach(l=>{ if(Array.isArray(l)) l.forEach(c=>r.push(c)); }); Object.values(PAC_ABAS).forEach(a=>a[1].forEach(l=>l.forEach(c=>r.push(c)))); return r; }
 function pacConvenios(){ const v = {}; ['SUS','Particular'].concat(S.idad.pac.map(x=>x.convenio), S.idad.pac.map(x=>x.conv2)).forEach(c=>{ if(c) v[c]=1; }); return Object.keys(v).sort(); }
+/* v149 (Renato, 24/11/2026): campos que o IDAD NÃO usa ficam em cinza e travados, igual ao Smart */
+const PAC_CINZA = new Set(['arquivo','acomodacao','matr_emp','grupo_sang','altura','peso','email','ramal']);
 function pacCampo(c, p, ro){
   const [k, rot, t, ops, w] = c, v = p[k];
+  if(PAC_CINZA.has(k)) ro = ' disabled';
+  const cz = PAC_CINZA.has(k) ? 'background:#cfcfcf;border-color:#b3b3b3;cursor:not-allowed;' : '';
   const lb = rot ? '<span class="pxl">'+rot+(t==='check'?'':':')+'</span>' : '';
   if(t==='check') return '<label class="pxf pxc"><input type="checkbox" id="pc-'+k+'"'+ro+(v?' checked':'')+'> '+rot+'</label>';
   if(t==='proprio') return '<button type="button" class="bt g mini pxb" onclick="pacProprio()"'+ro+'>Próprio</button>';
   if(t==='idade') return '<span class="pxf"><input id="pc-idade" disabled style="width:'+w+'px;text-align:center" value="'+(p.nascimento?idadeDe(p.nascimento)+' anos':'')+'"></span>';
   if(t==='reg') return '<span class="pxf">'+lb+'<input disabled style="width:'+w+'px" value="'+(p.prontuario||'novo')+'"></span>';
+  if(t==='pront') return '<span class="pxf">'+lb+'<input disabled title="Número automático, em ordem (01, 02, 03…)" style="width:'+w+'px" value="'+esc(p.pront||'automático')+'"></span>';   // v149: nasce sozinho no banco
   let inp;
-  if(t==='select') inp = '<select id="pc-'+k+'"'+ro+' style="width:'+w+'px"><option value=""></option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
+  if(t==='select') inp = '<select id="pc-'+k+'"'+ro+' style="'+cz+'width:'+w+'px"><option value=""></option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
   else {
     const ex = t==='date' ? ' type="date"' : t==='num' ? ' type="number" step="0.01" inputmode="decimal"' :
       t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
       t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
     const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
-    inp = '<input id="pc-'+k+'"'+ro+ex+' style="width:'+w+'px" value="'+esc(vv)+'">';
+    inp = '<input id="pc-'+k+'"'+ro+ex+' style="'+cz+'width:'+w+'px" value="'+esc(vv)+'">';
   }
   return '<span class="pxf">'+lb+inp+'</span>';
 }
@@ -4563,7 +4568,7 @@ async function pacBuscaCEP(c){ c = soDig(c); if(c.length!==8) return;
 async function idadPacSalvar(){
   pacLerTela();
   const id = val('pc-id'), reg = {};
-  pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
+  pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg' && t!=='pront') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
   reg.obs = _pacReg.obs||null;
   if(!reg.nome) return aviso('Informe o nome do paciente.','erro');
   if(reg.cpf && !validaCPF(reg.cpf)) return aviso('CPF do paciente inválido — confira os dígitos.','erro');
