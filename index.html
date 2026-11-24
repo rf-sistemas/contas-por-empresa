@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v146">
+<meta name="rf-versao" content="v147">
 <meta name="rf-data" content="2026-11-24">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v146',
+  versao : 'v147',
   data   : '24/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3848,7 +3848,7 @@ const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro de pacientes', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda e recepção', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4277,12 +4277,12 @@ function telaIdad(){
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadfin\')"><div class="ic">'+icoFinIdad()+'</div><div><b>Financeiro do IDAD</b><small>'+ifinResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconc\')"><div class="ic">'+icoConc()+'</div><div><b>Conciliação do IDAD</b><small>'+iconcResumo()+'</small></div><span class="seta">›</span></button>'+
-    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro de pacientes</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro do paciente</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
-    (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadagenda\')"><div class="ic">'+icoAgenda()+'</div><div><b>Agenda e recepção <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+agResumo()+'</small></div><span class="seta">›</span></button>' : '')+
+    (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadagenda\')"><div class="ic">'+icoCallCenter()+'</div><div><b>Call center <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+agResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadreceb\')"><div class="ic" style="font-size:30px">💰</div><div><b>Dinheiro a caminho <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+rcResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
@@ -4307,7 +4307,7 @@ function validaCPF(c){ c=soDig(c); if(c.length!==11 || /^(\d)\1+$/.test(c)) retu
 function idadeDe(n){ if(!n) return null; const h=new Date(), d=new Date(n+'T12:00:00'); let a=h.getFullYear()-d.getFullYear(); if(h.getMonth()<d.getMonth() || (h.getMonth()===d.getMonth() && h.getDate()<d.getDate())) a--; return a; }
 function telaIdadPac(){
   if(!S.idad.carregado) idadCarregar();
-  let h = '<div class="secao"><b>CADASTRO DE PACIENTES</b><span>Hospital IDAD</span></div>';
+  let h = '<div class="secao"><b>CADASTRO DO PACIENTE</b><span>Hospital IDAD</span></div>';
   if(S.idad.pacErro) return h+'<div class="card"><b style="color:var(--vermelho)">O cadastro de pacientes ainda não existe no banco.</b></div>';
   if(!S.idad.pacOk) return h+'<div class="vazio">Carregando os pacientes…</div>';
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
@@ -7496,6 +7496,13 @@ const AG_ST = { agendado:['Agendado','#0a6cf0','#e8f1ff'], confirmado:['Confirma
   atendido:['Atendido','#047857','#d9f7ea'], faltou:['Faltou','#dc2626','#fdecea'], cancelado:['Cancelado','#6b7280','#f1f2f4'] };
 const AG_TIPO = { consulta:'Consulta', exame:'Exame', cirurgia:'Cirurgia' };
 const AG_ORIG = { recepcao:'Recepção', telefone:'Telefone', whatsapp:'WhatsApp', retorno:'Retorno' };
+function icoCallCenter(){ // v147: headset no degradê da logo MR
+  return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gCall" x1="0" y1="1" x2="1" y2="0">'+
+    '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
+    '<path d="M10 26v-3a14 14 0 0 1 28 0v3" fill="none" stroke="url(#gCall)" stroke-width="3.2" stroke-linecap="round"/>'+
+    '<rect x="6" y="24" width="9" height="13" rx="4" fill="url(#gCall)"/><rect x="33" y="24" width="9" height="13" rx="4" fill="url(#gCall)"/>'+
+    '<path d="M37.5 37c0 4-4 6-9 6h-3" fill="none" stroke="url(#gCall)" stroke-width="2.6" stroke-linecap="round"/><rect x="20" y="40.5" width="7" height="5" rx="2.5" fill="#0a6cf0"/></svg>';
+}
 function icoAgenda(){
   return '<svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="gAg" x1="0" y1="1" x2="1" y2="0">'+
     '<stop offset="0" stop-color="#13b981"/><stop offset=".5" stop-color="#00b8d9"/><stop offset="1" stop-color="#0a6cf0"/></linearGradient></defs>'+
@@ -7504,8 +7511,8 @@ function icoAgenda(){
     '<rect x="11" y="23" width="6" height="5" rx="1.2" fill="url(#gAg)"/><rect x="20" y="23" width="6" height="5" rx="1.2" fill="url(#gAg)"/><rect x="11" y="31" width="6" height="5" rx="1.2" fill="url(#gAg)"/>'+
     '<circle cx="37" cy="35" r="8" fill="#fff" stroke="url(#gAg)" stroke-width="2.5"/><path d="M37 31v4.3l2.8 1.8" fill="none" stroke="#0a6cf0" stroke-width="2.3" stroke-linecap="round"/></svg>';
 }
-function agResumo(){ if(!S.ag.carregado) return 'Agenda por médico, confirmação e atendimento · teste';
-  const h = hojeISO(), l = S.ag.lista.filter(a=>a.data===h && a.status!=='cancelado'); return l.length+' paciente'+(l.length===1?'':'s')+' hoje · '+l.filter(a=>a.status==='atendido').length+' atendido'+(l.filter(a=>a.status==='atendido').length===1?'':'s'); }
+function agResumo(){ if(!S.ag.carregado) return 'Agendamento por médico · encaixe e confirmação por WhatsApp';
+  const h = hojeISO(), l = S.ag.lista.filter(a=>a.data===h && a.status!=='cancelado'); const c = l.filter(a=>a.status==='confirmado').length; return l.length+' agendado'+(l.length===1?'':'s')+' para hoje · '+c+' confirmado'+(c===1?'':'s'); }
 function agSomaDias(d, n){ const x = new Date(d+'T12:00:00'); x.setDate(x.getDate()+n); return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0'); }
 function agDiaSemana(d){ return new Date(d+'T12:00:00').getDay(); }
 const AG_DS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -7538,7 +7545,7 @@ function agNome(pid){ const p = S.tiss.profs.find(x=>x.id===pid); return p ? p.n
 function telaIdadAgenda(){
   if(!agPode()) return '<div class="card">Você não tem acesso à Agenda.</div>';
   if(!S.ag.carregado && !S.ag.carregando) agCarregar();
-  let h = '<div class="secao"><b>AGENDA E RECEPÇÃO</b><span>Por médico · consulta, exame e cirurgia · do agendamento à guia</span></div>';
+  let h = '<div class="secao"><b>CALL CENTER</b><span>Agendamento por médico · consulta, exame e cirurgia · encaixe e confirmação por WhatsApp</span></div>';
   h += '<div class="card" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00;font-size:13.5px"><b>Modo teste.</b> A agenda do Smart continua valendo até a equipe aprovar.</div>';
   if(S.ag.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(S.ag.erro)+'</b></div>';
   if(!S.ag.carregado || !S.tiss.carregado) return h+'<div class="vazio">Carregando…</div>';
@@ -8064,7 +8071,7 @@ function telaIdadReceb(){
   const nG = rcGrupos(doMes).length, nPix = cam.filter(x=>x.forma==='Pix').length, nDeb = cam.filter(x=>x.forma==='Cartão de débito').length, nCr = cam.filter(x=>x.forma==='Cartão de crédito').length, nDep = cam.filter(x=>x.forma==='Dinheiro').length;
   const camTxt = [nPix?nPix+' Pix':'', nDeb?nDeb+' débito':'', nCr?nCr+' parcela'+(nCr>1?'s':''):'', nDep?nDep+' depósito'+(nDep>1?'s':''):''].filter(Boolean).join(' + ') || 'nada';
   h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Mês</b><input type="month" value="'+mes+'" onchange="S.rc.mes=this.value;S.rc.carregado=false;render()" style="width:auto;margin:0">'+
-    '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📅 Agenda</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
+    '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📞 Call center</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
   const AP = S.rc.agPend, apAtr = AP.filter(agFaltaPagar);
   h += '<div class="card"><b style="display:block;margin-bottom:8px">Onde está o dinheiro</b><div class="rc-pipe">'+
     '<div class="rc-st s0"><div class="l">📅 Agendado · a receber</div><div class="n">'+brl(rc2(AP.reduce((s,a)=>s+(+a.valor||0),0)))+'</div><div class="q">'+AP.length+' agendado'+(AP.length===1?'':'s')+(apAtr.length?' · <b class="rc-er">'+apAtr.length+' sem pagar</b>':'')+'</div></div>'+
