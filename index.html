@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v162">
+<meta name="rf-versao" content="v163">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v162',
+  versao : 'v163',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -549,6 +549,7 @@ function renderBase(){
   else if(S.tela==='idad')     corpo = telaIdad();
   else if(S.tela==='fichario') corpo = telaFichario();
   else if(S.tela==='idadpac')  corpo = telaIdadPac();
+  else if(S.tela==='idadimport') corpo = telaIdadImport();
   else if(S.tela==='idadfarm')  corpo = telaIdadEst('farmacia');
   else if(S.tela==='idadalmox') corpo = telaIdadEst('almox');
   else if(S.tela==='idadobra')  corpo = telaIdadObra();
@@ -3875,7 +3876,7 @@ const CPE_TELAS = {
   finhub:{t:'Entrada e Saída', pai:'pessoais'}, finent:{t:'Entrada', pai:'finhub'}, finsai:{t:'Saída', pai:'finhub'}, findeb:{t:'Débitos', pai:'pessoais'}, fincred:{t:'Créditos', pai:'pessoais'}, finobr:{t:'Obrigatoriedade', pai:'pessoais'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadimport:{t:'Importar do Smart', pai:'idadpac'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4417,7 +4418,9 @@ async function idadCarregar(){
       S.idad.plantoes = r.data||[];
     }
   }catch(e){ console.warn('IDAD', e); }
-  try{ const r = await sb.from('idad_pacientes').select('*').order('nome'); if(r.error) S.idad.pacErro = true; else S.idad.pac = r.data||[]; }catch(e){ S.idad.pacErro = true; }
+  /* v163: com a base do Smart (186 mil) não dá para trazer todos — vêm só os 200 mexidos por último; o resto é buscado no banco */
+  try{ const r = await sb.from('idad_pacientes').select('*').order('atualizado_em',{ascending:false}).limit(200); if(r.error) S.idad.pacErro = true; else S.idad.pac = r.data||[];
+       const c = await sb.from('idad_pacientes').select('id',{count:'exact',head:true}); S.idad.pacTotal = c.count||S.idad.pac.length; }catch(e){ S.idad.pacErro = true; }
   S.idad.pacOk = true;
   try{ const a = await sb.from('idad_itens').select('*').order('nome'), b = await sb.from('idad_movs').select('*').order('data');
     S.idad.itens = a.data||[]; S.idad.movs = b.data||[]; }catch(e){}
@@ -4438,7 +4441,7 @@ function telaIdad(){
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadfin\')"><div class="ic">'+icoFinIdad()+'</div><div><b>Financeiro do IDAD</b><small>'+ifinResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconc\')"><div class="ic">'+icoConc()+'</div><div><b>Conciliação do IDAD</b><small>'+iconcResumo()+'</small></div><span class="seta">›</span></button>'+
-    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro do paciente</b><small>'+(S.idad.pacOk ? S.idad.pac.length+' paciente'+(S.idad.pac.length===1?'':'s')+' cadastrado'+(S.idad.pac.length===1?'':'s') : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro do paciente</b><small>'+(S.idad.pacOk ? pacTotalTxt() : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
@@ -4466,23 +4469,157 @@ function mascaraCPF(t){ const d=soDig(t).slice(0,11); return d.replace(/(\d{3})(
 function mascaraTel(t){ const d=soDig(t).slice(0,11); if(d.length<=2) return d; if(d.length<=6) return '('+d.slice(0,2)+') '+d.slice(2); if(d.length<=10) return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6); return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7); }
 function validaCPF(c){ c=soDig(c); if(c.length!==11 || /^(\d)\1+$/.test(c)) return false; let s=0; for(let i=0;i<9;i++) s+=+c[i]*(10-i); let d=(s*10)%11%10; if(d!==+c[9]) return false; s=0; for(let i=0;i<10;i++) s+=+c[i]*(11-i); d=(s*10)%11%10; return d===+c[10]; }
 function idadeDe(n){ if(!n) return null; const h=new Date(), d=new Date(n+'T12:00:00'); let a=h.getFullYear()-d.getFullYear(); if(h.getMonth()<d.getMonth() || (h.getMonth()===d.getMonth() && h.getDate()<d.getDate())) a--; return a; }
+/* ===== v163 (Renato, 26/11/2026): BASE DO SMART NO MR — 186 mil pacientes.
+   A lista não vem mais inteira para a tela: a busca vai ao banco (nome, CPF, prontuário, carteirinha, telefone).
+   Tela "Importar do Smart": lê o arquivo pac.rpt exportado do Pixeon Smart (texto separado por TAB) direto do PC e grava
+   em lotes de 500. Prontuário do MR = Reg. do Smart. Não importa login/senha web do paciente. */
+const SMART_CNV = {"01":"NORCLINICAS ESPECIAL","1":"PARTICULAR","10":"COOPERMED","100":"CENTRO ME. DA MATRIZ","102":"VALE SAÚDE","11":"FUNCEF","111":"BRADESCO IND.CLÁUDIA","112":"BRADESCO EMP.CLÁUDIA","113":"HD-DESCONTO","12":"GAMA SAUDE","123":"PAX CRISTO REI","13":"GEAP","14":"GOLDEN CROSS","15":"GREMAN","16":"PLANSERV","168":"UNIMED.","17":"JURISMED","18":"CENTRO","19":"MARINHA","1C":"SAUDE CAIXA","1D":"CLINICA MARECHAL","1E":"AMIL PLANOS","2":"ASFEB","20":"MATERMED","200":"ASFEB DOPPLER","21":"MED SAUDE","22":"OAB - SALUS","220":"CENTRO M. RODOVIÁRIA","23":"ODONTO - INTERMED","24":"ODONTO MEDICARD","25":"PETROBRAS","25D":"PETROBRAS DISTRIBUID","26":"PLANSFER","27":"PLANSUL","28":"POLIMED","29":"PREFEITURA DE ITAGIM","3":"ASSOCIACAO DOS CLUBE","30":"PREF. ITAJU DO COLON","300":"UNIAO MED GUSTAVO","31":"PREVMED","32":"PROASA","33":"PRODONTOSAUDE","34":"PROMEDICA","35":"S.A.A.E.","36":"SAMP","37":"SAUDE BAMERINDUS","38":"BRADESCO INDIVIDUAL","39":"SIND EMP ITABUNA","4":"BAHIA SUL CELULOSE","40":"SINTESI","41":"SMILE","42":"SUL AMERICA INDIV","43":"UNIBANCO TEMPO SAÚDE","44":"UNIMED LOCAL","444":"UNIMED LOCAL (HILUM)","448":"UNIMED INTERCAMBIO","45":"AGF- ALLIANZ SAÚDE","46":"AMIL","47":"BLUE LIFE","48":"CAMED","488":"UNIMED INTER (HILUM)","49":"CAPESAUDE","5":"CAAB","50":"NORCLINICAS","500":"PLAMOL","501":"SUS","51":"MEDIAL SAUDE","52":"MEDISERVICE","522":"PROMEDICA SUPLETIVA","53":"PREVINA","54":"MILMED","55":"UNIAO MEDICA C/PA EX","56":"VITALLIS SANITAS","57":"BRADESCO EMPRESARIAL","58":"SUL AMERICA EMPRESAR","59":"I H SAÚDE","6":"CASSEB","60":"GOLDEN BASICA","600":"CAPESAUDE DOPPLER","601":"MEDIAL DOPPLER","602":"CASSI DOPPLER","603":"PETROBRAS WAGNER","604":"SUL AMERICA DOPPLER","605":"BRADESCO DOPPLER","61":"UNIAO MEDICA","610":"PARTICULAR CEDAP","62":"LIFE SYSTEM","63":"CORTESIA","64":"EVERCROSS","65":"MEDIAL SAÚDE II","66":"PERSONA","67":"UNIMED COP EXA HILUM","677":"UNIMED COPART EXAME","68":"UNIMED COPART HILUM","688":"UNIMED COPARTICIPATI","7":"CASSI","70":"CORREIOS","700":"PLANSERV DOPPLER","701":"CAMED VIDA","71":"SEPACO","72":"PLAN ASSIST MPF","73":"PLAN ASSIST MPT","74":"PLAN ASSIST MPM","75":"PLAN ASSIST MPDFT","76":"ASSEFAZ","77":"ACESSE SAÚDE","78":"CENTRO DOS REMÉDIOS","79":"CLUBE+VIDA IHEF","8":"CLINICA SAO ROQUE","80":"CLUBE CONSELHEIRO","800":"PORTO SEGURO-CBHPM 5","801":"CLINICA CENTRO","802":"NOTREDAME","803":"GOOD LIFE S/A","804":"SERPRO","805":"CLINICA SAUDE","81":"PLANSER TISS","82":"UNIMED-LOCAL CNU","83":"UNIMED INTERCÂMB CNU","84":"BRADESCO S OPERADORA","845":"TABELA IDAD","85":"UNIMED COOPASE","86":"CENTRO MEDICO REGION","87":"VLALMEIDA","88":"NOTREDAME INTERMEDIC","9":"COELBA","900":"UNIBANCO TSAÚDE AIG","901":"GPED","91":"PLANSERV IDAD","92":"CENTCLIN","991":"CLINICA CIDADE","992":"PRO-SAUDE","999":"[Não especificado]","99J":"JADAI","99S":"DR SAUDE CENT MEDICO","CMF":"CENTRO MED FAMILIA","MCL":"MEDCARD CLUB","ODM":"ODONTO MEDICARD"};
+function pacTotalTxt(){ const n = S.idad.pacTotal!=null ? S.idad.pacTotal : (S.idad.pac||[]).length; return n.toLocaleString('pt-BR')+' paciente'+(n===1?'':'s'); }
+function pacFiltroOr(t){
+  const s = String(t||'').trim(), d = soDig(s), p = [];
+  const nome = s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').trim().split(/\s+/).filter(Boolean).join('*');
+  if(nome && /[A-Z]/.test(nome)) p.push('nome.ilike.*'+nome+'*');
+  if(d.length>=3){ p.push('cpf.like.'+d+'*','celular.like.*'+d+'*','telefone.like.*'+d+'*','carteirinha.like.*'+d+'*'); if(d.length<=7) p.push('prontuario.eq.'+d); }
+  return p.join(',');
+}
+async function pacBuscarDB(t, lim){
+  const f = pacFiltroOr(t); if(!f) return [];
+  try{ const r = await sb.from('idad_pacientes').select('*').or(f).order('nome').limit(lim||60); return r.error ? [] : (r.data||[]); }catch(e){ return []; }
+}
+function pacGuardar(lista){
+  (lista||[]).forEach(p=>{ [S.idad && S.idad.pac, S.ag && S.ag.pacs].forEach(arr=>{ if(!Array.isArray(arr)) return;
+    const i = arr.findIndex(x=>x.id===p.id); if(i>=0) Object.assign(arr[i], p); else arr.push(p); }); });
+}
+let _pacSugT = null;
+function pacSugerir(el, dl){ clearTimeout(_pacSugT); const t = String(el.value||'').trim(); if(t.length<3) return;
+  _pacSugT = setTimeout(async ()=>{ const l = await pacBuscarDB(t, 40); pacGuardar(l); const d = document.getElementById(dl);
+    if(d) d.innerHTML = l.map(p=>'<option value="'+esc(p.nome)+'">'+esc('Pront. '+(p.prontuario||'—')+(p.nascimento?' · nasc. '+dataBR(p.nascimento):'')+(p.convenio?' · '+p.convenio:''))+'</option>').join(''); }, 300); }
+async function pacAcharDB(cpf, cart, nome){
+  try{ const c = soDig(cpf), k = String(cart||'').replace(/[^0-9A-Za-z]/g,''), ors = [];
+    if(c.length===11) ors.push('cpf.eq.'+c); if(k.length>=5) ors.push('carteirinha.eq.'+k);
+    const cols = 'id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento,prontuario'; let r = null;
+    if(ors.length){ const q = await sb.from('idad_pacientes').select(cols).or(ors.join(',')).limit(1); r = (q.data||[])[0]||null; }
+    if(!r && nome){ const q = await sb.from('idad_pacientes').select(cols).eq('nome', String(nome).trim().toUpperCase()).limit(2); if((q.data||[]).length===1) r = q.data[0]; }
+    if(r) pacGuardar([r]); return r;
+  }catch(e){ return null; }
+}
+/* ---------- importador ---------- */
+const IMP = { rodando:false, lidos:0, gravados:0, jaTinha:0, semNome:0, erros:0, fim:false, msg:'', arq:'' };
+function telaIdadImport(){
+  if(!podeUsuarios()) return '<div class="card">Só o login master importa a base do Smart.</div>';
+  if(!S.idad.carregado) idadCarregar();
+  let h = '<div class="secao"><b>IMPORTAR DO SMART</b><span>Base de pacientes do Pixeon Smart → cadastro do IDAD no MR</span></div>';
+  h += '<div class="card" style="line-height:1.55;font-size:14px">'+
+    '<b>Como funciona</b><ol style="margin:6px 0 0 18px;padding:0">'+
+    '<li>Extraia o arquivo <b>pac.rar</b> (está na pasta Documentos do PC). Sai o <b>pac.rpt</b>.</li>'+
+    '<li>Toque em <b>Escolher o arquivo pac.rpt</b> e selecione o arquivo.</li>'+
+    '<li>O MR lê o arquivo no próprio computador e grava os pacientes no banco em lotes. Não feche a tela até terminar.</li></ol>'+
+    '<div style="margin-top:8px;color:var(--fraco);font-size:13px">O prontuário do MR fica igual ao Reg. do Smart. Quem já está cadastrado não é duplicado. CPF repetido (filho com o CPF da mãe, por exemplo) entra sem o CPF. O login e a senha web do paciente no Smart não são importados.</div></div>';
+  h += '<div class="card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
+    '<button class="bt" '+(IMP.rodando?'disabled':'')+' onclick="document.getElementById(\'imp-arq\').click()">Escolher o arquivo pac.rpt</button>'+
+    '<input type="file" id="imp-arq" accept=".rpt,.txt,.tsv,.csv" hidden onchange="impPacientes(this.files[0])">'+
+    '<span style="color:var(--fraco);font-size:13px">Hoje na base: <b>'+pacTotalTxt()+'</b></span></div>'+
+    '<div id="imp-st" style="margin-top:12px">'+impStatusHtml()+'</div></div>';
+  return h;
+}
+function impStatusHtml(){
+  if(!IMP.arq) return '<div style="color:var(--fraco);font-size:13.5px">Nenhum arquivo escolhido ainda.</div>';
+  const n = x => Number(x).toLocaleString('pt-BR');
+  const pct = IMP.total ? Math.min(100, Math.round(IMP.lidosBytes/IMP.total*100)) : 0;
+  return '<div style="font-size:13.5px;margin-bottom:6px"><b>'+esc(IMP.arq)+'</b> · '+(IMP.fim?'<span style="color:#0e9f6e">concluído</span>':(IMP.rodando?'importando… '+pct+'%':''))+'</div>'+
+    '<div style="height:10px;background:#e8eef3;border-radius:6px;overflow:hidden"><div style="height:100%;width:'+(IMP.fim?100:pct)+'%;background:linear-gradient(90deg,#13b981,#00b8d9,#0a6cf0)"></div></div>'+
+    '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13.5px">'+
+      '<div>Lidos<br><b style="font-size:18px">'+n(IMP.lidos)+'</b></div>'+
+      '<div>Gravados agora<br><b style="font-size:18px;color:#0e9f6e">'+n(IMP.gravados)+'</b></div>'+
+      '<div>Já estavam no MR<br><b style="font-size:18px">'+n(IMP.jaTinha)+'</b></div>'+
+      '<div>Sem nome (ignorados)<br><b style="font-size:18px">'+n(IMP.semNome)+'</b></div>'+
+      '<div>Com erro<br><b style="font-size:18px;color:'+(IMP.erros?'var(--vermelho)':'inherit')+'">'+n(IMP.erros)+'</b></div></div>'+
+    (IMP.msg?'<div style="margin-top:8px;font-size:13px;color:var(--fraco)">'+esc(IMP.msg)+'</div>':'');
+}
+function impAtualiza(){ const e = document.getElementById('imp-st'); if(e) e.innerHTML = impStatusHtml(); }
+function impReg(r){
+  const v = x => { x = (x==null?'':String(x)).trim(); return (!x || x==='NULL') ? null : x; };
+  const dt = x => { x = v(x); return x && !/^1900/.test(x) ? x.slice(0,10) : null; };
+  const dg = x => { x = v(x); if(!x) return null; const d = soDig(x); return d || null; };
+  const reg = parseInt(v(r.pac_reg)||'',10), nome = (v(r.pac_nome)||'').replace(/\s+/g,' ').toUpperCase();
+  if(!reg || !nome) return null;
+  let cpf = dg(r.pac_numcpf); if(!cpf || cpf.length!==11 || /^(\d)\1+$/.test(cpf)) cpf = null;
+  const sexo = v(r.pac_sexo); const cnv = v(r.pac_cnv);
+  return { prontuario:reg, nome, cpf, nascimento:dt(r.pac_nasc), sexo: sexo==='F'||sexo==='M' ? sexo : null,
+    telefone:v(r.pac_fone), celular:v(r.PAC_CELULAR), tel2:v(r.pac_fone2), email:v(r.pac_email), nome_mae:v(r.pac_nome_mae),
+    convenio: cnv ? (SMART_CNV[cnv]||cnv) : null, carteirinha:v(r.pac_mcnv), conv_validade:dt(r.pac_dt_valid), titular:v(r.pac_tit),
+    endereco:v(r.pac_end), numero:v(r.pac_end_num), bairro:v(r.pac_comp), cep:dg(r.pac_cep), uf:(v(r.pac_uf)||'').toUpperCase().slice(0,2)||null,
+    rg:v(r.pac_numrg), rg_orgao:v(r.pac_numrg_org), rg_uf:(v(r.pac_numrg_uf)||'').toUpperCase().slice(0,2)||null, cns:v(r.PAC_CARTAO_SUS),
+    nome_social:v(r.pac_nome_social), data_registro:dt(r.pac_dreg), matr_emp:v(r.pac_matr_emp), whatsapp: v(r.pac_ind_whatsapp)==='S' ? true : null,
+    obs:'[Importado do Smart em '+dataBR(hojeISO())+' · Reg. Smart '+reg+']', atualizado_em:'2000-01-01T00:00:00Z' };
+}
+async function impGravar(lote){
+  const r = await sb.from('idad_pacientes').upsert(lote, { onConflict:'prontuario', ignoreDuplicates:true }).select('id');
+  if(!r.error){ const g = (r.data||[]).length; IMP.gravados += g; IMP.jaTinha += lote.length - g; return; }
+  for(const x of lote){   // um a um, para isolar o problema (CPF já usado por outro paciente)
+    let q = await sb.from('idad_pacientes').upsert([x], { onConflict:'prontuario', ignoreDuplicates:true }).select('id');
+    if(q.error && x.cpf){ x.cpf = null; q = await sb.from('idad_pacientes').upsert([x], { onConflict:'prontuario', ignoreDuplicates:true }).select('id'); }
+    if(q.error){ IMP.erros++; IMP.msg = 'Último erro: '+q.error.message; } else if((q.data||[]).length) IMP.gravados++; else IMP.jaTinha++;
+  }
+}
+async function impPacientes(file){
+  if(!file || IMP.rodando) return;
+  Object.assign(IMP, { rodando:true, lidos:0, gravados:0, jaTinha:0, semNome:0, erros:0, fim:false, msg:'Conferindo os CPFs que já estão no MR…', arq:file.name, total:file.size, lidosBytes:0 });
+  render();
+  const cpfs = new Set();
+  try{ for(let de=0;;de+=1000){ const q = await sb.from('idad_pacientes').select('cpf').not('cpf','is',null).range(de, de+999); (q.data||[]).forEach(x=>cpfs.add(x.cpf)); if(!q.data || q.data.length<1000) break; } }catch(e){}
+  IMP.msg = ''; impAtualiza();
+  const rd = file.stream().getReader(), dec = new TextDecoder('utf-8');
+  let resto = '', hdr = null, buf = null, lote = [];
+  const linha = async (l)=>{
+    if(!hdr){ hdr = l.replace(/^﻿/,'').split('\t').map(x=>x.trim()); if(hdr.indexOf('pac_reg')<0 || hdr.indexOf('pac_nome')<0) throw new Error('Este arquivo não é o pac.rpt do Smart (falta a coluna pac_reg / pac_nome).'); return; }
+    if(/^\(\d+ row\(s\) affected\)/.test(l)) return;
+    buf = buf==null ? l : buf+' '+l; const p = buf.split('\t'); if(p.length < hdr.length) return;
+    const o = {}; hdr.forEach((k,i)=>o[k]=p[i]); buf = null; IMP.lidos++;
+    const x = impReg(o); if(!x){ IMP.semNome++; return; }
+    if(x.cpf){ if(cpfs.has(x.cpf)) x.cpf = null; else cpfs.add(x.cpf); }
+    lote.push(x); if(lote.length>=500){ const l2 = lote; lote = []; await impGravar(l2); impAtualiza(); }
+  };
+  try{
+    for(;;){ const { value, done } = await rd.read(); if(done) break; IMP.lidosBytes += value.length;
+      resto += dec.decode(value, { stream:true }); const ls = resto.split(/\r?\n/); resto = ls.pop();
+      for(const l of ls) await linha(l); }
+    resto += dec.decode(); if(resto) await linha(resto);
+    if(lote.length) await impGravar(lote);
+    IMP.fim = true; IMP.msg = 'Pronto. Os pacientes já aparecem na busca do Cadastro do paciente, do Call center e das guias.';
+  }catch(e){ IMP.msg = 'Parou: '+(e.message||e); }
+  IMP.rodando = false;
+  try{ const c = await sb.from('idad_pacientes').select('id',{count:'exact',head:true}); S.idad.pacTotal = c.count; }catch(e){}
+  render();
+}
 function telaIdadPac(){
   if(!S.idad.carregado) idadCarregar();
   let h = '<div class="secao"><b>CADASTRO DO PACIENTE</b><span>Hospital IDAD</span></div>';
   if(S.idad.pacErro) return h+'<div class="card"><b style="color:var(--vermelho)">O cadastro de pacientes ainda não existe no banco.</b></div>';
   if(!S.idad.pacOk) return h+'<div class="vazio">Carregando os pacientes…</div>';
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
-    '<input id="pac-busca" placeholder="Buscar por nome, CPF, prontuário ou telefone" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacLista()" style="flex:1;min-width:220px">'+
-    (podeEditar()? '<button class="bt" onclick="idadPacAbrir()">+ Novo paciente</button>' : '')+'</div>';
+    '<input id="pac-busca" placeholder="Buscar por nome, CPF, prontuário, carteirinha ou telefone" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacBuscar()" style="flex:1;min-width:220px">'+
+    (podeEditar()? '<button class="bt" onclick="idadPacAbrir()">+ Novo paciente</button>' : '')+
+    (podeUsuarios()? '<button class="bt g" onclick="irPara(\'idadimport\')">Importar do Smart</button>' : '')+'</div>';
   return h+'<div id="pac-lista">'+idadPacListaHtml()+'</div>';
 }
 function idadPacLista(){ const e=document.getElementById('pac-lista'); if(e) e.innerHTML = idadPacListaHtml(); }
+let _pacBuscaT = null;
+function idadPacBuscar(){ clearTimeout(_pacBuscaT); const t = String(S.idad.busca||'').trim();
+  if(t.length < 3){ S.idad.pacRes = null; S.idad.pacBuscando = false; return idadPacLista(); }
+  S.idad.pacBuscando = true; idadPacLista();
+  _pacBuscaT = setTimeout(async ()=>{ const l = await pacBuscarDB(t, 80); if(String(S.idad.busca||'').trim()!==t) return;
+    pacGuardar(l); S.idad.pacRes = l.map(p=>p.id); S.idad.pacBuscando = false; idadPacLista(); }, 350); }
 function idadPacListaHtml(){
-  const b = permNorm(S.idad.busca), bd = soDig(S.idad.busca);
-  const l = S.idad.pac.filter(p=>!b || permNorm(p.nome).indexOf(b)>=0 || (bd && (soDig(p.cpf).indexOf(bd)>=0 || soDig(p.telefone).indexOf(bd)>=0 || soDig(p.celular).indexOf(bd)>=0 || String(p.prontuario||'')===bd)));
-  if(!S.idad.pac.length) return '<div class="vazio">Nenhum paciente cadastrado ainda. Toque em <b>+ Novo paciente</b>.</div>';
-  if(!l.length) return '<div class="vazio">Nenhum paciente encontrado.</div>';
-  return '<div class="bxs">'+l.map(p=>{ const id = idadeDe(p.nascimento);
+  const t = String(S.idad.busca||'').trim();
+  if(!S.idad.pac.length && !t) return '<div class="vazio">Nenhum paciente cadastrado ainda. Toque em <b>+ Novo paciente</b>.</div>';
+  if(t && t.length < 3) return '<div class="vazio">Digite pelo menos 3 letras ou números para buscar.</div>';
+  if(S.idad.pacBuscando) return '<div class="vazio">Buscando em '+pacTotalTxt()+'…</div>';
+  const l = t ? (S.idad.pacRes||[]).map(id=>S.idad.pac.find(p=>p.id===id)).filter(Boolean) : S.idad.pac.slice(0,50);
+  if(!l.length) return '<div class="vazio">Nenhum paciente encontrado com “'+esc(t)+'”.</div>';
+  const topo = t ? '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">'+(l.length>=80?'Mostrando os 80 primeiros — refine a busca.':l.length+' encontrado'+(l.length===1?'':'s')+'.')+'</div>'
+                 : '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">Mexidos por último. São '+pacTotalTxt()+' na base — digite para buscar.</div>';
+  return topo+'<div class="bxs">'+l.map(p=>{ const id = idadeDe(p.nascimento);
     return '<button type="button" class="bx" style="align-items:flex-start" onclick="idadPacAbrir(\''+p.id+'\')"><div class="ic">'+icoPaciente()+'</div><div style="text-align:left">'+
       '<b>'+esc(p.usar_nome_social&&p.nome_social?p.nome_social:p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+(p.convenio?'':'')+'</small>'+
       '<small>'+[p.cpf?'CPF '+esc(mascaraCPF(p.cpf)):'', p.convenio?esc(p.convenio)+(p.carteirinha?' nº '+esc(p.carteirinha):''):''].filter(Boolean).join(' · ')+'</small>'+
@@ -4920,9 +5057,9 @@ async function idadPacSalvar(){
   reg.atualizado_em = new Date().toISOString();
   const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
                : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
-  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
-  if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else S.idad.pac.push(r.data);
-  S.idad.pac.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  if(r.error) return aviso(/cpf/i.test(r.error.message) ? 'Já existe paciente com este CPF na base (busque pelo CPF).' : 'Não gravou: '+r.error.message,'erro');
+  if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else { S.idad.pac.unshift(r.data); S.idad.pacTotal = (S.idad.pacTotal||0)+1; }
+  pacGuardar([r.data]);
   S.modal=null; aviso(id?'Paciente atualizado.':'Paciente cadastrado — prontuário nº '+r.data.prontuario+'.','ok');
 }
 
@@ -7640,7 +7777,7 @@ function tissGuiaModal(){
   if(typeof agBarraAtendimento==='function') h += agBarraAtendimento();
   h += lin('<label style="flex:2;min-width:220px">Convênio<select onchange="tissFormOp(this.value)"'+(ro?' disabled':'')+'><option value="">Escolha…</option>'+opsOpt+'</select></label>',
     '<label style="flex:2;min-width:220px">Faturar como<select onchange="S.tiss.form.ctId=this.value"'+(ro?' disabled':'')+'>'+cts.map(c=>'<option value="'+c.id+'"'+(f.ctId===c.id?' selected':'')+'>'+esc(c.rotulo)+(c.ativo?'':' (sem envio há 1 ano)')+'</option>').join('')+'</select></label>');
-  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="tg-pacs" value="'+esc(f.paciente)+'" onchange="tissFormPac(this.value)"'+(ro?' disabled':'')+'></label>'+
+  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="tg-pacs" value="'+esc(f.paciente)+'" oninput="pacSugerir(this,\'tg-pacs\')" onchange="tissFormPac(this.value)"'+(ro?' disabled':'')+'></label>'+
       '<datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>', I('carteira','Nº da carteirinha'), Sel('rn','Recém-nascido',[['N','Não'],['S','Sim']]));
   h += lin(I('numeroGuia','Nº da guia (prestador)', '', ''), I('data', f.tipo==='sadt'?'Data da solicitação/execução':'Data do atendimento', 'date', ';tissFormRecalc()'),
       '<label style="flex:2;min-width:220px">Médico executante<select onchange="S.tiss.form.profId=this.value"'+(ro?' disabled':'')+'>'+profOpt(f.profId)+'</select></label>');
@@ -7713,7 +7850,7 @@ function tissGuiaConsultaModal(){
   h += '<div class="gcl">'+B(1,'Registro ANS',V(d.ans),1)+B(3,'Número da Guia Atribuído pela Operadora',In('numeroGuiaOperadora'),3)+'</div>';
   h += '<div class="gcs">Dados do Beneficiário</div>';
   h += '<div class="gcl">'+B(4,'Número da carteira',In('carteira'),3)+B(5,'Validade da Carteira',In('validadeCart','date'),1.4)+B(6,'Atendimento a RN (Sim ou Não)',Se('rn',[['N','Não'],['S','Sim']]),1.2)+'</div>';
-  h += '<div class="gcl">'+B(7,'Nome','<input list="tg-pacs" value="'+esc(f.paciente||'')+'" onchange="tissFormPac(this.value)"'+dis+'><datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',1)+'</div>';
+  h += '<div class="gcl">'+B(7,'Nome','<input list="tg-pacs" value="'+esc(f.paciente||'')+'" oninput="pacSugerir(this,\'tg-pacs\')" onchange="tissFormPac(this.value)"'+dis+'><datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',1)+'</div>';
   h += '<div class="gcl">'+B(26,'Nome Social',In('nomeSocial'),1)+'</div>';
   h += '<div class="gcs">Dados do Contratado</div>';
   h += '<div class="gcl">'+B(9,'Código na Operadora',V(d.codOp),2)+B(10,'Nome do Contratado',V(d.contratado),4)+B(11,'Código CNES',V(d.cnes),1.2)+'</div>';
@@ -8050,7 +8187,7 @@ async function agCarregar(){
     const [a, g, p] = await Promise.all([
       sb.from('agenda').select('*').gte('data', ini).lte('data', fim).order('hora'),
       sb.from('agenda_medicos').select('*'),
-      sb.from('idad_pacientes').select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento').order('nome').limit(5000) ]);
+      sb.from('idad_pacientes').select('id,nome,cpf,celular,telefone,convenio,carteirinha,nascimento,prontuario').order('atualizado_em',{ascending:false}).limit(300) ]);   // v163: o resto vem pela busca
     if(a.error) throw a.error; if(g.error) throw g.error;
     const pp = await sb.from('particular_precos').select('*');
     Object.assign(S.ag, { lista:a.data, grade:g.data, pacs:(p.data||[]), ppart:(pp.data||[]), ini, fim, carregado:true, erro:null });
@@ -8210,7 +8347,7 @@ function agModal(){
     '<input type="file" id="ag-docfoto" accept="image/*" capture="environment" hidden onchange="agLerAgendamento(this)">'+
     '<input type="file" id="ag-docarq" accept="image/*,application/pdf" multiple hidden onchange="agLerAgendamento(this)">'+
     '<span id="ag-docst" style="font-size:12.5px;color:var(--fraco);flex:1;min-width:180px">'+(a.paciente_id?'<span style="color:#0e9f6e">✔ Paciente já tem ficha no IDAD.</span>':'Paciente novo? Fotografe a carteirinha e o documento: a IA preenche e a ficha é criada ao salvar.')+'</span></div>';
-  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="ag-pacs" value="'+esc(a.paciente_nome)+'" onchange="agPac(this.value)"'+(ro?' disabled':'')+'></label><datalist id="ag-pacs">'+S.ag.pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',
+  h += lin('<label style="flex:2;min-width:220px">Paciente<input list="ag-pacs" value="'+esc(a.paciente_nome)+'" oninput="pacSugerir(this,\'ag-pacs\')" onchange="agPac(this.value)"'+(ro?' disabled':'')+'></label><datalist id="ag-pacs">'+S.ag.pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',
     I('telefone','Celular / WhatsApp','tel'), I('carteira','Carteirinha'));
   h += lin(Sel('profissional_id','Médico', agMedicos().map(p=>[p.id,p.nome])), I('data','Data','date'), I('hora','Hora','time'), I('duracao','Duração (min)','number'));
   h += lin(Sel('tipo','Tipo', [['consulta','Consulta'],['exame','Exame'],['cirurgia','Cirurgia']]),
@@ -8256,7 +8393,8 @@ async function agSalvar(atender){
   const conflito = S.ag.lista.some(x=>x.id!==a.id && x.status!=='cancelado' && x.profissional_id===a.profissional_id && x.data===a.data && agMin(x.hora)===agMin(a.hora));
   if(conflito && !a.encaixe){ if(!confirm('Já existe paciente neste horário. Marcar como ENCAIXE?')) return; a.encaixe = true; }
   if(!a.paciente_id){ // v142: paciente novo ganha a ficha no cadastro do IDAD já no agendamento
-    const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===soDig(a.cpf)) || (a.carteira && p.carteirinha && soDig(p.carteirinha)===soDig(a.carteira)) || permNorm(p.nome)===permNorm(a.paciente_nome));
+    const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===soDig(a.cpf)) || (a.carteira && p.carteirinha && soDig(p.carteirinha)===soDig(a.carteira)) || permNorm(p.nome)===permNorm(a.paciente_nome))
+            || await pacAcharDB(a.cpf, a.carteira, a.paciente_nome);   // v163
     if(ex) a.paciente_id = ex.id;
     else { const op = tissOp(a.operadora_id);
       const rp = await sb.from('idad_pacientes').insert({ nome:String(a.paciente_nome).trim().toUpperCase(), cpf:a.cpf||null, nascimento:a.nascimento||null, celular:soDig(a.telefone)||null,
@@ -8346,7 +8484,7 @@ async function agLerAgendamento(inp){
     if(c.nascimento && !a.nascimento){ a.nascimento = agDataISO(c.nascimento); }
     if(c.plano) a.plano = c.plano; if(c.conv_validade) a.validade = agDataISO(c.conv_validade);
     if(c.convenio && !a.operadora_id){ const o = agConvDe(c.convenio); if(o){ a.operadora_id = o.id; lidos.push('convênio'); } else a.convenio_lido = c.convenio; }
-    if(!a.paciente_id && (a.cpf || a.carteira)){ const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===a.cpf) || (a.carteira && soDig(p.carteirinha)===soDig(a.carteira))); if(ex){ a.paciente_id = ex.id; lidos.push('paciente já cadastrado'); } }
+    if(!a.paciente_id && (a.cpf || a.carteira)){ const ex = S.ag.pacs.find(p=>(a.cpf && soDig(p.cpf)===a.cpf) || (a.carteira && soDig(p.carteirinha)===soDig(a.carteira))) || await pacAcharDB(a.cpf, a.carteira); if(ex){ a.paciente_id = ex.id; lidos.push('paciente já cadastrado'); } }
     agModal(); const s2 = document.getElementById('ag-docst');
     if(s2) s2.innerHTML = '<span style="color:#0e9f6e">✔ Lido: '+(lidos.join(', ')||'nada novo')+'. Confira.</span>'+(a.convenio_lido?'<br><span style="color:#d97706">Convênio no documento: '+esc(a.convenio_lido)+' — escolha na lista.</span>':'');
   }catch(e){ msg('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
@@ -8389,7 +8527,7 @@ function agBarraAtendimento(){
 async function agDepoisDaGuia(f, guia){
   try{
     if(!f.pacienteId && f.paciente){
-      const ex = S.ag.pacs.find(p=>(f.cpf && soDig(p.cpf)===soDig(f.cpf)) || (f.carteira && soDig(p.carteirinha)===soDig(f.carteira)));
+      const ex = S.ag.pacs.find(p=>(f.cpf && soDig(p.cpf)===soDig(f.cpf)) || (f.carteira && soDig(p.carteirinha)===soDig(f.carteira))) || await pacAcharDB(f.cpf, f.carteira);
       if(ex) f.pacienteId = ex.id;
       else { const op = tissOp(f.opId);
         const r = await sb.from('idad_pacientes').insert({ nome: String(f.paciente).toUpperCase(), cpf: f.cpf||null, nascimento: f.nascimento||null, celular: f.telefone?soDig(f.telefone):null,
