@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v165">
+<meta name="rf-versao" content="v166">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v165',
+  versao : 'v166',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4478,7 +4478,7 @@ function pacFiltroOr(t){
   const s = String(t||'').trim(), d = soDig(s), p = [];
   const nome = s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').trim().split(/\s+/).filter(Boolean).join('*');
   if(nome && /[A-Z]/.test(nome)) p.push('nome.ilike.*'+nome+'*');
-  if(d.length>=3){ p.push('cpf.like.'+d+'*','celular.like.*'+d+'*','telefone.like.*'+d+'*','carteirinha.like.*'+d+'*'); if(d.length<=7) p.push('prontuario.eq.'+d); }
+  if(d.length>=3){ p.push('rg.like.'+d+'*','cpf.like.'+d+'*','celular.like.*'+d+'*','telefone.like.*'+d+'*','carteirinha.like.*'+d+'*'); if(d.length<=7) p.push('prontuario.eq.'+d); }
   return p.join(',');
 }
 async function pacBuscarDB(t, lim){
@@ -4597,11 +4597,64 @@ function telaIdadPac(){
   if(S.idad.pacErro) return h+'<div class="card"><b style="color:var(--vermelho)">O cadastro de pacientes ainda não existe no banco.</b></div>';
   if(!S.idad.pacOk) return h+'<div class="vazio">Carregando os pacientes…</div>';
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
-    '<input id="pac-busca" placeholder="Buscar por nome, CPF, prontuário, carteirinha ou telefone" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacBuscar()" style="flex:1;min-width:220px">'+
+    '<input id="pac-busca" placeholder="Buscar por nome, CPF, RG, prontuário ou carteirinha" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacBuscar()" style="flex:1;min-width:220px">'+
+    '<button class="bt" onclick="document.getElementById(\'pac-fotobusca\').click()">'+icoCamDoc()+'Foto do documento</button>'+
+    '<input type="file" id="pac-fotobusca" accept="image/*" capture="environment" hidden onchange="pacFotoBuscar(this)">'+
     (podeEditar()? '<button class="bt" onclick="idadPacAbrir()">+ Novo paciente</button>' : '')+
     (agPode()? '<button class="bt" onclick="irPara(\'idadagenda\')">📅 Agenda</button>' : '')+
     (podeUsuarios()? '<button class="bt g" onclick="irPara(\'idadimport\')">Importar do Smart</button>' : '')+'</div>';
+  h += '<div id="pac-fotost" style="font-size:13px;margin:-4px 4px 8px"></div>';
+  if(S.idad.doDiaDia!==hojeISO() && !S.idad.doDiaCarr) pacDoDiaCarregar();
   return h+'<div id="pac-lista">'+idadPacListaHtml()+'</div>';
+}
+/* v166 (Renato, 26/11/2026): sem busca, a tela mostra SÓ os pacientes do dia (agendados para hoje ou cadastrados hoje).
+   No dia seguinte fica vazia até o novo cadastro — evita abrir o paciente errado. */
+async function pacDoDiaCarregar(){
+  const hoje = hojeISO(); S.idad.doDiaCarr = true;
+  let ids = [], novos = [], ag = [];
+  try{ const a = await sb.from('agenda').select('paciente_id').eq('data', hoje).neq('status','cancelado'); ids = (a.data||[]).map(x=>x.paciente_id).filter(Boolean); }catch(e){}
+  try{ const ini = new Date(); ini.setHours(0,0,0,0);
+    const q = await sb.from('idad_pacientes').select('*').gte('criado_em', ini.toISOString()).or('obs.is.null,obs.not.like."*Importado do Smart*"').limit(300); novos = q.data||[];
+    if(q.error){ const q2 = await sb.from('idad_pacientes').select('*').gte('criado_em', ini.toISOString()).order('criado_em',{ascending:false}).limit(1000);
+      novos = (q2.data||[]).filter(p=>!/^\[Importado do Smart/.test(p.obs||'')); } }catch(e){}
+  ids = Array.from(new Set(ids)).filter(id=>!novos.some(p=>p.id===id));
+  if(ids.length){ try{ const q = await sb.from('idad_pacientes').select('*').in('id', ids.slice(0,300)); ag = q.data||[]; }catch(e){} }
+  const l = ag.concat(novos).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')));
+  pacGuardar(l); S.idad.doDia = l.map(p=>p.id); S.idad.doDiaDia = hoje; S.idad.doDiaCarr = false; idadPacLista();
+}
+/* v166: botão de foto na tela do Cadastro — lê o documento; se o paciente já existe abre a ficha, se não abre o cadastro novo já preenchido. */
+async function pacFotoBuscar(inp){
+  const st = document.getElementById('pac-fotost'), f = inp && inp.files && inp.files[0]; if(!f) return;
+  const msg = h=>{ const e=document.getElementById('pac-fotost'); if(e) e.innerHTML = h; };
+  try{
+    msg('Lendo o documento… (uns 10 a 20 segundos)');
+    const buf = await f.arrayBuffer(); if(!buf.byteLength) throw new Error('a foto veio vazia — tente de novo');
+    const ehPdf = (f.type==='application/pdf') || /\.pdf$/i.test(f.name||'');
+    const imagens = ehPdf ? (await saldoPdfImagens(buf.slice(0))).slice(0,2) : [{ b64: await saldoImgJpeg(new Blob([buf],{type:f.type||'image/jpeg'})), mime:'image/jpeg' }];
+    const { data, error } = await sb.functions.invoke('ler-documento-paciente', { body: { imagens } });
+    if(error){ let m = error.message; try{ const j = await error.context.json(); m = j.error || j.erro || m; }catch(e){} throw new Error(m); }
+    if(data && data.error) throw new Error(data.error);
+    const c = (data && data.campos) || {};
+    const achou = await pacAcharDB(c.cpf, c.carteirinha, c.nome);
+    if(achou){
+      try{ const q = await sb.from('idad_pacientes').select('*').eq('id', achou.id).maybeSingle(); if(q.data) pacGuardar([q.data]); }catch(e){}
+      msg('<span style="color:var(--verde,#0f9d58)">✔ Paciente encontrado: '+esc(achou.nome||'')+'</span>');
+      return idadPacAbrir(achou.id);
+    }
+    msg('<span style="color:var(--fraco)">Paciente sem cadastro — abrindo a ficha nova já preenchida. Confira e salve.</span>');
+    idadPacAbrir();
+    const dataOk = v=> /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : (v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/) ? v.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/,'$3-$2-$1') : '');
+    const preench = [];
+    pacTodosCampos().forEach(([k,rot,t,ops])=>{ let v = c[k]; if(v==null || v==='') return; v = String(v).trim();
+      if(t==='date'){ v = dataOk(v); if(!v) return; }
+      if(t==='cpf' || t==='cep' || k==='cns'){ v = soDig(v); if(t==='cpf' && !validaCPF(v)) return; }
+      if(t==='select'){ const o = (ops||[]).find(x=>norm(x)===norm(v)); if(!o) return; v = o; }
+      _pacReg[k] = v; preench.push(k); });
+    pacDesenhar(null);
+    preench.forEach(k=>{ const e=document.getElementById('pc-'+k); if(e) e.style.background='#e6f8f1'; });
+    const s2 = document.getElementById('pc-docst'); if(s2) s2.innerHTML = '<span style="color:var(--verde,#0f9d58)">✔ Paciente novo · '+preench.length+' campos lidos do documento (em verde). Confira e toque em Salvar.</span>';
+  }catch(e){ msg('<span style="color:var(--vermelho)">✖ '+esc(e.message||e)+'</span>'); }
+  finally{ if(inp) inp.value = ''; }
 }
 function idadPacLista(){ const e=document.getElementById('pac-lista'); if(e) e.innerHTML = idadPacListaHtml(); }
 let _pacBuscaT = null;
@@ -4612,18 +4665,25 @@ function idadPacBuscar(){ clearTimeout(_pacBuscaT); const t = String(S.idad.busc
     pacGuardar(l); S.idad.pacRes = l.map(p=>p.id); S.idad.pacBuscando = false; idadPacLista(); }, 350); }
 function idadPacListaHtml(){
   const t = String(S.idad.busca||'').trim();
-  if(!S.idad.pac.length && !t) return '<div class="vazio">Nenhum paciente cadastrado ainda. Toque em <b>+ Novo paciente</b>.</div>';
+  if(!t){
+    if(S.idad.doDiaDia!==hojeISO()) return '<div class="vazio">Carregando os pacientes do dia…</div>';
+    const ld = (S.idad.doDia||[]).map(id=>S.idad.pac.find(p=>p.id===id)).filter(Boolean);
+    if(!ld.length) return '<div class="vazio">Nenhum paciente hoje ainda. Busque pelo nome, CPF, RG, prontuário ou carteirinha, use a <b>Foto do documento</b> ou toque em <b>+ Novo paciente</b>.<br><small>São '+pacTotalTxt()+' na base.</small></div>';
+    return '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">Pacientes de hoje ('+ld.length+') — agendados ou cadastrados hoje. O resto da base ('+pacTotalTxt()+') aparece só pela busca.</div><div class="bxs">'+ld.map(pacCartaoHtml).join('')+'</div>';
+  }
   if(t && t.length < 3) return '<div class="vazio">Digite pelo menos 3 letras ou números para buscar.</div>';
   if(S.idad.pacBuscando) return '<div class="vazio">Buscando em '+pacTotalTxt()+'…</div>';
   const l = t ? (S.idad.pacRes||[]).map(id=>S.idad.pac.find(p=>p.id===id)).filter(Boolean) : S.idad.pac.slice(0,50);
   if(!l.length) return '<div class="vazio">Nenhum paciente encontrado com “'+esc(t)+'”.</div>';
   const topo = t ? '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">'+(l.length>=80?'Mostrando os 80 primeiros — refine a busca.':l.length+' encontrado'+(l.length===1?'':'s')+'.')+'</div>'
                  : '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">Mexidos por último. São '+pacTotalTxt()+' na base — digite para buscar.</div>';
-  return topo+'<div class="bxs">'+l.map(p=>{ const id = idadeDe(p.nascimento);
+  return topo+'<div class="bxs">'+l.map(pacCartaoHtml).join('')+'</div>';
+}
+function pacCartaoHtml(p){ const id = idadeDe(p.nascimento);
     return '<button type="button" class="bx" style="align-items:flex-start" onclick="idadPacAbrir(\''+p.id+'\')"><div class="ic">'+icoPaciente()+'</div><div style="text-align:left">'+
       '<b>'+esc(p.usar_nome_social&&p.nome_social?p.nome_social:p.nome)+'</b><small>Prontuário nº '+(p.prontuario||'—')+(id!=null?' · '+id+' anos':'')+(p.sexo?' · '+esc(p.sexo):'')+(p.convenio?'':'')+'</small>'+
       '<small>'+[p.cpf?'CPF '+esc(mascaraCPF(p.cpf)):'', p.convenio?esc(p.convenio)+(p.carteirinha?' nº '+esc(p.carteirinha):''):''].filter(Boolean).join(' · ')+'</small>'+
-      (p.origem?'<small>Veio por: '+esc(p.origem)+(p.origem_detalhe?' ('+esc(p.origem_detalhe)+')':'')+'</small>':'')+((p.celular||p.telefone)?'<small>'+esc(mascaraTel(p.celular||p.telefone))+(p.whatsapp?' · WhatsApp':'')+'</small>':'')+'</div><span class="seta">›</span></button>'; }).join('')+'</div>';
+      (p.origem?'<small>Veio por: '+esc(p.origem)+(p.origem_detalhe?' ('+esc(p.origem_detalhe)+')':'')+'</small>':'')+((p.celular||p.telefone)?'<small>'+esc(mascaraTel(p.celular||p.telefone))+(p.whatsapp?' · WhatsApp':'')+'</small>':'')+'</div><span class="seta">›</span></button>';
 }
 /* v91 (Renato, 16/11/2026): ficha do paciente com os mesmos campos do Pixeon (tela "Atendimento ao Paciente") */
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -5071,7 +5131,7 @@ async function idadPacSalvar(){
   const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
                : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
   if(r.error) return aviso(/cpf/i.test(r.error.message) ? 'Já existe paciente com este CPF na base (busque pelo CPF).' : 'Não gravou: '+r.error.message,'erro');
-  if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else { S.idad.pac.unshift(r.data); S.idad.pacTotal = (S.idad.pacTotal||0)+1; }
+  if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else { S.idad.pac.unshift(r.data); S.idad.pacTotal = (S.idad.pacTotal||0)+1; if(Array.isArray(S.idad.doDia) && S.idad.doDia.indexOf(r.data.id)<0) S.idad.doDia.unshift(r.data.id); }
   pacGuardar([r.data]);
   S.modal=null; aviso(id?'Paciente atualizado.':'Paciente cadastrado — prontuário nº '+r.data.prontuario+'.','ok');
 }
