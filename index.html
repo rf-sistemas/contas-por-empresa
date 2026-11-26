@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v160">
+<meta name="rf-versao" content="v161">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v160',
+  versao : 'v161',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(/^fin(hub|ent|sai|deb|cred|obr)$/.test(t)) return 'painel'; if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadfixas' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(/^fin(hub|ent|sai|deb|cred|obr)$/.test(t)) return ABA_PRIVADA; if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadfixas' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -601,7 +601,8 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
 function irPara(t){ if((t==='idadagenda'||t==='idadreceb') && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
-  if(t==='pessoais' && S.tela!=='pessoais' && pesMinhas().length>1){ S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
+  if(t==='pessoais' && S.tela!=='pessoais' && !/^fin(hub|ent|sai|deb|cred|obr)$/.test(S.tela) && pesMinhas().length>1){   // v161: voltando das caixas do financeiro pessoal, fica na mesma pessoa
+  S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
 function telaLogin(){
@@ -757,6 +758,10 @@ function telaPessoais(){
       kpi('Maior categoria', maior ? esc(maior)+' · '+(tSai?Math.round(g[maior]/tSai*100):0)+'%' : '—')+
       (tEnt? kpi('Entradas / estornos', brl(tEnt)) : '')+
     '</div></div>';
+
+  if(finPesVini(area)) h += '<div class="secao"><b>FINANCEIRO · '+esc(area.nome).toUpperCase()+'</b><span>Entradas, saídas e contas da área pessoal</span></div><div class="bxs">'+   // v161
+    cpeCaixa('finhub','↕️','Entrada e Saída', finResumoHub())+cpeCaixa('findeb','🔻','Débitos', finResumoAb('saida'))+
+    cpeCaixa('fincred','🔺','Créditos', finResumoAb('entrada'))+cpeCaixa('finobr','📋','Obrigatoriedade', finResumoObr())+'</div>';
 
   h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+ pfBarra()+
     '</div>'+
@@ -3864,7 +3869,7 @@ window.addEventListener('load', ()=>{ if(cpeEhIOS() && !cpeJaInstalado()) cpeBot
    Escala: caixa "Escala" → dentro: NAFS (Add plantão) e Escalas. Cadastros: Empresas, Usuários. */
 const CPE_TELAS = {
   painel:{t:'CNPJs', pai:'inicio'}, fila:{t:'Apontar depois', pai:'inicio'}, nomes:{t:'Nomes', pai:'inicio'}, origens:{t:'Cartões e contas', pai:'inicio'},
-  finhub:{t:'Entrada e Saída', pai:'inicio'}, finent:{t:'Entrada', pai:'finhub'}, finsai:{t:'Saída', pai:'finhub'}, findeb:{t:'Débitos', pai:'inicio'}, fincred:{t:'Créditos', pai:'inicio'}, finobr:{t:'Obrigatoriedade', pai:'inicio'},
+  finhub:{t:'Entrada e Saída', pai:'pessoais'}, finent:{t:'Entrada', pai:'finhub'}, finsai:{t:'Saída', pai:'finhub'}, findeb:{t:'Débitos', pai:'pessoais'}, fincred:{t:'Créditos', pai:'pessoais'}, finobr:{t:'Obrigatoriedade', pai:'pessoais'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
   producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
@@ -3879,6 +3884,11 @@ function cpeTrilha(){
   if(S.tela==='pessoais' && S.pesDono && pesMinhas().length>1){   // v100: dentro de uma área, Voltar leva para a lista de pessoas
     return '<div class="trilha"><button class="bt g" onclick="S.pesDono=null;S.pesCat=\'\';render()">‹ Voltar</button>'+
       '<span class="cam"><a href="#" onclick="irPara(\'inicio\');return false">Início</a> › <a href="#" onclick="S.pesDono=null;S.pesCat=\'\';render();return false">Despesas pessoais</a> › <b>'+esc(pesNome(S.pesDono))+'</b></span></div>';
+  }
+  if(/^fin(hub|ent|sai|deb|cred|obr)$/.test(S.tela) && S.pesDono){   // v161
+    const pai = CPE_TELAS[S.tela].pai, sub = S.tela==='finent'||S.tela==='finsai';
+    return '<div class="trilha"><button class="bt g" onclick="irPara(\''+pai+'\')">‹ Voltar</button><span class="cam"><a href="#" onclick="irPara(\'inicio\');return false">Início</a> › '+
+      '<a href="#" onclick="irPara(\'pessoais\');return false">'+esc(pesNome(S.pesDono))+'</a> › '+(sub?'<a href="#" onclick="irPara(\'finhub\');return false">Entrada e Saída</a> › ':'')+'<b>'+CPE_TELAS[S.tela].t+'</b></span></div>';
   }
   const cam = []; let t = S.tela, g = 0;
   while(t && t!=='inicio' && CPE_TELAS[t] && g++<5){ cam.unshift(t); t = CPE_TELAS[t].pai; }
@@ -3915,10 +3925,13 @@ function cpeCaixa(id, ic, titulo, desc, bad){
    Débitos = saídas ainda não pagas · Créditos = entradas ainda não recebidas · Obrigatoriedade = contas que se
    repetem todo mês em cada CNPJ (achadas sozinhas: o mesmo fornecedor em 2 dos 3 meses anteriores). Sem tabela nova. */
 S.fin = { busca:'', obrMes:'' };
-function finMovs(){ return S.movimentos.filter(m=>!m.pessoal); }
+/* v161 (Renato, 26/11/2026): as 4 caixas não ficam na tela inicial — ficam DENTRO de Despesas pessoais › Vinicius, com os lançamentos pessoais dele. */
+function finPesVini(a){ return !!a && /vinicius|vinícius/i.test(String(a.nome||'')); }
+function finMovs(){ return S.movimentos.filter(m=>m.pessoal && m.pessoa_id===S.pesDono); }
+function finOnde(m){ return m.origem_id ? nomeOrigem(m.origem_id) : '—'; }
 function finVenc(m){ return String(m.vencimento||m.data_movimento||'').slice(0,10); }
 function finBuscaOk(m){ const b = (S.fin.busca||'').trim().toLowerCase(); if(!b) return true;
-  return [m.fornecedor, m.descricao, m.categoria, m.empresa_id?nomeEmpresa(m.empresa_id):'apontar depois'].join(' ').toLowerCase().indexOf(b)>=0; }
+  return [m.fornecedor, m.descricao, m.categoria, finOnde(m)].join(' ').toLowerCase().indexOf(b)>=0; }
 function finBuscaCampo(ph){ return '<input id="fin-busca" placeholder="'+ph+'" value="'+esc(S.fin.busca)+'" oninput="S.fin.busca=this.value;render();finFoco()" style="flex:1;min-width:220px;margin:0">'; }
 function finFoco(){ const e = document.getElementById('fin-busca'); if(e){ e.focus(); const n = e.value.length; e.setSelectionRange(n,n); } }
 function finAbertos(tipo){ return finMovs().filter(m=>!m.pago && (tipo==='entrada' ? m.tipo==='entrada' : m.tipo!=='entrada')); }
@@ -3927,12 +3940,12 @@ function finResumoHub(){ const l = finMovs().filter(pfOk), t = totais(l); return
 function finResumoAb(tipo){ const l = finAbertos(tipo); if(!l.length) return tipo==='entrada' ? 'Nada a receber em aberto' : 'Nenhuma conta em aberto';
   const venc = l.filter(m=>finVenc(m) && finVenc(m)<hojeISO()).length;
   return l.length+(l.length===1?' lançamento':' lançamentos')+' · '+brl(finSoma(l))+(venc?' · '+venc+' vencido'+(venc===1?'':'s'):''); }
-function finResumoObr(){ const o = finObrigacoes(hojeISO().slice(0,7)); if(!o.length) return 'Contas que se repetem todo mês em cada CNPJ';
+function finResumoObr(){ const o = finObrigacoes(hojeISO().slice(0,7)); if(!o.length) return 'Contas que se repetem todo mês';
   const f = o.filter(x=>!x.mov).length; return o.length+' contas de todo mês'+(f?' · '+f+' ainda não lançada'+(f===1?'':'s'):' · todas lançadas'); }
 
 function telaFinHub(){
   const l = finMovs().filter(pfOk), t = totais(l), ne = l.filter(m=>m.tipo==='entrada').length, ns = l.length-ne;
-  return '<div class="secao"><b>ENTRADA E SAÍDA</b><span>'+pfTexto()+' · todos os CNPJs</span></div>'+
+  return '<div class="secao"><b>ENTRADA E SAÍDA</b><span>'+pfTexto()+' · '+esc(pesNome(S.pesDono))+'</span></div>'+
     '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap">'+pfBarra()+'</div>'+
     '<div class="card"><div class="kpis">'+kpi('Entradas', brl(t.ent))+kpi('Saídas', brl(t.sai))+kpi('Saldo', brl(t.saldo))+'</div></div>'+
     '<div class="bxs">'+cpeCaixa('finent','⬇️','Entrada', ne+(ne===1?' lançamento':' lançamentos')+' · '+brl(t.ent))+
@@ -3940,18 +3953,18 @@ function telaFinHub(){
 }
 function finTabela(l, modo){   // modo: 'ent' | 'sai' | 'deb' | 'cred'
   const ent = modo==='ent' || modo==='cred', hoje = hojeISO(), edita = podeEditar();
-  return '<div class="card" style="overflow-x:auto"><table><thead><tr><th>'+(modo==='deb'||modo==='cred'?'Vencimento':'Data')+'</th><th>CNPJ</th><th>'+(ent?'Pagador / cliente':'Fornecedor')+'</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Situação</th></tr></thead><tbody>'+
+  return '<div class="card" style="overflow-x:auto"><table><thead><tr><th>'+(modo==='deb'||modo==='cred'?'Vencimento':'Data')+'</th><th>Cartão / conta</th><th>'+(ent?'Pagador / cliente':'Fornecedor')+'</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Situação</th></tr></thead><tbody>'+
     l.map(m=>{ const v = finVenc(m), venc = !m.pago && v && v<hoje;
       const sit = m.pago ? '<span style="color:var(--verde);font-weight:700">'+(ent?'Recebido':'Pago')+'</span>'
         : '<span style="color:'+(venc?'var(--vermelho)':'#d97706')+';font-weight:700">'+(venc?'Vencido':(ent?'A receber':'A pagar'))+'</span>'+
           (edita && (modo==='deb'||modo==='cred') ? ' <button class="bt mini" style="margin-left:6px" onclick="event.stopPropagation();finBaixar(\''+m.id+'\')">✔ '+(ent?'Recebido':'Pago')+'</button>' : '');
       return '<tr style="cursor:pointer" onclick="editarMov(\''+m.id+'\')"><td style="white-space:nowrap">'+dataBR(modo==='deb'||modo==='cred'?v:m.data_movimento)+'</td>'+
-        '<td>'+(m.empresa_id?esc(nomeEmpresa(m.empresa_id)):'<span style="color:var(--fraco)">apontar depois</span>')+'</td>'+
+        '<td>'+esc(finOnde(m))+'</td>'+
         '<td><b>'+esc(m.fornecedor||'—')+'</b></td><td>'+esc(m.descricao||m.categoria||'')+'</td>'+
         '<td style="text-align:right;white-space:nowrap;font-weight:800;color:'+(ent?'var(--verde)':'var(--vermelho)')+'">'+(ent?'+ ':'− ')+brl(m.valor)+'</td><td style="white-space:nowrap">'+sit+'</td></tr>'; }).join('')+
     '</tbody></table></div>';
 }
-function finPorCnpj(l){ const g = {}; l.forEach(m=>{ const k = m.empresa_id ? nomeEmpresa(m.empresa_id) : 'Apontar depois'; g[k] = (g[k]||0)+(Number(m.valor)||0); });
+function finPorCnpj(l){ const g = {}; l.forEach(m=>{ const k = (m.categoria||'').trim() || 'Sem categoria'; g[k] = (g[k]||0)+(Number(m.valor)||0); });
   const e = Object.entries(g).sort((a,b)=>b[1]-a[1]); if(e.length<2) return '';
   return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">'+e.map(([k,v])=>'<span style="background:var(--campo);border:1px solid var(--linha);border-radius:20px;padding:5px 11px;font-size:12.5px"><b>'+esc(k)+'</b> '+brl(v)+'</span>').join('')+'</div>'; }
 function telaFinLista(tipo){
@@ -3959,11 +3972,11 @@ function telaFinLista(tipo){
   const toda = finMovs().filter(m=>pfOk(m) && (ent ? m.tipo==='entrada' : m.tipo!=='entrada'));
   const l = toda.filter(finBuscaOk).sort((a,b)=>String(b.data_movimento).localeCompare(String(a.data_movimento)));
   const ab = l.filter(m=>!m.pago);
-  let h = '<div class="secao"><b>'+(ent?'ENTRADA':'SAÍDA')+'</b><span>'+pfTexto()+' · '+(ent?'tudo que entrou':'tudo que saiu')+' nos CNPJs</span></div>'+
+  let h = '<div class="secao"><b>'+(ent?'ENTRADA':'SAÍDA')+'</b><span>'+pfTexto()+' · '+(ent?'tudo que entrou':'tudo que saiu')+' · '+esc(pesNome(S.pesDono))+'</span></div>'+
     '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap">'+pfBarra()+'</div>'+
     '<div class="card"><div class="kpis">'+kpi('Total', brl(finSoma(l)))+kpi(ent?'Recebido':'Pago', brl(finSoma(l)-finSoma(ab)))+kpi(ent?'A receber':'A pagar', brl(finSoma(ab)))+kpi('Lançamentos', String(l.length))+'</div>'+finPorCnpj(l)+'</div>'+
-    '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+finBuscaCampo('Buscar por '+(ent?'pagador':'fornecedor')+', descrição, categoria ou CNPJ')+
-      (podeEditar()?'<button class="bt" onclick="abrirLancamento(\''+(ent?'entrada':'saida')+'\')">+ Nova '+(ent?'entrada':'saída')+'</button>':'')+'</div>';
+    '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+finBuscaCampo('Buscar por '+(ent?'pagador':'fornecedor')+', descrição, categoria ou cartão')+
+      (podeEditar()?'<button class="bt" onclick="abrirLancamento(\''+(ent?'entrada':'saida')+'\',null,true)">+ Nova '+(ent?'entrada':'saída')+'</button>':'')+'</div>';
   if(!toda.length) return h+'<div class="vazio">Nenhuma '+(ent?'entrada':'saída')+' em '+pfTexto()+'.</div>';
   if(!l.length) return h+'<div class="vazio">Nada encontrado.</div>';
   return h+finTabela(l, ent?'ent':'sai');
@@ -3973,10 +3986,10 @@ function telaFinAbertos(tipo){   // Débitos (saídas não pagas) e Créditos (e
   const s7 = d7.getFullYear()+'-'+String(d7.getMonth()+1).padStart(2,'0')+'-'+String(d7.getDate()).padStart(2,'0');
   const toda = finAbertos(tipo), l = toda.filter(finBuscaOk).sort((a,b)=>finVenc(a).localeCompare(finVenc(b)));
   const venc = l.filter(m=>finVenc(m)<hoje), sem = l.filter(m=>finVenc(m)>=hoje && finVenc(m)<=s7);
-  let h = '<div class="secao"><b>'+(ent?'CRÉDITOS':'DÉBITOS')+'</b><span>'+(ent?'O que os CNPJs têm a receber':'O que os CNPJs devem — contas a pagar')+' · todos os meses</span></div>'+
+  let h = '<div class="secao"><b>'+(ent?'CRÉDITOS':'DÉBITOS')+'</b><span>'+(ent?'O que tem a receber':'O que deve — contas a pagar')+' · '+esc(pesNome(S.pesDono))+' · todos os meses</span></div>'+
     '<div class="card"><div class="kpis">'+kpi(ent?'A receber':'A pagar', brl(finSoma(l)))+kpi('Vencido', brl(finSoma(venc)))+kpi('Vence em 7 dias', brl(finSoma(sem)))+kpi('Lançamentos', String(l.length))+'</div>'+finPorCnpj(l)+'</div>'+
-    '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+finBuscaCampo('Buscar por '+(ent?'pagador':'fornecedor')+', descrição ou CNPJ')+
-      (podeEditar()?'<button class="bt" onclick="abrirLancamento(\''+(ent?'entrada':'saida')+'\');finPre({pago:false})">+ '+(ent?'Valor a receber':'Conta a pagar')+'</button>':'')+'</div>';
+    '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+finBuscaCampo('Buscar por '+(ent?'pagador':'fornecedor')+', descrição ou cartão')+
+      (podeEditar()?'<button class="bt" onclick="abrirLancamento(\''+(ent?'entrada':'saida')+'\',null,true);finPre({pago:false})">+ '+(ent?'Valor a receber':'Conta a pagar')+'</button>':'')+'</div>';
   if(!toda.length) return h+'<div class="vazio">'+(ent?'Nenhum valor a receber em aberto. Ao lançar uma entrada, desmarque "já foi recebida" para ela aparecer aqui.':'Nenhuma conta a pagar em aberto.')+'</div>';
   if(!l.length) return h+'<div class="vazio">Nada encontrado.</div>';
   return h+finTabela(l, ent?'cred':'deb');
@@ -3991,10 +4004,10 @@ function finPre(o){ setTimeout(()=>{ Object.keys(o).forEach(k=>{ const e = docum
 
 /* Obrigatoriedade: o mesmo fornecedor (ou descrição) saindo do mesmo CNPJ em pelo menos 2 dos 3 meses anteriores = conta de todo mês. */
 function finMesMais(comp, n){ const p = comp.split('-'); const d = new Date(+p[0], +p[1]-1+n, 1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-function finChave(m){ const n = String(m.fornecedor||m.descricao||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[0-9\/\-\.]+/g,' ').replace(/\s+/g,' ').trim(); return n ? m.empresa_id+'|'+n : ''; }
+function finChave(m){ const n = String(m.fornecedor||m.descricao||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[0-9\/\-\.]+/g,' ').replace(/\s+/g,' ').trim(); return n ? m.pessoa_id+'|'+n : ''; }
 function finObrigacoes(comp){
   const ant = [finMesMais(comp,-1), finMesMais(comp,-2), finMesMais(comp,-3)];
-  const sai = finMovs().filter(m=>m.empresa_id && m.tipo!=='entrada'), g = {};
+  const sai = finMovs().filter(m=>m.tipo!=='entrada'), g = {};
   sai.forEach(m=>{ const mes = String(m.data_movimento||'').slice(0,7), k = finChave(m); if(!k) return;
     const x = g[k] = g[k] || { k, meses:{}, ult:null, mov:null };
     if(ant.indexOf(mes)>=0){ x.meses[mes] = 1; if(!x.ult || String(m.data_movimento)>String(x.ult.data_movimento)) x.ult = m; }
@@ -4005,31 +4018,31 @@ function telaFinObr(){
   const comp = S.fin.obrMes || hojeISO().slice(0,7);
   const toda = finObrigacoes(comp), l = toda.filter(x=>finBuscaOk(x.ult));
   const falta = l.filter(x=>!x.mov), apagar = l.filter(x=>x.mov && !x.mov.pago), pagas = l.filter(x=>x.mov && x.mov.pago);
-  const ordem = (a,b)=>nomeEmpresa(a.ult.empresa_id).localeCompare(nomeEmpresa(b.ult.empresa_id)) || String(a.ult.fornecedor||'').localeCompare(String(b.ult.fornecedor||''));
+  const ordem = (a,b)=>String(a.ult.fornecedor||a.ult.descricao||'').localeCompare(String(b.ult.fornecedor||b.ult.descricao||''));
   const prevVal = x=>Number((x.mov||x.ult).valor)||0, tot = arr=>arr.reduce((s,x)=>s+prevVal(x),0);
-  let h = '<div class="secao"><b>OBRIGATORIEDADE</b><span>Contas que se repetem todo mês em cada CNPJ · '+escMesNome(comp)+'</span></div>'+
+  let h = '<div class="secao"><b>OBRIGATORIEDADE</b><span>Contas que se repetem todo mês · '+esc(pesNome(S.pesDono))+' · '+escMesNome(comp)+'</span></div>'+
     '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-size:12px;color:var(--fraco);font-weight:700">📅 MÊS</span>'+
       '<button class="bt g mini" onclick="S.fin.obrMes=finMesMais(\''+comp+'\',-1);render()">‹</button><input type="month" value="'+comp+'" onchange="S.fin.obrMes=this.value;render()" style="width:auto;margin:0"><button class="bt g mini" onclick="S.fin.obrMes=finMesMais(\''+comp+'\',1);render()">›</button>'+
-      finBuscaCampo('Buscar por fornecedor ou CNPJ')+'</div>'+
+      finBuscaCampo('Buscar por fornecedor ou categoria')+'</div>'+
     '<div class="card"><div class="kpis">'+kpi('Contas do mês', String(l.length))+kpi('Falta lançar', brl(tot(falta)))+kpi('A pagar', brl(tot(apagar)))+kpi('Pagas', brl(tot(pagas)))+'</div>'+
-    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">O sistema acha sozinho: o mesmo fornecedor saindo do mesmo CNPJ em pelo menos 2 dos 3 meses anteriores entra aqui. O valor previsto é o do último mês.</div></div>';
+    '<div style="font-size:12px;color:var(--fraco);margin-top:8px">O sistema acha sozinho: o mesmo fornecedor aparecendo em pelo menos 2 dos 3 meses anteriores entra aqui. O valor previsto é o do último mês.</div></div>';
   if(!toda.length) return h+'<div class="vazio">Ainda não há contas repetidas nos 3 meses antes de '+escMesNome(comp)+'.</div>';
   if(!l.length) return h+'<div class="vazio">Nada encontrado.</div>';
   const bloco = (tit, cor, arr)=> !arr.length ? '' : '<div class="secao" style="margin-top:6px"><b style="color:'+cor+'">'+tit+'</b><span>'+arr.length+' · '+brl(tot(arr))+'</span></div>'+
-    '<div class="card" style="overflow-x:auto"><table><thead><tr><th>CNPJ</th><th>Fornecedor</th><th>Categoria</th><th>Último lançamento</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
+    '<div class="card" style="overflow-x:auto"><table><thead><tr><th>Fornecedor</th><th>Categoria</th><th>Cartão / conta</th><th>Último lançamento</th><th style="text-align:right">Valor</th><th></th></tr></thead><tbody>'+
     arr.sort(ordem).map(x=>{ const u = x.ult, m = x.mov;
       const acao = !m ? (podeEditar()?'<button class="bt mini" onclick="finObrLancar(\''+u.id+'\',\''+comp+'\')">+ Lançar</button>':'<span style="color:var(--vermelho);font-weight:700">Não lançada</span>')
         : m.pago ? '<span style="color:var(--verde);font-weight:700">Paga</span>'
         : (podeEditar()?'<button class="bt mini" onclick="finBaixar(\''+m.id+'\')">✔ Pago</button>':'<span style="color:#d97706;font-weight:700">A pagar</span>');
-      return '<tr><td>'+esc(nomeEmpresa(u.empresa_id))+'</td><td><b>'+esc(u.fornecedor||u.descricao||'—')+'</b></td><td>'+esc(u.categoria||'—')+'</td>'+
+      return '<tr><td><b>'+esc(u.fornecedor||u.descricao||'—')+'</b></td><td>'+esc(u.categoria||'—')+'</td><td>'+esc(finOnde(u))+'</td>'+
         '<td style="white-space:nowrap">'+dataBR(m?m.data_movimento:u.data_movimento)+'</td><td style="text-align:right;font-weight:800;white-space:nowrap">'+brl(prevVal(x))+'</td><td style="white-space:nowrap">'+acao+'</td></tr>'; }).join('')+'</tbody></table></div>';
   return h+bloco('FALTA LANÇAR','var(--vermelho)',falta)+bloco('LANÇADAS — A PAGAR','#d97706',apagar)+bloco('PAGAS','var(--verde)',pagas);
 }
 function finObrLancar(uid, comp){
   const u = S.movimentos.find(x=>x.id===uid); if(!u) return;
   const dia = String(u.data_movimento||'').slice(8,10) || '01', ult = new Date(+comp.slice(0,4), +comp.slice(5,7), 0).getDate();
-  abrirLancamento('saida');
-  finPre({ data: comp+'-'+String(Math.min(+dia, ult)).padStart(2,'0'), valor: u.valor, empresa: u.empresa_id, origem: u.origem_id||'', forn: u.fornecedor||'', cnpj: u.cnpj_fornecedor?mascaraCNPJ(u.cnpj_fornecedor):'', cat: u.categoria||'', desc: u.descricao||'', pago:false });
+  abrirLancamento('saida', null, true);
+  finPre({ data: comp+'-'+String(Math.min(+dia, ult)).padStart(2,'0'), valor: u.valor, empresa: '__p:'+S.pesDono, origem: u.origem_id||'', forn: u.fornecedor||'', cnpj: u.cnpj_fornecedor?mascaraCNPJ(u.cnpj_fornecedor):'', cat: u.categoria||'', desc: u.descricao||'', pago:false });
 }
 
 function telaInicio(){
@@ -4045,11 +4058,7 @@ function telaInicio(){
     (veAba('origens')? cpeCaixa('origens','💳','Cartões e contas','Uma aba por cartão: fatura, compras e o destino de cada uma (obra, pessoal ou CNPJ)'):'')+
     (veAba('nomes')? cpeCaixa('nomes','🏷️','Nomes','Fornecedores e nomes que o sistema já aprendeu'):'')+
     (vePessoais()? cpeCaixa('pessoais','👤','Despesas pessoais',''):'');
-  // v160: esboço do Vinicius — Entrada e Saída, Débitos, Créditos, Obrigatoriedade; as caixas de antes ficam logo abaixo
-  const fin4 = veAba('painel') ? cpeCaixa('finhub','↕️','Entrada e Saída', finResumoHub())+cpeCaixa('findeb','🔻','Débitos', finResumoAb('saida'))+
-    cpeCaixa('fincred','🔺','Créditos', finResumoAb('entrada'))+cpeCaixa('finobr','📋','Obrigatoriedade', finResumoObr()) : '';
-  let h = fin4 ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin4+'</div>' : '';
-  if(fin) h += '<div class="secao"><b>'+(fin4?'CONTAS E CADASTROS':'FINANCEIRO')+'</b><span>'+(fin4?'CNPJs, fila, cartões e nomes':'Entradas, saídas e contas de cada CNPJ')+'</span></div><div class="bxs">'+fin+'</div>';
+  let h = fin ? '<div class="secao"><b>FINANCEIRO</b><span>Entradas, saídas e contas de cada CNPJ</span></div><div class="bxs">'+fin+'</div>' : '';
   if(veAba('nafs')) h += '<div class="secao"><b>NAFS</b><span>Anestesistas, plantões e escalas dos hospitais</span></div><div class="bxs">'+
     '<button type="button" class="bx" onclick="irGrupo(\'NAFS\')"><div class="ic">🩺</div><div><b>NAFS</b><small>'+grupoResumo('nafs')+'</small></div><span class="seta">›</span></button>'+
   '</div>';
