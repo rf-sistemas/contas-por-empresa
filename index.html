@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v161">
+<meta name="rf-versao" content="v162">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v161',
+  versao : 'v162',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -759,9 +759,12 @@ function telaPessoais(){
       (tEnt? kpi('Entradas / estornos', brl(tEnt)) : '')+
     '</div></div>';
 
-  if(finPesVini(area)) h += '<div class="secao"><b>FINANCEIRO · '+esc(area.nome).toUpperCase()+'</b><span>Entradas, saídas e contas da área pessoal</span></div><div class="bxs">'+   // v161
-    cpeCaixa('finhub','↕️','Entrada e Saída', finResumoHub())+cpeCaixa('findeb','🔻','Débitos', finResumoAb('saida'))+
-    cpeCaixa('fincred','🔺','Créditos', finResumoAb('entrada'))+cpeCaixa('finobr','📋','Obrigatoriedade', finResumoObr())+'</div>';
+  // v162 (igual ao esboço do Vinicius): nome no topo e as 4 caixas uma embaixo da outra, antes de tudo; o resto da área fica abaixo
+  if(finPesVini(area)) h = '<div class="secao"><b>'+esc(pesPrimeiro(area.nome)).toUpperCase()+'</b><span>Financeiro da área pessoal</span></div>'+
+    '<div class="bxs" style="grid-template-columns:1fr;max-width:560px">'+
+    cpeCaixa('finhub','↕️','Entrada<br>Saída', finResumoHub())+cpeCaixa('findeb','🔻','Débitos', finResumoAb('saida'))+
+    cpeCaixa('fincred','🔺','Créditos', finResumoAb('entrada'))+cpeCaixa('finobr','📋','Obrigatoriedade', finResumoObr())+'</div>'+
+    '<div class="secao" style="margin-top:18px"><b>DESPESAS PESSOAIS</b><span>Resumo, lançamentos e categorias</span></div>'+h;
 
   h += '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+ pfBarra()+
     '</div>'+
