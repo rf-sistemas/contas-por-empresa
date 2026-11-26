@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v166">
+<meta name="rf-versao" content="v167">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v166',
+  versao : 'v167',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -490,7 +490,7 @@ function veAba(k){ if(k==='origens') return veCartoes(); if(k===ABA_PRIVADA) ret
   const a = minhasAbas(); return !a || a.indexOf(k)>=0; }
 function veHosp(nome){ if(papel()==='mestre') return true; const h = S.perfil && S.perfil.hospitais;
   return !Array.isArray(h) || !h.length || h.map(permNorm).indexOf(permNorm(nome))>=0; }
-function abaDaTela(t){ if(/^fin(hub|ent|sai|deb|cred|obr)$/.test(t)) return ABA_PRIVADA; if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadfixas' || t==='idadconv' || t==='idadfin' || t==='idadconc') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
+function abaDaTela(t){ if(/^fin(hub|ent|sai|deb|cred|obr)$/.test(t)) return ABA_PRIVADA; if(t==='idadagenda' || t==='idadreceb' || t==='idadtiss' || t==='idadpac' || t==='idadfarm' || t==='idadalmox' || t==='idadobra' || t==='idadfixas' || t==='idadconv' || t==='idadfin' || t==='idadconc' || t==='idadrel') return 'idad'; if(t==='escalahub') return escGrupo()==='ANESTESIA' ? 'anestesia' : 'nafs'; return t; }
 
 /* ===================== filtros ===================== */
 function doMes(m){ return (m.data_movimento||'').slice(0,7) === S.mes; }
@@ -558,6 +558,7 @@ function renderBase(){
   else if(S.tela==='idadtiss')  corpo = telaIdadTiss();   // v140
   else if(S.tela==='idadagenda') corpo = telaIdadAgenda(); // v141
   else if(S.tela==='idadreceb') corpo = telaIdadReceb(); // v144
+  else if(S.tela==='idadrel')   corpo = telaIdadRel();   // v167
   else if(S.tela==='idadfin')   corpo = telaIdadFin();
   else if(S.tela==='idadconc')  corpo = telaIdadConc();
   else if(S.tela==='painel')   corpo = telaPainel();
@@ -601,7 +602,7 @@ function trocarTema(){ const novo = temaAtual()==='escuro'?'claro':'escuro';
   try{ localStorage.setItem('cpe_tema',novo); }catch(e){} aplicarTema(); render(); }
 
 function aba(id,rot){ return '<button class="'+(S.tela===id?'on':'')+'" onclick="irPara(\''+id+'\')">'+rot+'</button>'; }
-function irPara(t){ if((t==='idadagenda'||t==='idadreceb') && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if(t==='idadtiss' && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
+function irPara(t){ if((t==='idadagenda'||t==='idadreceb') && !agPode()){ aviso('Você não tem acesso à Agenda.','erro'); return; } if((t==='idadtiss'||t==='idadrel') && !tissPode()){ aviso('Você não tem acesso ao Faturamento TISS.','erro'); return; } if((t==='vini'||t==='robos') && !viniDono()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t==='acessos' && !navPode()){ aviso('Você não tem acesso a esta aba.','erro'); return; } if(t!=='inicio' && t!=='usuarios' && t!=='meus' && t!=='vini' && t!=='robos' && t!=='acessos' && !ehAnes() && !veAba(abaDaTela(t))){ aviso('Você não tem acesso a esta aba.','erro'); return; } if((t==='terceirizados'||t==='saldo') && S.saldo && S.tela!=='terceirizados' && S.tela!=='saldo'){ S.saldo.carregado=false; }   // v79: busca o saldo de novo ao entrar no Financeiro
   if(t==='pessoais' && S.tela!=='pessoais' && !/^fin(hub|ent|sai|deb|cred|obr)$/.test(S.tela) && pesMinhas().length>1){   // v161: voltando das caixas do financeiro pessoal, fica na mesma pessoa
   S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
@@ -3876,7 +3877,7 @@ const CPE_TELAS = {
   finhub:{t:'Entrada e Saída', pai:'pessoais'}, finent:{t:'Entrada', pai:'finhub'}, finsai:{t:'Saída', pai:'finhub'}, findeb:{t:'Débitos', pai:'pessoais'}, fincred:{t:'Créditos', pai:'pessoais'}, finobr:{t:'Obrigatoriedade', pai:'pessoais'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadimport:{t:'Importar do Smart', pai:'idadpac'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda', pai:'idadpac'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadimport:{t:'Importar do Smart', pai:'idadpac'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda', pai:'idadpac'}, idadrel:{t:'Relatórios e repasse', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4447,6 +4448,7 @@ function telaIdad(){
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
     (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadreceb\')"><div class="ic" style="font-size:30px">💰</div><div><b>Dinheiro a caminho <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+rcResumo()+'</small></div><span class="seta">›</span></button>' : '')+
+    (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadrel\')"><div class="ic" style="font-size:30px">📊</div><div><b>Relatórios e repasse</b><small>exportação para auditoria · recibo de repasse médico</small></div><span class="seta">›</span></button>' : '')+
     (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
   h += '<div class="card" style="border-style:dashed"><div style="font-weight:800;margin-bottom:6px">Em construção</div>'+
@@ -8313,6 +8315,241 @@ async function ppDivSalvar(){ const op = PP.op, L = _ppDiv.filter(r=>r.perc_medi
   const d = await sb.from('prepago_divisao').delete().eq('operadora_id', op); if(d.error) return aviso('Não salvou: '+d.error.message,'erro');
   if(L.length){ const r = await sb.from('prepago_divisao').insert(L.map(x=>({ operadora_id:op, item_id:x.item_id||null, profissional_id:x.profissional_id||null, perc_medico:Number(x.perc_medico) }))); if(r.error) return aviso('Não salvou: '+r.error.message,'erro'); }
   S.modal = null; aviso('✔ Divisão salva.'); ppCarregar(); }
+
+/* ===== v167 (Renato, 26/11/2026): RELATÓRIOS / EXPORTAÇÃO para auditoria e RECIBO DE REPASSE MÉDICO =====
+   Exportação: cadastros novos, atendimentos (com o tipo), procedimentos (item a item) e guias TISS, por dia / mês / intervalo — Excel com resumo.
+   Recibo: por médico, convênio (ou todos), procedimento (ou todos) e período — no modelo "Recibo de Repasse Médico" do IDAD.
+   O % do médico vem da Divisão médico × hospital do convênio; sem regra, vale o % padrão digitado na tela (consultas / procedimentos). */
+const RX = { aba:'exp', per:'mes', mes: mesHoje(), de: hojeISO(), ate: hojeISO(), med:'', op:'', item:'', dados:null, chave:'', carregando:false, erro:null,
+  pcC:null, pcP:null, reps:null, repsCar:false };
+const RX_HOSP = 'HOSPITAL DEY', RX_INST = 'IDAD – Instituto de Doenças do Aparelho Digestivo';
+function rxPeriodo(){ if(RX.per==='dia') return [RX.de, RX.de]; if(RX.per==='mes') return [RX.mes+'-01', ppFim(RX.mes)]; return [RX.de <= RX.ate ? RX.de : RX.ate, RX.de <= RX.ate ? RX.ate : RX.de]; }
+function rxPerTxt(){ const [a,b] = rxPeriodo(); return a===b ? dataBR(a) : dataBR(a)+' a '+dataBR(b); }
+async function rxTudo(fq){ let out = []; for(let de=0; de<60000; de+=1000){ const r = await fq().range(de, de+999); if(r.error) throw r.error; out = out.concat(r.data||[]); if(!r.data || r.data.length<1000) break; } return out; }
+async function rxCarregar(){
+  if(RX.carregando) return; const [a,b] = rxPeriodo(), k = a+'|'+b; RX.carregando = true; RX.erro = null; render();
+  try{
+    if(!S.tiss.carregado) await tissCarregar();
+    const ini = new Date(a+'T00:00:00').toISOString(), fim = new Date(b+'T23:59:59.999').toISOString();
+    let pac;
+    try{ pac = await rxTudo(()=>sb.from('idad_pacientes').select('*').gte('criado_em',ini).lte('criado_em',fim).or('obs.is.null,obs.not.like."*Importado do Smart*"').order('criado_em')); }
+    catch(e){ const p1 = await rxTudo(()=>sb.from('idad_pacientes').select('*').gte('criado_em',ini).lte('criado_em',fim).is('obs',null).order('criado_em'));
+      const p2 = await rxTudo(()=>sb.from('idad_pacientes').select('*').gte('criado_em',ini).lte('criado_em',fim).not('obs','like','[Importado do Smart%').order('criado_em')); pac = p1.concat(p2); }
+    const [ag, gu, dv] = await Promise.all([
+      rxTudo(()=>sb.from('agenda').select('*').gte('data',a).lte('data',b).order('data').order('hora')),
+      rxTudo(()=>sb.from('tiss_guias').select('id,tipo,operadora_id,paciente_nome,carteira,numero_guia_prestador,data_atendimento,profissional_id,valor_total,status,lote_id,teste,agenda_id').gte('data_atendimento',a).lte('data_atendimento',b).order('data_atendimento')),
+      sb.from('prepago_divisao').select('*') ]);
+    const ids = Array.from(new Set(ag.map(x=>x.paciente_id).filter(Boolean))), pm = {};
+    for(let i=0;i<ids.length;i+=200){ const r = await sb.from('idad_pacientes').select('id,prontuario,cpf,rg,nascimento,sexo,convenio').in('id', ids.slice(i,i+200)); (r.data||[]).forEach(p=>{ pm[p.id] = p; }); }
+    RX.dados = { pac, ag, gu, pm, div: dv.data||[] }; RX.chave = k;
+  }catch(e){ RX.erro = e.message||String(e); }
+  RX.carregando = false; if(S.tela==='idadrel') render();
+}
+const rxProf = id => (S.tiss.profs.find(p=>p.id===id)||{}).nome || 'Sem médico';
+function rxConv(a){ if(a.pagamento==='prepago') return 'Pré-pago · '+(tissOp(a.operadora_id).nome||''); if(a.pagamento && a.pagamento!=='convenio') return AG_PAG[a.pagamento]||a.pagamento; return tissOp(a.operadora_id).nome||'Convênio não informado'; }
+function rxEhConsulta(it){ return !!it && (/^CONSULTA/i.test(it.descricao||'') || /^101010/.test(String(it.codigo||''))); }
+function rxAgFiltro(a){ return (!RX.med || a.profissional_id===RX.med || ((a.os||{}).itens||[]).some(x=>x.profId===RX.med)) && (!RX.op || a.operadora_id===RX.op); }
+function rxProcs(lista){ const out = [];
+  lista.forEach(a=>{ const o = a.os||{}, its = (o.itens||[]).filter(x=>x.itemId);
+    const L = its.length ? its.map(x=>({ itemId:x.itemId, qtd:+x.qtd||1, unit:+x.valor||0, prof:x.profId||a.profissional_id }))
+                         : (a.item_id ? [{ itemId:a.item_id, qtd:1, unit: a.valor!=null ? +a.valor : (tissPreco(a.operadora_id, a.item_id, a.data)||0), prof:a.profissional_id }] : []);
+    L.forEach(x=>{ const it = tissIt(x.itemId)||{}; out.push({ a, it, itemId:x.itemId, qtd:x.qtd, unit:x.unit, vl: tissN(x.unit*x.qtd), prof:x.prof }); }); });
+  return out; }
+function rxPerc(div, op, itemId, profId){ const L = div.filter(r=>r.operadora_id===op);
+  const r = L.find(r=>r.item_id===itemId && r.profissional_id===profId) || L.find(r=>r.item_id===itemId && !r.profissional_id)
+         || L.find(r=>!r.item_id && r.profissional_id===profId) || L.find(r=>!r.item_id && !r.profissional_id);
+  return r ? +r.perc_medico : null; }
+
+/* ---------- tela ---------- */
+function telaIdadRel(){
+  if(!tissPode()) return '<div class="card">Você não tem acesso aos Relatórios.</div>';
+  let h = '<div class="secao"><b>RELATÓRIOS E REPASSE</b><span>Exportação para auditoria · recibo de repasse médico</span></div>';
+  h += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">'+[['exp','📊 Exportação / auditoria'],['rec','🧾 Recibo de repasse médico']].map(a=>'<button class="bt'+(RX.aba===a[0]?'':' g')+'" onclick="RX.aba=\''+a[0]+'\';render()">'+a[1]+'</button>').join('')+'</div>';
+  const op = (v,t,sel)=>'<option value="'+v+'"'+(sel?' selected':'')+'>'+esc(t)+'</option>';
+  h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'+
+    '<label style="min-width:130px">Período<select onchange="RX.per=this.value;render()">'+op('dia','Um dia',RX.per==='dia')+op('mes','Mês',RX.per==='mes')+op('int','Intervalo',RX.per==='int')+'</select></label>'+
+    (RX.per==='mes' ? '<label style="min-width:150px">Mês<input type="month" value="'+RX.mes+'" onchange="RX.mes=this.value;render()"></label>'
+      : '<label style="min-width:150px">'+(RX.per==='dia'?'Dia':'De')+'<input type="date" value="'+RX.de+'" onchange="RX.de=this.value;render()"></label>'+(RX.per==='int'?'<label style="min-width:150px">Até<input type="date" value="'+RX.ate+'" onchange="RX.ate=this.value;render()"></label>':''))+
+    '<label style="flex:1;min-width:170px">Médico<select onchange="RX.med=this.value;render()">'+op('',RX.aba==='rec'?'— escolha o médico —':'Todos',!RX.med)+S.tiss.profs.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(p=>op(p.id,p.nome,RX.med===p.id)).join('')+'</select></label>'+
+    '<label style="flex:1;min-width:170px">Convênio<select onchange="RX.op=this.value;render()">'+op('','Todos',!RX.op)+S.tiss.ops.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).map(o=>op(o.id,(o.prepago?'Pré-pago · ':'')+o.nome,RX.op===o.id)).join('')+'</select></label>'+
+    (RX.aba==='rec' ? '<label style="flex:1;min-width:170px">Procedimento<select onchange="RX.item=this.value;render()">'+op('','Todos',!RX.item)+S.tiss.itens.filter(i=>i.tipo!=='despesa').map(i=>op(i.id,i.codigo+' · '+(i.descricao||''),RX.item===i.id)).join('')+'</select></label>' : '')+
+    '</div>';
+  if(!S.tiss.carregado && !S.tiss.carregando) tissCarregar().then(()=>{ if(S.tela==='idadrel') render(); });
+  const [a,b] = rxPeriodo();
+  if(RX.chave!==a+'|'+b && !RX.carregando && !RX.erro){ setTimeout(rxCarregar,0); }
+  if(RX.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(RX.erro)+'</b> <button class="bt g mini" onclick="RX.erro=null;rxCarregar()">Tentar de novo</button></div>';
+  if(RX.carregando || !RX.dados || RX.chave!==a+'|'+b || !S.tiss.carregado) return h+'<div class="vazio">Carregando '+rxPerTxt()+'…</div>';
+  return h + (RX.aba==='exp' ? rxTelaExp() : rxTelaRec());
+}
+function rxTelaExp(){
+  const D = RX.dados, ag = D.ag.filter(rxAgFiltro), ok = ag.filter(a=>a.status!=='cancelado'), pr = rxProcs(ok.filter(a=>a.status!=='faltou')).filter(x=>!RX.med || x.prof===RX.med);
+  const cnt = f => ok.filter(f).length;
+  let h = '<div class="card"><div class="kpis">'+kpi('Cadastros novos', String(D.pac.length))+kpi('Agendamentos', String(ok.length))+
+    kpi('Consultas', String(cnt(a=>a.tipo==='consulta')))+kpi('Exames', String(cnt(a=>a.tipo==='exame')))+kpi('Cirurgias', String(cnt(a=>a.tipo==='cirurgia')))+
+    kpi('Atendidos', String(cnt(a=>a.status==='atendido')))+kpi('Faltas', String(cnt(a=>a.status==='faltou')))+
+    kpi('Procedimentos', String(pr.reduce((s,x)=>s+x.qtd,0)))+kpi('Valor', brl(pr.reduce((s,x)=>s+x.vl,0)))+'</div></div>';
+  const dias = rxPorDia(D, ok, pr);
+  h += '<div class="card" style="overflow-x:auto"><b>Por dia · '+rxPerTxt()+'</b><table style="margin-top:6px"><thead><tr><th>Dia</th><th>Cadastros</th><th>Consultas</th><th>Exames</th><th>Cirurgias</th><th>Atendidos</th><th>Faltas</th><th>Procedimentos</th><th style="text-align:right">Valor</th></tr></thead><tbody>'+
+    (dias.length ? dias.map(d=>'<tr><td>'+dataBR(d[0])+'</td>'+d.slice(1,8).map(v=>'<td>'+v+'</td>').join('')+'<td style="text-align:right">'+brl(d[8])+'</td></tr>').join('') : '<tr><td colspan="9" style="color:var(--fraco)">Nada no período.</td></tr>')+'</tbody></table></div>';
+  h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px;font-size:13.5px;color:var(--fraco)">O Excel sai com as abas: <b>Resumo por dia</b>, <b>Por médico</b>, <b>Por convênio</b>, <b>Pacientes cadastrados</b> (todos os campos), <b>Atendimentos</b> (com o tipo), <b>Procedimentos</b> (item a item) e <b>Guias TISS</b>. Pacientes importados do Smart não contam como cadastro novo.</div>'+
+    '<button class="bt" onclick="rxExportar()">⬇ Exportar Excel</button></div>';
+  return h;
+}
+function rxPorDia(D, ok, pr){ const m = {}; const g = d => (m[d] = m[d] || [d,0,0,0,0,0,0,0,0]);
+  D.pac.forEach(p=>{ if(p.criado_em) g(new Date(p.criado_em).toLocaleDateString('sv-SE'))[1]++; });
+  ok.forEach(a=>{ const r = g(a.data); if(a.tipo==='consulta') r[2]++; else if(a.tipo==='exame') r[3]++; else if(a.tipo==='cirurgia') r[4]++; if(a.status==='atendido') r[5]++; if(a.status==='faltou') r[6]++; });
+  pr.forEach(x=>{ const r = g(x.a.data); r[7] += x.qtd; r[8] = tissN(r[8]+x.vl); });
+  return Object.values(m).sort((a,b)=>a[0].localeCompare(b[0])); }
+async function rxExportar(){
+  const D = RX.dados; if(!D) return;
+  try{ await fichXlsxLib(); }catch(e){ return aviso('Não carregou o gerador de Excel.','erro'); }
+  const ag = D.ag.filter(rxAgFiltro), ok = ag.filter(a=>a.status!=='cancelado'), pr = rxProcs(ok.filter(a=>a.status!=='faltou')).filter(x=>!RX.med || x.prof===RX.med);
+  const st = s => (AG_ST[s]||[s])[0], P = id => D.pm[id]||{};
+  const wb = XLSX.utils.book_new(), add = (nome, linhas) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(linhas), nome);
+  add('Resumo por dia', [['Período '+rxPerTxt()+(RX.med?' · Médico: '+rxProf(RX.med):'')+(RX.op?' · Convênio: '+tissOp(RX.op).nome:'')],[],
+    ['Dia','Cadastros novos','Consultas','Exames','Cirurgias','Atendidos','Faltas','Procedimentos (qtd)','Valor procedimentos (R$)']].concat(rxPorDia(D, ok, pr).map(d=>[dataBR(d[0])].concat(d.slice(1)))));
+  const grp = (chave) => { const m = {}; ok.forEach(a=>{ const k = chave(a); const r = (m[k] = m[k] || { k, ag:0, c:0, e:0, ci:0, at:0, f:0, pq:0, pv:0 }); r.ag++; if(a.tipo==='consulta') r.c++; if(a.tipo==='exame') r.e++; if(a.tipo==='cirurgia') r.ci++; if(a.status==='atendido') r.at++; if(a.status==='faltou') r.f++; });
+    return m; };
+  const gm = grp(a=>rxProf(a.profissional_id)); pr.forEach(x=>{ const k = rxProf(x.prof); const r = (gm[k] = gm[k] || { k, ag:0, c:0, e:0, ci:0, at:0, f:0, pq:0, pv:0 }); r.pq += x.qtd; r.pv = tissN(r.pv+x.vl); });
+  const gc = grp(rxConv); pr.forEach(x=>{ const k = rxConv(x.a); const r = (gc[k] = gc[k] || { k, ag:0, c:0, e:0, ci:0, at:0, f:0, pq:0, pv:0 }); r.pq += x.qtd; r.pv = tissN(r.pv+x.vl); });
+  const cab = n => [[n,'Agendamentos','Consultas','Exames','Cirurgias','Atendidos','Faltas','Procedimentos (qtd)','Valor (R$)']];
+  const lin = m => Object.values(m).sort((a,b)=>a.k.localeCompare(b.k)).map(r=>[r.k,r.ag,r.c,r.e,r.ci,r.at,r.f,r.pq,r.pv]);
+  add('Por médico', cab('Médico').concat(lin(gm))); add('Por convênio', cab('Convênio / pagamento').concat(lin(gc)));
+  const cps = pacTodosCampos().filter(c=>c[1] && c[2]!=='idade' && c[2]!=='proprio');
+  add('Pacientes cadastrados', [['Cadastrado em'].concat(cps.map(c=>c[1])).concat(['Obs.'])].concat(D.pac.map(p=>[new Date(p.criado_em).toLocaleString('pt-BR')].concat(cps.map(c=>{ const v = p[c[0]]; return v==null ? '' : (c[2]==='date' ? dataBR(v) : (c[2]==='check' ? (v?'Sim':'Não') : v)); })).concat([p.obs||'']))));
+  add('Atendimentos', [['Data','Hora','Tipo','Status','Médico','Paciente','Prontuário','CPF','Carteirinha','Convênio / pagamento','Procedimento previsto','Valor (R$)','Pago','Forma','Marcado por','Encaixe','OS nº','Guia do convênio','Guia TISS','Telefone','Obs.','Criado em']]
+    .concat(ag.map(a=>{ const it = tissIt(a.item_id)||{}, p = P(a.paciente_id), g = a.guia_id ? (D.gu.find(x=>x.id===a.guia_id)||{}) : {};
+      return [dataBR(a.data), agHM(a.hora), AG_TIPO[a.tipo]||a.tipo||'', st(a.status), rxProf(a.profissional_id), a.paciente_nome||'', p.prontuario||'', p.cpf?mascaraCPF(p.cpf):'', a.carteira||'', rxConv(a),
+        it.codigo ? it.codigo+' · '+(it.descricao||'') : '', a.valor!=null ? +a.valor : '', a.pago?'Sim':'', a.forma_pag||'', AG_ORIG[a.origem]||a.origem||'', a.encaixe?'Sim':'', a.os_numero||'', (a.os||{}).goper||'', g.numero_guia_prestador||'', a.telefone||'', a.obs||'', a.criado_em ? new Date(a.criado_em).toLocaleString('pt-BR') : '']; })));
+  add('Procedimentos', [['Data','OS nº','Paciente','Prontuário','Médico','Convênio / pagamento','Tipo do atendimento','Status','Tabela','Código','Descrição','Tipo do item','Qtd','Valor unitário (R$)','Valor total (R$)']]
+    .concat(pr.map(x=>{ const a = x.a, p = P(a.paciente_id); return [dataBR(a.data), a.os_numero||'', a.paciente_nome||'', p.prontuario||'', rxProf(x.prof), rxConv(a), AG_TIPO[a.tipo]||a.tipo||'', st(a.status),
+      x.it.tabela||'', x.it.codigo||'', x.it.descricao||'', x.it.tipo==='despesa'?'Despesa':(rxEhConsulta(x.it)?'Consulta':'Procedimento'), x.qtd, x.unit, x.vl]; })));
+  const gu = D.gu.filter(g=>(!RX.med || g.profissional_id===RX.med) && (!RX.op || g.operadora_id===RX.op));
+  add('Guias TISS', [['Data','Tipo','Nº guia prestador','Convênio','Paciente','Carteira','Médico','Status','Valor (R$)','Teste']]
+    .concat(gu.map(g=>[dataBR(g.data_atendimento), TISS_TIPOS[g.tipo]||g.tipo||'', g.numero_guia_prestador||'', tissOp(g.operadora_id).nome||'', g.paciente_nome||'', g.carteira||'', rxProf(g.profissional_id), (TISS_ST[g.status]||[g.status])[0], +g.valor_total||0, g.teste?'Sim':''])));
+  const [a,b] = rxPeriodo(), buf = XLSX.write(wb, { bookType:'xlsx', type:'array' });
+  try{ await relEntregar('IDAD exportacao '+a+(a!==b?' a '+b:''), new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), 'xlsx',
+    D.pac.length+' cadastro(s) · '+ag.length+' atendimento(s) · '+pr.length+' procedimento(s)'); }catch(e){ aviso('Não gerou: '+e.message,'erro'); }
+}
+
+/* ---------- recibo de repasse médico ---------- */
+function rxRecLinhas(){
+  const D = RX.dados; if(!RX.med) return [];
+  const ag = D.ag.filter(a=>a.status==='atendido' && (!RX.op || a.operadora_id===RX.op));
+  return rxProcs(ag).filter(x=>x.prof===RX.med && x.it.tipo!=='despesa' && (!RX.item || x.itemId===RX.item)).map(x=>{
+    const cons = rxEhConsulta(x.it), regra = rxPerc(D.div, x.a.operadora_id, x.itemId, x.prof), pad = cons ? RX.pcC : RX.pcP;
+    const pc = regra!=null ? regra : (pad==null || pad==='' ? null : +pad);
+    return Object.assign(x, { cons, pc, regra: regra!=null, liq: pc==null ? null : tissN(x.vl*pc/100) }); }); }
+function rxRecTot(L){ const c = L.filter(x=>x.cons), p = L.filter(x=>!x.cons), s = (l,k)=>tissN(l.reduce((t,x)=>t+(+x[k]||0),0));
+  return { cq: c.reduce((t,x)=>t+x.qtd,0), cv: s(c,'vl'), cl: s(c,'liq'), pq: p.reduce((t,x)=>t+x.qtd,0), pv: s(p,'vl'), pl: s(p,'liq'), os: new Set(L.map(x=>x.a.id)).size,
+    tot: s(L,'vl'), liq: s(L,'liq'), semPc: L.filter(x=>x.pc==null).length,
+    pcC: Array.from(new Set(c.map(x=>x.pc))).filter(v=>v!=null), pcP: Array.from(new Set(p.map(x=>x.pc))).filter(v=>v!=null),
+    unitC: Array.from(new Set(c.map(x=>x.unit))) }; }
+function rxTelaRec(){
+  if(!RX.reps && !RX.repsCar){ RX.repsCar = true; sb.from('repasses_medicos').select('*').order('numero',{ascending:false}).limit(200).then(r=>{ RX.reps = r.data||[]; RX.repsCar = false; if(S.tela==='idadrel') render(); }); }
+  let h = '';
+  if(!RX.med) h += '<div class="vazio">Escolha o médico para montar o recibo.</div>';
+  else {
+    const pf = S.tiss.profs.find(p=>p.id===RX.med)||{}, L = rxRecLinhas(), T = rxRecTot(L);
+    h += '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'+
+      '<div style="flex:2;min-width:220px"><b style="font-size:16px">'+esc(pf.nome||'')+'</b><div style="font-size:13px;color:var(--fraco)">CPF '+(pf.cpf?esc(mascaraCPF(pf.cpf)):'—')+' · '+esc((pf.conselho||'CRM')+' '+(pf.numero||'—')+(pf.uf?'/'+pf.uf:''))+'</div></div>'+
+      '<label style="flex:1;min-width:180px">Especialidade<input value="'+esc(pf.especialidade||'')+'" onchange="rxEspSalvar(this.value)" placeholder="ex.: Coloproctologista"></label>'+
+      '<label style="width:150px">% padrão consultas<input type="number" min="0" max="100" step="0.5" value="'+(RX.pcC==null?'':RX.pcC)+'" onchange="RX.pcC=this.value===\'\'?null:+this.value;render()"></label>'+
+      '<label style="width:170px">% padrão procedimentos<input type="number" min="0" max="100" step="0.5" value="'+(RX.pcP==null?'':RX.pcP)+'" onchange="RX.pcP=this.value===\'\'?null:+this.value;render()"></label></div>';
+    h += '<div class="card"><div class="kpis">'+kpi('OS atendidas', String(T.os))+kpi('Consultas', T.cq+' · '+brl(T.cv))+kpi('Procedimentos', T.pq+' · '+brl(T.pv))+
+      kpi('Produção', brl(T.tot))+kpi('Líquido do médico', T.semPc ? '<span style="color:#dc2626">falta %</span>' : brl(T.liq))+'</div>'+
+      '<div style="font-size:12.5px;color:var(--fraco);margin-top:6px">Entram só atendimentos com status <b>Atendido</b> no período. O % vem da Divisão médico × hospital do convênio (marcado "regra"); sem regra, vale o % padrão acima. Materiais e medicamentos não entram.</div></div>';
+    h += '<div class="card" style="overflow-x:auto"><table><thead><tr><th>Data</th><th>OS</th><th>Paciente</th><th>Convênio</th><th>Código</th><th>Descrição</th><th>Qtd</th><th style="text-align:right">Valor</th><th>%</th><th style="text-align:right">Médico</th></tr></thead><tbody>'+
+      (L.length ? L.map(x=>'<tr><td>'+dataBR(x.a.data)+'</td><td>'+esc(x.a.os_numero||'')+'</td><td>'+esc(x.a.paciente_nome||'')+'</td><td>'+esc(rxConv(x.a))+'</td><td>'+esc(x.it.codigo||'')+'</td><td>'+esc(x.it.descricao||'')+'</td><td>'+x.qtd+'</td><td style="text-align:right">'+brl(x.vl)+'</td>'+
+        '<td>'+(x.pc==null?'<span style="color:#dc2626">—</span>':x.pc+'%'+(x.regra?' <small style="color:var(--fraco)">regra</small>':''))+'</td><td style="text-align:right">'+(x.liq==null?'—':brl(x.liq))+'</td></tr>').join('')
+        : '<tr><td colspan="10" style="color:var(--fraco)">Nenhum atendimento deste médico no período.</td></tr>')+'</tbody></table></div>';
+    h += '<div class="card" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="bt" onclick="rxRecEmitir()"'+(L.length&&!T.semPc?'':' disabled')+'>🧾 Emitir recibo (PDF)</button></div>';
+  }
+  const R = (RX.reps||[]).filter(r=>!RX.med || r.profissional_id===RX.med);
+  h += '<div class="card" style="overflow-x:auto"><b>Recibos emitidos</b><table style="margin-top:6px"><thead><tr><th>Nº</th><th>Médico</th><th>Convênio</th><th>Período</th><th>OS</th><th style="text-align:right">Produção</th><th style="text-align:right">Líquido</th><th>Situação</th><th></th></tr></thead><tbody>'+
+    (RX.reps==null ? '<tr><td colspan="9">Carregando…</td></tr>' : R.length ? R.map(r=>'<tr><td>'+r.numero+'</td><td>'+esc(rxProf(r.profissional_id))+'</td><td>'+esc(r.operadora_id?tissOp(r.operadora_id).nome||'':'Todos')+'</td><td>'+dataBR(r.periodo_ini)+' a '+dataBR(r.periodo_fim)+'</td><td>'+r.qtd_os+'</td>'+
+      '<td style="text-align:right">'+brl(+r.valor_producao)+'</td><td style="text-align:right">'+brl(+r.valor_liquido)+'</td><td>'+(r.status==='pago'?'<b style="color:#047857">Pago '+dataBR(r.pago_em)+(r.forma?' · '+esc(r.forma):'')+'</b>':r.status==='cancelado'?'<span style="color:var(--fraco)">Cancelado</span>':'Emitido')+'</td>'+
+      '<td style="white-space:nowrap"><button class="bt g mini" onclick="rxRecPdf(\''+r.id+'\')">PDF</button>'+(r.status==='emitido'?' <button class="bt mini" onclick="rxRecPagar(\''+r.id+'\')">Pago</button> <button class="bt g mini" onclick="rxRecCancelar(\''+r.id+'\')">Cancelar</button>':'')+'</td></tr>').join('')
+      : '<tr><td colspan="9" style="color:var(--fraco)">Nenhum recibo ainda.</td></tr>')+'</tbody></table></div>';
+  return h;
+}
+async function rxEspSalvar(v){ const pf = S.tiss.profs.find(p=>p.id===RX.med); if(!pf) return;
+  const r = await sb.from('tiss_profissionais').update({ especialidade: v.trim()||null }).eq('id', pf.id); if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); pf.especialidade = v.trim()||null; aviso('✔ Especialidade gravada.'); }
+async function rxRecEmitir(){
+  const L = rxRecLinhas(), T = rxRecTot(L); if(!L.length || T.semPc) return; const [a,b] = rxPeriodo();
+  const dup = (RX.reps||[]).find(r=>r.status!=='cancelado' && r.profissional_id===RX.med && (r.operadora_id||'')===(RX.op||'') && (r.item_id||'')===(RX.item||'') && r.periodo_ini<=b && r.periodo_fim>=a);
+  if(dup && !confirm('Já existe o recibo nº '+dup.numero+' deste médico para '+dataBR(dup.periodo_ini)+' a '+dataBR(dup.periodo_fim)+'. Emitir outro mesmo assim?')) return;
+  const reg = { profissional_id: RX.med, operadora_id: RX.op||null, item_id: RX.item||null, periodo_ini:a, periodo_fim:b, qtd_os:T.os, valor_producao:T.tot, valor_liquido:T.liq,
+    perc_consulta: RX.pcC, perc_proced: RX.pcP,
+    linhas: L.map(x=>({ data:x.a.data, os:x.a.os_numero||'', aid:x.a.id, paciente:x.a.paciente_nome||'', conv:rxConv(x.a), cod:x.it.codigo||'', desc:x.it.descricao||'', qtd:x.qtd, unit:x.unit, vl:x.vl, pc:x.pc, liq:x.liq, cons:x.cons })) };
+  const r = await sb.from('repasses_medicos').insert(reg).select().maybeSingle(); if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  (RX.reps = RX.reps||[]).unshift(r.data); render(); rxRecPdf(r.data.id);
+}
+function rxExtenso(v){
+  const u = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  const d = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  const c = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+  const ate999 = n => { if(n===0) return ''; if(n===100) return 'cem'; const p = []; if(n>=100){ p.push(c[Math.floor(n/100)]); n%=100; } if(n>=20){ p.push(d[Math.floor(n/10)]); n%=10; } if(n>0) p.push(u[n]); return p.join(' e '); };
+  const tot = Math.round(v*100), int = Math.floor(tot/100), cent = tot%100;
+  const gs = [[Math.floor(int/1e6), n=> n===1?'um milhão':ate999(n)+' milhões'], [Math.floor((int%1e6)/1000), n=> n===1?'mil':ate999(n)+' mil'], [int%1000, ate999]].filter(g=>g[0]>0);
+  let t = gs.length ? '' : 'zero';
+  gs.forEach((g,i)=>{ if(i>0) t += (g[0]<100 || g[0]%100===0) ? ' e ' : ' '; t += g[1](g[0]); });
+  if(int>0 && int%1e6===0) t += ' de'; t += int===1 ? ' real' : ' reais';
+  if(cent) t += ' e '+ate999(cent)+(cent===1?' centavo':' centavos');
+  return t; }
+async function rxRecPdf(id){
+  const r = (RX.reps||[]).find(x=>x.id===id); if(!r) return;
+  try{ await relPdfLib(); }catch(e){ return aviso('Não carregou o gerador de PDF.','erro'); }
+  const pf = S.tiss.profs.find(p=>p.id===r.profissional_id)||{}, L = r.linhas||[], n = v => (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const c = L.filter(x=>x.cons), p = L.filter(x=>!x.cons), sm = (l,k)=>tissN(l.reduce((t,x)=>t+(+x[k]||0),0));
+  const pcs = l => { const s = Array.from(new Set(l.map(x=>x.pc))); return s.length===1 ? s[0]+'%' : (s.length ? 'conforme item' : '—'); };
+  const units = Array.from(new Set(c.map(x=>x.unit)));
+  const doc = new window.jspdf.jsPDF({ unit:'mm', format:'a4' }), W = doc.internal.pageSize.getWidth(); let y = 16;
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,30,45); doc.text(RX_INST, W/2, y, { align:'center' }); y += 5.5;
+  doc.text(RX_HOSP, W/2, y, { align:'center' }); y += 9; doc.setFontSize(14); doc.text('RECIBO DE REPASSE MÉDICO', W/2, y, { align:'center' }); y += 7;
+  doc.setFontSize(10.5); doc.text('Fatura Nº: '+r.numero+'   ·   Qt OS: '+r.qtd_os, W/2, y, { align:'center' }); y += 10;
+  const tit = t => { doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text(t, 14, y); y += 6; doc.setFont('helvetica','normal'); doc.setFontSize(10); };
+  const ln = t => { doc.text(t, 18, y); y += 5.5; };
+  tit('1. IDENTIFICAÇÃO DO MÉDICO'); ln('Nome do médico: '+(pf.nome||'')); ln('CPF/CNPJ: '+(pf.cpf?mascaraCPF(pf.cpf):'')); ln((pf.conselho||'CRM')+'/UF: '+(pf.numero||'')+(pf.uf?' - '+pf.uf:'')+'   ·   Especialidade: '+(pf.especialidade||'')); y += 3;
+  tit('2. PERÍODO DO REPASSE'); ln('Convênio: '+(r.operadora_id ? (tissOp(r.operadora_id).nome||'') : 'Todos')+'   ·   Competência (mês/ano): '+ppMesBR(String(r.periodo_fim).slice(0,7)));
+  ln('Período de produção: '+dataBR(r.periodo_ini)+' a '+dataBR(r.periodo_fim)+(r.item_id ? '   ·   Procedimento: '+((tissIt(r.item_id)||{}).codigo||'')+' '+((tissIt(r.item_id)||{}).descricao||'') : '')); y += 3;
+  tit('3. DEMONSTRATIVO FINANCEIRO');
+  doc.autoTable({ startY:y, theme:'grid', styles:{ fontSize:9.5, cellPadding:1.8 }, headStyles:{ fillColor:[235,240,248], textColor:[20,30,45], fontStyle:'bold' },
+    head:[['Descrição','Qtd','Valor da produção','% repasse','Valor líquido']],
+    body:[['Consultas'+(units.length===1&&c.length?' (R$ '+n(units[0])+' cada)':''), String(c.reduce((t,x)=>t+x.qtd,0)), 'R$ '+n(sm(c,'vl')), pcs(c), 'R$ '+n(sm(c,'liq'))],
+          ['Procedimentos', String(p.reduce((t,x)=>t+x.qtd,0)), 'R$ '+n(sm(p,'vl')), pcs(p), 'R$ '+n(sm(p,'liq'))]],
+    foot:[['Valor total da produção médica','', 'R$ '+n(r.valor_producao), '', 'R$ '+n(r.valor_liquido)]], footStyles:{ fillColor:[245,247,250], textColor:[20,30,45], fontStyle:'bold' },
+    columnStyles:{ 1:{halign:'center'}, 2:{halign:'right'}, 3:{halign:'center'}, 4:{halign:'right'} } });
+  y = doc.lastAutoTable.finalY + 6; doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.text('Valor líquido a receber: R$ '+n(r.valor_liquido), 14, y); y += 10;
+  tit('4. DADOS DO PAGAMENTO');
+  ln('Data do pagamento: '+(r.pago_em ? dataBR(r.pago_em) : '____/____/______'));
+  const fm = f => '('+(r.forma===f?'X':'  ')+') '+f; ln('Forma de pagamento:  '+[fm('PIX'),fm('Transferência'),fm('Dinheiro')].join('    ')); y += 3;
+  tit('5. DECLARAÇÃO DE RECEBIMENTO');
+  const decl = 'Declaro, para os devidos fins, que recebi do '+RX_HOSP+' o valor líquido de R$ '+n(r.valor_liquido)+' ('+rxExtenso(+r.valor_liquido)+'), referente ao repasse dos serviços médicos prestados no período acima identificado. '+
+    'Declaro que o valor informado corresponde ao demonstrativo financeiro apresentado, dando quitação exclusivamente ao valor e à competência aqui discriminados.';
+  const dl = doc.splitTextToSize(decl, W-32); doc.text(dl, 18, y); y += dl.length*5 + 6;
+  ln('Feira de Santana – BA, _____ de ____________________ de ______.'); y += 16;
+  doc.line(18, y, 92, y); doc.line(W-92, y, W-18, y); y += 5; doc.setFontSize(9.5);
+  doc.text(pf.nome||'', 55, y, { align:'center' }); doc.text('Responsável Financeiro', W-55, y, { align:'center' }); y += 4.5;
+  doc.text('CPF/CNPJ: '+(pf.cpf?mascaraCPF(pf.cpf):''), 55, y, { align:'center' }); doc.text('CPF:', W-55, y, { align:'center' });
+  doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('DETALHAMENTO · Recibo nº '+r.numero+' · '+(pf.nome||''), 14, 16);
+  doc.autoTable({ startY:22, theme:'plain', styles:{ fontSize:8, cellPadding:1.2 }, headStyles:{ fontStyle:'bold', lineWidth:{bottom:0.3}, lineColor:[60,60,60] },
+    head:[['Data','OS','Paciente','Convênio','Código','Descrição','Qtd','Valor','%','Líquido']],
+    body: L.map(x=>[dataBR(x.data), x.os||'', x.paciente, x.conv, x.cod, x.desc, String(x.qtd), n(x.vl), x.pc+'%', n(x.liq)]),
+    columnStyles:{ 6:{halign:'center'}, 7:{halign:'right'}, 8:{halign:'center'}, 9:{halign:'right'} }, didParseCell:d=>{ if(d.section==='body') d.cell.styles.lineWidth={bottom:0.1}; } });
+  relPdfRodape(doc);
+  try{ await relEntregar('Recibo repasse '+r.numero+' '+(pf.nome||''), doc.output('blob'), 'pdf', 'Líquido R$ '+n(r.valor_liquido)); }catch(e){ aviso('Não gerou: '+e.message,'erro'); }
+}
+let _rxPag = null;
+function rxRecPagar(id){ _rxPag = { id, data: hojeISO(), forma:'PIX' };
+  abrirModal('<h2 style="margin:0 0 8px">Repasse pago</h2><div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1">Data<input type="date" value="'+_rxPag.data+'" onchange="_rxPag.data=this.value"></label>'+
+    '<label style="flex:1">Forma<select onchange="_rxPag.forma=this.value"><option>PIX</option><option>Transferência</option><option>Dinheiro</option></select></label></div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="bt g" onclick="fecharModal()">Cancelar</button><button class="bt" onclick="rxRecPagarSalvar()">Gravar</button></div>'); }
+async function rxRecPagarSalvar(){ const p = _rxPag; const r = await sb.from('repasses_medicos').update({ status:'pago', pago_em:p.data, forma:p.forma }).eq('id',p.id).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro'); const i = RX.reps.findIndex(x=>x.id===p.id); if(i>=0) RX.reps[i] = r.data; fecharModal(); aviso('✔ Repasse marcado como pago.'); render(); }
+async function rxRecCancelar(id){ if(!confirm('Cancelar este recibo? Ele continua na lista como cancelado.')) return;
+  const r = await sb.from('repasses_medicos').update({ status:'cancelado' }).eq('id',id).select().maybeSingle(); if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  const i = RX.reps.findIndex(x=>x.id===id); if(i>=0) RX.reps[i] = r.data; render(); }
 
 /* ---------- convênios e preços ---------- */
 function tissTelaConv(){
