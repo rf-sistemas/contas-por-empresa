@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v163">
+<meta name="rf-versao" content="v164">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v163',
+  versao : 'v164',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4857,17 +4857,19 @@ function osItensDe(a){ const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_
   return [{ itemId:a.item_id, qtd:1, valor: part ? (a.valor!=null?+a.valor:null) : tissPreco(a.operadora_id, a.item_id, a.data), stExe: a.status==='atendido'?'Executado':'Pendente', setor:'CON', profId:a.profissional_id, senha:'', auto:!part }]; }
 function osDeAgenda(a, p){ const o = a.os || {}, g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form || {};
   return { id:a.id, os_numero:a.os_numero, status:a.status, guia_id:a.guia_id, pago:a.pago, data:a.data, hora:agHM(a.hora),
-    urg:o.urg||'N', atend:o.atend||'Assistencial', goper:o.goper||gf.numeroGuiaOperadora||'', conv: a.pagamento && a.pagamento!=='convenio' ? 'p:'+a.pagamento : (a.operadora_id||''),
+    urg:o.urg||'N', atend:o.atend||'Assistencial', goper:o.goper||gf.numeroGuiaOperadora||'', ppFech: a.pp_fechamento_id||null, conv: a.pagamento==='prepago' ? 'pp:'+(a.operadora_id||'') : a.pagamento && a.pagamento!=='convenio' ? 'p:'+a.pagamento : (a.operadora_id||''),
     plano:o.plano!=null?o.plano:(p.plano||''), origem:o.origem||'', setor:o.setor||'RECEPÇÃO IDAD', guia:g?g.numero_guia_prestador:(o.guia||''), guiaPrinc:o.guiaPrinc||'',
     profId:a.profissional_id||'', solic:o.solic||a.data, obs:a.obs||'', cpf:o.cpf!=null?o.cpf:(p.cpf||''), matric:a.carteira||p.carteirinha||'', cid:o.cid!=null?o.cid:(p.cid||''), cidDesc:o.cidDesc||'',
     tipo:a.tipo||'consulta', tempo:o.tempo||'', tempoUn:o.tempoUn||'D', indClin:o.indClin||'', acidente:o.acidente||'9', obsTiss:o.obsTiss||'', entrega:o.entrega||'', lotacao:o.lotacao!=null?o.lotacao:(p.lotacao||''),
     externo:o.externo||'', tpAtd:o.tpAtd||(a.tipo==='consulta'?'04':'23'), saida:o.saida||'', regime:o.regime||'01', saudeOcup:o.saudeOcup||'', cobertura:o.cobertura||'',
     ocorrencias:o.ocorrencias||[], itens: o.itens && o.itens.length ? o.itens : osItensDe(a) }; }
+function pacOpDoConv(conv){ if(!conv) return null; const L = tissOpsAtivas().concat(tissOpsPP()), n = permNorm(conv);
+  return L.find(o=>permNorm(o.nome)===n) || L.find(o=>n.indexOf(permNorm(o.nome))>=0 || permNorm(o.nome).indexOf(n)>=0) || null; }
 function osNovaEd(p){ const d = new Date();
-  const op = p.convenio ? tissOpsAtivas().find(o=>permNorm(o.nome)===permNorm(p.convenio)) || tissOpsAtivas().find(o=>permNorm(p.convenio).indexOf(permNorm(o.nome))>=0 || permNorm(o.nome).indexOf(permNorm(p.convenio))>=0) : null;
-  const ed = osDeAgenda({ data:hojeISO(), hora:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'), tipo:'consulta', operadora_id: op?op.id:'', pagamento: p.convenio && /PARTICULAR/i.test(p.convenio) ? 'avista' : 'convenio', carteira:p.carteirinha, status:'chegou' }, p);
+  const op = pacOpDoConv(p.convenio);
+  const ed = osDeAgenda({ data:hojeISO(), hora:String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'), tipo:'consulta', operadora_id: op?op.id:'', pagamento: p.convenio && /PARTICULAR/i.test(p.convenio) ? 'avista' : op && op.prepago ? 'prepago' : 'convenio', carteira:p.carteirinha, status:'chegou' }, p);
   ed.id = null; ed.os_numero = null; ed.status = 'chegou';
-  if(ed.conv && ed.conv.indexOf('p:')<0){ const it = tissItensDoConv(ed.conv,'proc').find(i=>/CONSULTA/i.test(i.descricao||'')); if(it) ed.itens = [{ itemId:it.id, qtd:1, valor:tissPreco(ed.conv, it.id, ed.data), stExe:'Pendente', setor:'CON', profId:'', senha:'', auto:true }]; }
+  if(ed.conv && !convBalcao(ed.conv)){ const oc = convOpId(ed.conv), it = tissItensDoConv(oc,'proc').find(i=>/CONSULTA/i.test(i.descricao||'') && S.tiss.precos.some(p=>p.operadora_id===oc && p.item_id===i.id)) || tissItensDoConv(oc,'proc').find(i=>/CONSULTA/i.test(i.descricao||'')); if(it) ed.itens = [{ itemId:it.id, qtd:1, valor:tissPreco(oc, it.id, ed.data), stExe:'Pendente', setor:'CON', profId:'', senha:'', auto:true }]; }
   return ed; }
 function pacOsHtml(id){
   const p = _pacReg;
@@ -4880,7 +4882,7 @@ function pacOsHtml(id){
   const F = (rot, campo) => '<span class="osf"><span class="osl">'+rot+'</span>'+campo+'</span>';
   const R = (...c) => '<div class="osr">'+c.join('')+'</div>';
   const profs = [['','—']].concat(S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome)).map(x=>[x.id, x.nome]));
-  const convs = [['','— escolha —'],['p:avista','Particular · à vista'],['p:cartao','Particular · cartão de crédito']].concat(tissOpsAtivas().map(o=>[o.id, o.nome+' ('+o.ans+')']));
+  const convs = [['','— escolha —'],['p:avista','Particular · à vista'],['p:cartao','Particular · cartão de crédito']].concat(tissOpsPP().map(o=>['pp:'+o.id, 'Pré-pago · '+o.nome]), tissOpsAtivas().map(o=>[o.id, o.nome+' ('+o.ans+')']));
   const prof = S.tiss.profs.find(x=>x.id===e.profId)||{};
   let h = '<style>.osbox{border:1px solid var(--linha);border-radius:10px;padding:10px 12px;margin-bottom:8px}.osr{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:6px}'+
     '.osf{display:inline-flex;align-items:center;gap:6px}.osl{font-size:12.5px;font-weight:800;white-space:nowrap}.osf input,.osf select{margin:0;padding:6px 8px}'+
@@ -4911,8 +4913,8 @@ function pacOsHtml(id){
       '<button class="bt g mini" onclick="osDeposito()">Depósito</button><button class="bt g mini" onclick="_osMenu=\'ocor\';pacDesenhar(\''+id+'\')">Registro de Ocorrências</button></span>'+
     '<span style="display:flex;gap:6px;flex-wrap:wrap">'+(e.id?'<button class="bt g" onclick="_osEd=osNovaEd(_pacReg);_osEd._pid=\''+id+'\';_osMenu=\'itens\';pacDesenhar(\''+id+'\')">+ Nova OS</button>':'')+
       (ro?'':'<button class="bt g" onclick="osGravar()">Gravar OS</button>')+
-      (e.conv && e.conv.indexOf('p:')===0 ? '' : '<button class="bt" onclick="osGuia()">'+(e.guia_id?'Ver guia TISS':'Gravar e gerar guia TISS')+'</button>')+
-      (e.conv && e.conv.indexOf('p:')===0 && !e.pago ? '<button class="bt" onclick="osDeposito()">💰 Receber</button>' : '')+'</span></div>';
+      (convBalcao(e.conv) || convPP(e.conv) ? '' : '<button class="bt" onclick="osGuia()">'+(e.guia_id?'Ver guia TISS':'Gravar e gerar guia TISS')+'</button>')+
+      (convBalcao(e.conv) && !e.pago ? '<button class="bt" onclick="osDeposito()">💰 Receber</button>' : '')+'</span></div>';
   return h;
 }
 function osMenuHtml(id, ro){
@@ -4924,10 +4926,10 @@ function osMenuHtml(id, ro){
   if(_osMenu==='ocor') return (e.ocorrencias.length ? '<table><tbody>'+e.ocorrencias.map(o=>'<tr><td style="white-space:nowrap">'+esc(o.em)+'</td><td>'+esc(o.por||'')+'</td><td>'+esc(o.txt)+'</td></tr>').join('')+'</tbody></table>' : '<div style="color:var(--fraco)">Nenhuma ocorrência registrada.</div>')+
     '<div style="display:flex;gap:6px;margin-top:8px"><input id="os-ocor" placeholder="Nova ocorrência" style="flex:1;margin:0"><button class="bt mini" onclick="osOcorrencia()">Registrar</button></div>';
   if(_osMenu!=='itens') return '<div style="color:var(--fraco);font-size:13.5px">Em construção no Sistema MR.</div>';
-  const opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+  const opId = convOpId(e.conv);
   const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
   const tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
-  const stFat = e.guia_id ? ((TISS_ST[(S.tiss.guias.find(g=>g.id===e.guia_id)||{}).status]||['Faturado'])[0]) : (e.conv && e.conv.indexOf('p:')===0 ? (e.pago?'Pago':'A receber') : 'A faturar');
+  const stFat = e.guia_id ? ((TISS_ST[(S.tiss.guias.find(g=>g.id===e.guia_id)||{}).status]||['Faturado'])[0]) : (convBalcao(e.conv) ? (e.pago?'Pago':'A receber') : convPP(e.conv) ? (e.ppFech?'No fechamento do pré-pago':'A faturar · pré-pago') : 'A faturar');
   const pNome = p => esc(p.nome.split(' ').slice(0,2).join(' '));
   const selProf = (k, i, x, vazio) => '<select style="width:112px" onchange="_osEd.itens['+i+'].'+k+'=this.value"'+ro+'><option value="">'+vazio+'</option>'+profs.map(p=>'<option value="'+p.id+'"'+(x[k]===p.id?' selected':'')+'>'+pNome(p)+'</option>').join('')+'</select>';
   // v155: mesmas colunas e ordem do Smart: Tp · Código · Descrição · Qtd · Setor · St · Médico · Auxiliar · CH · Valor · Cód. Conv · Tab. · Senha · Status Fat.
@@ -4959,9 +4961,9 @@ function osNovoItem(){ // v153: F3 abre linha em branco (azul) e põe o cursor n
   const i = vazio<0 ? _osEd.itens.length-1 : vazio; setTimeout(()=>{ const e = document.getElementById('os-cod-'+i); if(e){ e.focus(); e.scrollIntoView({block:'center'}); } }, 30); }
 document.addEventListener('keydown', e=>{ if(e.key!=='F3' || !document.getElementById('pc-tabs') || _pacTela!=='os') return; e.preventDefault(); osNovoItem(); });
 function osAbrir(aid, pid){ const a = _pacOS.lista.find(x=>x.id===aid); if(!a) return; _pacOS.sel = aid; _osEd = osDeAgenda(a, _pacReg); _osEd._pid = pid; _osMenu = 'itens'; pacDesenhar(pid); }
-function osConvMudou(){ const e = _osEd, opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+function osConvMudou(){ const e = _osEd, opId = convOpId(e.conv);
   e.itens.forEach(x=>{ if(x.auto!==false && opId){ const v = tissPreco(opId, x.itemId, e.data); x.valor = v; } }); pacDesenhar(_pacReg.id); }
-function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].replace(/[\s.\-]/g,'').toUpperCase(), opId = e.conv && e.conv.indexOf('p:')<0 ? e.conv : '';
+function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')[0].replace(/[\s.\-]/g,'').toUpperCase(), opId = convOpId(e.conv);
   if(!cod){ e.itens[i].itemId = null; return pacDesenhar(_pacReg.id); }
   const lst = (opId ? tissItensDoConv(opId) : S.tiss.itens.slice().sort((a,b)=>((S.ag.ppart||[]).some(p=>p.item_id===b.id)-(S.ag.ppart||[]).some(p=>p.item_id===a.id)) || (b.usos||0)-(a.usos||0))), norm = c => String(c||'').replace(/[\s.\-]/g,'').toUpperCase();
   const it = lst.find(x=>norm(x.codigo)===cod) || S.tiss.itens.find(x=>norm(x.codigo)===cod);
@@ -4971,7 +4973,7 @@ function osItemSet(i, rot){ const e = _osEd, cod = String(rot||'').split(' · ')
   if(i===0) e.tipo = /CONSULTA/i.test(it.descricao||'') ? 'consulta' : e.tipo==='consulta' ? 'exame' : e.tipo;
   pacDesenhar(_pacReg.id);
   if(x.valor==null) aviso('Código '+it.codigo+' encontrado, mas sem preço neste convênio — informe o valor.','erro'); }
-function osInfoConv(){ const e = _osEd; if(!e.conv) return aviso('Escolha o convênio.','erro'); if(e.conv.indexOf('p:')===0) return aviso('Particular: pagamento na recepção (à vista ou cartão).');
+function osInfoConv(){ const e = _osEd; if(!e.conv) return aviso('Escolha o convênio.','erro'); if(e.conv.indexOf('pp:')===0) return aviso('Pré-pago · '+convPPNome(e.conv)+': o paciente já vem autorizado com a guia do pré-pago (informe o nº em G. Oper.). Nada é cobrado na recepção nem vai para o TISS; entra no Fechamento pré-pago do mês.'); if(e.conv.indexOf('p:')===0) return aviso('Particular: pagamento na recepção (à vista ou cartão).');
   const o = tissOp(e.conv), ct = S.tiss.contratos.filter(c=>c.operadora_id===o.id);
   aviso(o.nome+' · ANS '+o.ans+' · TISS '+(o.versao||'?')+(ct.length?' · faturar como: '+ct.map(c=>c.rotulo).join(' / '):'')); }
 function osOcorrencia(){ const v = (document.getElementById('os-ocor')||{}).value; if(!String(v||'').trim()) return;
@@ -4982,14 +4984,14 @@ async function osGravar(quieto){
   if(!e.profId) return aviso('Escolha o médico (Méd.).','erro'), false;
   if(!e.data || !e.hora) return aviso('Informe a data e a hora da OS.','erro'), false;
   e.itens = e.itens.filter(x=>x.itemId); // linha em branco (F3) não usada é descartada
-  const part = e.conv.indexOf('p:')===0, tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
+  const pp = convPP(e.conv), part = convBalcao(e.conv), tot = e.itens.reduce((s,x)=>s+tissN((+x.valor||0)*(+x.qtd||0)),0);
   const os = {}; ['urg','atend','goper','plano','origem','setor','guiaPrinc','solic','cpf','cid','cidDesc','tempo','tempoUn','indClin','acidente','obsTiss','entrega','lotacao','externo','tpAtd','saida','regime','saudeOcup','cobertura','ocorrencias','itens'].forEach(k=>os[k]=e[k]);
   const reg = { profissional_id:e.profId, data:e.data, hora:e.hora, tipo:e.tipo||'consulta', paciente_id:p.id, paciente_nome:String(p.nome||'').toUpperCase(), telefone: soDig(p.celular||p.telefone)||null,
-    carteira:e.matric||null, operadora_id: part?null:e.conv, item_id:(e.itens[0]||{}).itemId||null, pagamento: part?e.conv.slice(2):'convenio', valor: part?tot:null, obs:e.obs||null, os, atualizado_em:new Date().toISOString() };
+    carteira:e.matric||null, operadora_id: pp?e.conv.slice(3):part?null:e.conv, item_id:(e.itens[0]||{}).itemId||null, pagamento: pp?'prepago':part?e.conv.slice(2):'convenio', valor: part||pp?tot:null, obs:e.obs||null, os, atualizado_em:new Date().toISOString() };
   if(!e.id){ reg.status = 'chegou'; reg.encaixe = true; reg.origem = 'recepcao'; reg.chegou_em = reg.atualizado_em; }
   const r = e.id ? await sb.from('agenda').update(reg).eq('id', e.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
   if(r.error){ aviso('Não gravou a OS: '+r.error.message,'erro'); return false; }
-  if(part){ // v156: preço particular digitado fica guardado para as próximas vezes
+  if(part && !pp){ // v156: preço particular digitado fica guardado para as próximas vezes
     e.itens.filter(x=>x.itemId && x.valor!=null && x.valor!=='').forEach(x=>{ const v = Number(x.valor); sb.from('particular_precos').upsert({ item_id:x.itemId, valor:v, atualizado_em:new Date().toISOString() }).then(()=>{});
       const k = (S.ag.ppart = S.ag.ppart||[]).find(y=>y.item_id===x.itemId); if(k) k.valor = v; else S.ag.ppart.push({ item_id:x.itemId, valor:v }); }); }
   const a = r.data, i = _pacOS.lista.findIndex(x=>x.id===a.id); if(i>=0) _pacOS.lista[i] = a; else _pacOS.lista.unshift(a);
@@ -5014,7 +5016,7 @@ async function osGuia(){
   tissGuiaModal();
 }
 function osDeposito(){ const e = _osEd; if(!e.id) return aviso('Grave a OS primeiro.','erro');
-  if(!(e.conv && e.conv.indexOf('p:')===0)) return aviso('Depósito é para atendimento particular.');
+  if(!convBalcao(e.conv)) return aviso(convPP(e.conv) ? 'Pré-pago não é cobrado na recepção: entra no Fechamento pré-pago do mês (Faturamento TISS › Pré-pago).' : 'Depósito é para atendimento particular.');
   const a = S.ag.lista.find(x=>x.id===e.id); if(!a) return; if(a.pago) return rcAbrirAgenda(a.id); agReceber(a.id); }
 function pacOsGuia(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.guia_id) return tissGuiaAbrir(a.guia_id); agAtender(aid); }
 function pacOsPagar(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.pago) return rcAbrirAgenda(aid); agReceber(aid); }
@@ -5024,8 +5026,8 @@ async function pacOsNova(id){
   const p = S.idad.pac.find(x=>x.id===id) || _pacReg || {};
   S.ag.dia = hojeISO(); agNovo('', '', true);
   const d = new Date(), hora = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-  const op = p.convenio ? tissOpsAtivas().find(o=>permNorm(o.nome)===permNorm(p.convenio)) || tissOpsAtivas().find(o=>permNorm(p.convenio).indexOf(permNorm(o.nome))>=0 || permNorm(o.nome).indexOf(permNorm(p.convenio))>=0) : null;
-  Object.assign(_agEd, { paciente_id:id, paciente_nome:p.nome||'', telefone:p.celular||p.telefone||'', carteira:p.carteirinha||'', operadora_id: op?op.id:'', hora, data: hojeISO(), encaixe:true, origem:'recepcao' });
+  const op = pacOpDoConv(p.convenio);
+  Object.assign(_agEd, { paciente_id:id, paciente_nome:p.nome||'', telefone:p.celular||p.telefone||'', carteira:p.carteirinha||'', operadora_id: op?op.id:'', pagamento: op && op.prepago ? 'prepago' : (_agEd.pagamento||'convenio'), hora, data: hojeISO(), encaixe:true, origem:'recepcao' });
   _pacOS.pid = null; agModal();
 }
 document.addEventListener('keydown', e=>{ // F10 troca Ficha ⇄ Lançamento, como no Smart
@@ -7719,15 +7721,25 @@ function telaIdadTiss(){
   const ab = S.tiss.guias.filter(g=>g.status==='aberta'), lt = S.tiss.guias.filter(g=>g.status==='no_lote');
   h += '<div class="card"><div class="kpis">'+kpi('Guias abertas', String(ab.length))+kpi('A faturar', brl(ab.reduce((s,g)=>s+(+g.valor_total||0),0)))+
     kpi('Em lote', String(lt.length))+kpi('Lotes gerados', String(S.tiss.lotes.length))+kpi('Convênios ativos', String(S.tiss.ops.filter(o=>o.ativo).length))+'</div></div>';
-  const abas = [['guias','Guias'],['lotes','Lotes e XML'],['conv','Convênios e preços'],['conf','Conferir com o Smart']];
+  const abas = [['guias','Guias'],['lotes','Lotes e XML'],['pp','Pré-pago (fechamento)'],['conv','Convênios e preços'],['conf','Conferir com o Smart']];
   h += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">'+abas.map(a=>'<button class="bt'+(S.tiss.aba===a[0]?'':' g')+'" onclick="S.tiss.aba=\''+a[0]+'\';render()">'+a[1]+'</button>').join('')+'</div>';
   if(S.tiss.aba==='guias') h += tissTelaGuias();
   else if(S.tiss.aba==='lotes') h += tissTelaLotes();
+  else if(S.tiss.aba==='pp') h += ppTela();
   else if(S.tiss.aba==='conv') h += tissTelaConv();
   else h += tissTelaConf();
   return h;
 }
-function tissOpsAtivas(){ return S.tiss.ops.filter(o=>o.ativo || S.tiss.guias.some(g=>g.operadora_id===o.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
+/* v164 (Renato, 26/11/2026): PRÉ-PAGO — convênios da casa (Plamol, Persona, DR Saúde, Tabela IDAD…) sem TISS.
+   O paciente já vem autorizado (pagou no pré-pago) e traz a guia; nada é cobrado na recepção. O preço vem da tabela
+   do convênio (tiss_precos). No fim do mês: Fechamento pré-pago → Relatório Analítico → entregue → recebido (Pix/espécie).
+   Na OS o valor do convênio fica 'pp:<id>'; na agenda: pagamento='prepago' + operadora_id. */
+function tissOpsPP(){ return S.tiss.ops.filter(o=>o.prepago).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
+function convBalcao(c){ return /^p:/.test(String(c||'')); }   // particular: paga na recepção
+function convPP(c){ return /^pp:/.test(String(c||'')); }        // pré-pago: faturado no fechamento do mês
+function convOpId(c){ c = String(c||''); return c.indexOf('pp:')===0 ? c.slice(3) : c.indexOf('p:')===0 ? '' : c; }
+function convPPNome(c){ const id = String(c||'').indexOf('pp:')===0 ? String(c).slice(3) : ''; return id ? (tissOp(id).nome||'Pré-pago') : ''; }
+function tissOpsAtivas(){ return S.tiss.ops.filter(o=>!o.prepago).filter(o=>o.ativo || S.tiss.guias.some(g=>g.operadora_id===o.id)).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
 
 /* ---------- guias ---------- */
 function tissTelaGuias(){
@@ -8078,9 +8090,162 @@ async function tissLoteEnviado(id){ if(!confirm('Marcar este lote como enviado �
   await sb.from('tiss_guias').update({ status:'enviada', atualizado_em:new Date().toISOString() }).eq('lote_id', id).eq('status','no_lote');
   S.tiss.carregado = false; tissCarregar(); aviso('Lote marcado como enviado.'); }
 
+
+/* ===== v164: FECHAMENTO PRÉ-PAGO (Renato, 26/11/2026) =====
+   Fim do mês: filtra os atendimentos de cada pré-pago → Relatório Analítico (igual ao modelo que o IDAD entrega:
+   por profissional, Data · Nº Guia · Nº Carteira · Beneficiário · Cód. AMB · Descrição · Qtd · Vl. Conta · Desconto · Vl. Recebido)
+   → marca "entregue" → registra o recebimento (Pix ou espécie, com o recibo) que entra no Financeiro do IDAD.
+   Divisão médico × hospital: regras em prepago_divisao — % do médico por convênio, por procedimento e/ou por médico
+   (a mais específica vale). A equipe do IDAD preenche. */
+const PP = { op:'', mes:'', ag:null, fech:null, div:null, carregando:false, erro:null };
+function ppMesAtual(){ const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); return d.toISOString().slice(0,7); }
+function ppFim(m){ const [y,mm] = m.split('-').map(Number); return new Date(Date.UTC(y,mm,0)).toISOString().slice(0,10); }
+function ppMesBR(m){ const [y,mm] = String(m||'').split('-'); return mm+'/'+y; }
+async function ppCarregar(){
+  if(PP.carregando) return; PP.carregando = true; PP.erro = null;
+  try{
+    if(!PP.mes) PP.mes = ppMesAtual();
+    const [f, d] = await Promise.all([ sb.from('prepago_fechamentos').select('*').order('competencia',{ascending:false}), sb.from('prepago_divisao').select('*') ]);
+    if(f.error) throw f.error; if(d.error) throw d.error; PP.fech = f.data||[]; PP.div = d.data||[];
+    if(PP.op){ const r = await sb.from('agenda').select('*').eq('pagamento','prepago').eq('operadora_id', PP.op).gte('data', PP.mes+'-01').lte('data', ppFim(PP.mes)).order('data').order('hora');
+      if(r.error) throw r.error; PP.ag = (r.data||[]).filter(a=>a.status!=='cancelado' && a.status!=='faltou'); } else PP.ag = [];
+  }catch(e){ PP.erro = e.message||String(e); }
+  PP.carregando = false; if(S.tela==='idadtiss') render();
+}
+function ppPerc(op, itemId, profId){ const L = (PP.div||[]).filter(r=>r.operadora_id===op);
+  const r = L.find(r=>r.item_id===itemId && r.profissional_id===profId) || L.find(r=>r.item_id===itemId && !r.profissional_id)
+         || L.find(r=>!r.item_id && r.profissional_id===profId) || L.find(r=>!r.item_id && !r.profissional_id);
+  return r ? +r.perc_medico : null; }
+function ppLinhas(){ const out = [];
+  (PP.ag||[]).forEach(a=>{ const o = a.os||{}, its = (o.itens||[]).filter(x=>x.itemId);
+    const base = { aid:a.id, data:a.data, guia:o.goper||'', cart:a.carteira||'', benef:a.paciente_nome||'', fech:a.pp_fechamento_id||null };
+    const L = its.length ? its.map(x=>({ itemId:x.itemId, qtd:+x.qtd||1, unit:+x.valor||0, prof:x.profId||a.profissional_id })) : (a.item_id ? [{ itemId:a.item_id, qtd:1, unit: a.valor!=null ? +a.valor : (tissPreco(a.operadora_id, a.item_id, a.data)||0), prof:a.profissional_id }] : []);
+    L.forEach(x=>{ const it = tissIt(x.itemId)||{}, vl = tissN(x.unit*x.qtd), pc = ppPerc(PP.op, x.itemId, x.prof);
+      out.push(Object.assign({}, base, { cod:it.codigo||'', desc:it.descricao||'', qtd:x.qtd, vl, prof:x.prof, pc, med: pc==null?null:tissN(vl*pc/100), hosp: pc==null?null:tissN(vl-vl*pc/100) })); }); });
+  return out; }
+function ppProfNome(id){ const p = S.tiss.profs.find(x=>x.id===id); return p ? p.nome : 'Sem médico informado'; }
+function ppTela(){
+  if(PP.fech===null && !PP.carregando){ ppCarregar(); }
+  const ops = tissOpsPP();
+  let h = '<div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'+
+    '<label style="flex:2;min-width:200px">Convênio pré-pago<select onchange="PP.op=this.value;PP.ag=null;ppCarregar()"><option value="">— escolha —</option>'+ops.map(o=>'<option value="'+o.id+'"'+(PP.op===o.id?' selected':'')+'>'+esc(o.nome)+'</option>').join('')+'</select></label>'+
+    '<label style="flex:1;min-width:150px">Competência (mês)<input type="month" value="'+(PP.mes||ppMesAtual())+'" onchange="PP.mes=this.value;ppCarregar()"></label>'+
+    (PP.op?'<button class="bt g" onclick="ppDivisao()">⚖ Divisão médico × hospital</button>':'')+'</div>';
+  if(PP.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(PP.erro)+'</b></div>';
+  if(PP.carregando || PP.fech===null) return h+'<div class="vazio">Carregando…</div>';
+  // a receber de todos os pré-pagos
+  const ab = (PP.fech||[]).filter(f=>f.status==='entregue');
+  h += '<div class="card"><div class="kpis">'+kpi('Fechamentos a receber', String(ab.length))+kpi('Valor a receber', brl(ab.reduce((s,f)=>s+(+f.valor_total||0)-(+f.desconto||0),0)))+
+    kpi('Recebido no ano', brl((PP.fech||[]).filter(f=>f.status==='pago' && String(f.recebido_em||'').slice(0,4)===String(new Date().getFullYear())).reduce((s,f)=>s+(+f.valor_recebido||0),0)))+'</div></div>';
+  if(PP.op){
+    const L = ppLinhas(), fx = (PP.fech||[]).find(f=>f.operadora_id===PP.op && f.competencia===PP.mes), op = tissOp(PP.op);
+    const guias = new Set(L.map(x=>x.aid)).size, tot = L.reduce((s,x)=>s+x.vl,0), semPc = L.filter(x=>x.pc==null).length;
+    h += '<div class="secao"><b>'+esc(op.nome||'')+' · '+ppMesBR(PP.mes)+'</b><span>'+guias+' guia'+(guias===1?'':'s')+' · '+brl(tot)+(fx?' · '+(fx.status==='pago'?'<b style="color:#0e9f6e">recebido em '+dataBR(fx.recebido_em)+' · '+brl(+fx.valor_recebido)+'</b>':'<b style="color:#B07A00">entregue em '+dataBR(fx.entregue_em)+' · aguardando pagamento</b>'):' · ainda não entregue')+'</span></div>';
+    if(!L.length) h += '<div class="vazio">Nenhum atendimento '+esc(op.nome||'')+' em '+ppMesBR(PP.mes)+'.</div>';
+    else {
+      const porProf = {}; L.forEach(x=>{ (porProf[x.prof||''] = porProf[x.prof||''] || []).push(x); });
+      h += Object.keys(porProf).sort((a,b)=>ppProfNome(a).localeCompare(ppProfNome(b))).map(pid=>{ const l = porProf[pid], st = l.reduce((s,x)=>s+x.vl,0), sm = l.reduce((s,x)=>s+(x.med||0),0);
+        return '<div class="card" style="overflow-x:auto;padding:8px 10px"><div style="font-weight:800;margin:2px 4px 6px">Profissional: '+esc(ppProfNome(pid))+' <span style="font-weight:400;color:var(--fraco)">· Convênio: '+esc(op.nome||'')+'</span></div>'+
+          '<table><thead><tr><th>Data</th><th>Nº Guia</th><th>Nº Carteira</th><th>Beneficiário</th><th>Cód.</th><th>Descrição</th><th>Qtd</th><th style="text-align:right">Vl. conta</th><th style="text-align:right">% méd.</th><th style="text-align:right">Médico</th><th style="text-align:right">Hospital</th></tr></thead><tbody>'+
+          l.map(x=>'<tr><td>'+dataBR(x.data)+'</td><td>'+(x.guia?esc(x.guia):'<span style="color:#dc2626" title="Informe o nº da guia do pré-pago na OS (G. Oper.)">falta</span>')+'</td><td>'+esc(x.cart||'—')+'</td><td>'+esc(x.benef)+'</td><td>'+esc(x.cod)+'</td><td>'+esc(x.desc)+'</td><td>'+x.qtd+'</td><td style="text-align:right">'+brl(x.vl)+'</td>'+
+            '<td style="text-align:right">'+(x.pc==null?'<span style="color:var(--fraco)">—</span>':x.pc+'%')+'</td><td style="text-align:right">'+(x.med==null?'—':brl(x.med))+'</td><td style="text-align:right">'+(x.hosp==null?'—':brl(x.hosp))+'</td></tr>').join('')+
+          '<tr><td colspan="7" style="text-align:right;font-weight:800">Valor total do convênio</td><td style="text-align:right;font-weight:800">'+brl(st)+'</td><td></td><td style="text-align:right;font-weight:800">'+(l.some(x=>x.med!=null)?brl(sm):'—')+'</td><td style="text-align:right;font-weight:800">'+(l.some(x=>x.hosp!=null)?brl(st-sm):'—')+'</td></tr></tbody></table></div>'; }).join('');
+      h += '<div class="card" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:14px"><b>Nº total de guias: '+guias+'</b><b>Total geral: '+brl(tot)+'</b>'+
+        (semPc?'<span style="color:#B07A00;font-size:12.5px">'+semPc+' linha'+(semPc===1?'':'s')+' sem divisão médico × hospital — defina em ⚖ Divisão.</span>':'')+'</div>';
+      h += '<div class="card" style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="bt" onclick="ppPdf()">⬇ Relatório Analítico (PDF)</button>'+
+        (podeEditar()&&(!fx||fx.status!=='pago')?'<button class="bt g" onclick="ppEntregar()">'+(fx?'↻ Atualizar fechamento entregue':'📦 Marcar como entregue ao pré-pago')+'</button>':'')+
+        (podeEditar()&&fx&&fx.status==='entregue'?'<button class="bt" onclick="ppReceber(\''+fx.id+'\')">💰 Registrar recebimento</button>':'')+'</div>';
+    }
+  }
+  // histórico
+  const hist = (PP.fech||[]);
+  if(hist.length) h += '<div class="secao"><b>FECHAMENTOS</b><span>Todos os pré-pagos</span></div><div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Convênio</th><th>Competência</th><th>Guias</th><th style="text-align:right">Total</th><th style="text-align:right">Desconto</th><th>Situação</th><th style="text-align:right">Recebido</th></tr></thead><tbody>'+
+    hist.map(f=>'<tr style="cursor:pointer" onclick="PP.op=\''+f.operadora_id+'\';PP.mes=\''+f.competencia+'\';ppCarregar()"><td><b>'+esc(tissOp(f.operadora_id).nome||'')+'</b></td><td>'+ppMesBR(f.competencia)+'</td><td>'+(f.qtd_guias||0)+'</td><td style="text-align:right">'+brl(+f.valor_total||0)+'</td><td style="text-align:right">'+brl(+f.desconto||0)+'</td>'+
+      '<td>'+(f.status==='pago'?'<span style="color:#0e9f6e;font-weight:700">Recebido '+dataBR(f.recebido_em)+' · '+esc(f.forma||'')+'</span>':'<span style="color:#B07A00;font-weight:700">Entregue '+dataBR(f.entregue_em)+' · a receber</span>')+'</td><td style="text-align:right">'+(f.status==='pago'?brl(+f.valor_recebido||0):'—')+'</td></tr>').join('')+'</tbody></table></div>';
+  return h;
+}
+async function ppPdf(){
+  const L = ppLinhas(); if(!L.length) return aviso('Nada para imprimir.','erro');
+  try{ await relPdfLib(); }catch(e){ return aviso('Não carregou o gerador de PDF.','erro'); }
+  const op = tissOp(PP.op), fx = (PP.fech||[]).find(f=>f.operadora_id===PP.op && f.competencia===PP.mes), emp = idadEmpresa()||{};
+  const doc = relPdfNovo('RELATÓRIO ANALÍTICO', (emp.razao_social||'IDAD')+(emp.cnpj?' · CNPJ '+mascaraCNPJ(emp.cnpj):'')+' · Convênio: '+(op.nome||'')+' · Competência '+ppMesBR(PP.mes), true);
+  const porProf = {}; L.forEach(x=>{ (porProf[x.prof||''] = porProf[x.prof||''] || []).push(x); });
+  let y = 26; const n = v => (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  Object.keys(porProf).sort((a,b)=>ppProfNome(a).localeCompare(ppProfNome(b))).forEach(pid=>{ const l = porProf[pid];
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(20,30,45); doc.text('Profissional: '+ppProfNome(pid), 14, y); doc.setFont('helvetica','normal'); doc.text('Convênio: '+(op.nome||''), 14, y+5);
+    doc.autoTable({ startY: y+8, theme:'plain', styles:{ fontSize:8.5, cellPadding:1.3 }, headStyles:{ fontStyle:'bold', lineWidth:{bottom:0.3}, lineColor:[60,60,60] },
+      head:[['DATA','Nº GUIA','Nº CARTEIRA','BENEFICIÁRIO','COD.AMB','DESCRIÇÃO','QTD','VL.CONTA','DESCONTO','VL.RECEBIDO']],
+      body: l.map(x=>[dataBR(x.data), x.guia||'', x.cart||'', x.benef, x.cod, x.desc, String(x.qtd), n(x.vl), '0,00', n(x.vl)]),
+      columnStyles:{ 6:{halign:'center'}, 7:{halign:'right'}, 8:{halign:'right'}, 9:{halign:'right'} }, didParseCell:d=>{ if(d.section==='body') d.cell.styles.lineWidth={bottom:0.1}; } });
+    y = doc.lastAutoTable.finalY + 5; doc.setFont('helvetica','bold'); doc.text('VALOR TOTAL DO CONVÊNIO: R$ '+n(l.reduce((s,x)=>s+x.vl,0)), doc.internal.pageSize.getWidth()-14, y, { align:'right' }); y += 10;
+    if(y > doc.internal.pageSize.getHeight()-30){ doc.addPage(); y = 18; } });
+  const tot = L.reduce((s,x)=>s+x.vl,0), des = fx ? (+fx.desconto||0) : 0;
+  doc.setFontSize(11); doc.text('Nº TOTAL GUIAS: '+new Set(L.map(x=>x.aid)).size, 14, y); doc.text('TOTAL GERAL: R$ '+n(tot), 95, y); doc.text('VALOR DESCONTO: R$ '+n(des), 165, y); doc.text('VALOR RECEBIDO: R$ '+n(tot-des), doc.internal.pageSize.getWidth()-14, y, { align:'right' });
+  try{ await relEntregar('Relatorio Analitico '+(op.nome||'')+' '+PP.mes, doc.output('blob'), 'pdf', L.length+' procedimento(s)'); }catch(e){ aviso('Não gerou: '+e.message,'erro'); }
+}
+async function ppEntregar(){
+  const L = ppLinhas(); if(!L.length) return; const fx = (PP.fech||[]).find(f=>f.operadora_id===PP.op && f.competencia===PP.mes);
+  const semGuia = L.filter(x=>!x.guia).length; if(semGuia && !confirm(semGuia+' linha(s) sem o nº da guia do pré-pago. Marcar como entregue mesmo assim?')) return;
+  const reg = { operadora_id:PP.op, competencia:PP.mes, qtd_guias:new Set(L.map(x=>x.aid)).size, valor_total:tissN(L.reduce((s,x)=>s+x.vl,0)), status:'entregue', entregue_em: fx&&fx.entregue_em || hojeISO() };
+  const r = fx ? await sb.from('prepago_fechamentos').update(reg).eq('id',fx.id).select().maybeSingle() : await sb.from('prepago_fechamentos').insert(reg).select().maybeSingle();
+  if(r.error) return aviso('Não gravou: '+r.error.message,'erro');
+  const ids = Array.from(new Set(L.map(x=>x.aid)));
+  const u = await sb.from('agenda').update({ pp_fechamento_id: r.data.id }).in('id', ids); if(u.error) return aviso('Fechamento gravado, mas não marcou os atendimentos: '+u.error.message,'erro');
+  aviso('✔ Fechamento '+tissOp(PP.op).nome+' '+ppMesBR(PP.mes)+' marcado como entregue · '+brl(reg.valor_total)+'.'); ppCarregar();
+}
+let _ppRec = null;
+function ppReceber(id){ const f = (PP.fech||[]).find(x=>x.id===id); if(!f) return;
+  _ppRec = { id, valor: tissN((+f.valor_total||0)-(+f.desconto||0)), desconto: +f.desconto||0, forma:'Pix', data: hojeISO(), obs:'', arq:null };
+  abrirModal('<h2 style="margin:0 0 4px">💰 Recebimento · '+esc(tissOp(f.operadora_id).nome||'')+' · '+ppMesBR(f.competencia)+'</h2><div style="color:var(--fraco);font-size:13px;margin-bottom:10px">Fechamento de '+brl(+f.valor_total||0)+' · '+(f.qtd_guias||0)+' guias</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;min-width:130px">Desconto (R$)<input type="number" step="0.01" value="'+_ppRec.desconto+'" onchange="_ppRec.desconto=+this.value||0;_ppRec.valor=tissN('+(+f.valor_total||0)+'-_ppRec.desconto);document.getElementById(\'pp-vr\').value=_ppRec.valor"></label>'+
+    '<label style="flex:1;min-width:130px">Valor recebido (R$)<input id="pp-vr" type="number" step="0.01" value="'+_ppRec.valor+'" onchange="_ppRec.valor=+this.value||0"></label>'+
+    '<label style="flex:1;min-width:130px">Forma<select onchange="_ppRec.forma=this.value"><option>Pix</option><option>Espécie</option><option>Transferência</option></select></label>'+
+    '<label style="flex:1;min-width:130px">Data<input type="date" value="'+_ppRec.data+'" onchange="_ppRec.data=this.value"></label></div>'+
+    '<label>Recibo do pré-pago (foto ou PDF)<input type="file" accept="image/*,application/pdf" onchange="_ppRec.arq=this.files[0]||null"></label>'+
+    '<label>Observação<input onchange="_ppRec.obs=this.value"></label>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="bt g" onclick="fecharModal()">Cancelar</button><button class="bt" onclick="ppReceberSalvar()">Registrar</button></div>'); }
+async function ppReceberSalvar(){ const r = _ppRec, f = (PP.fech||[]).find(x=>x.id===r.id); if(!r || !f) return;
+  if(!(r.valor>0)) return aviso('Informe o valor recebido.','erro');
+  try{
+    const emp = idadEmpresa(); if(!emp) throw new Error('CNPJ do IDAD não está cadastrado em Empresas.');
+    let path = null;
+    if(r.arq){ path = 'prepago/'+f.id+'-'+Date.now()+'.'+((r.arq.name||'').split('.').pop()||'jpg'); const up = await sb.storage.from('notas').upload(path, r.arq, { upsert:false }); if(up.error) throw up.error; }
+    const op = tissOp(f.operadora_id), esp = r.forma==='Espécie', cx = (S.origens||[]).find(o=>/caixa recep/i.test(o.nome||''));
+    const m = await sb.from('movimentos').insert({ tipo:'entrada', empresa_id: emp.id, origem_id: esp && cx ? cx.id : null, descricao:'Pré-pago '+(op.nome||'')+' · fechamento '+ppMesBR(f.competencia)+' ('+(f.qtd_guias||0)+' guias)',
+      fornecedor: op.nome||'', categoria:'Recebimento pré-pago', valor: tissN(r.valor), data_movimento: r.data, vencimento: r.data, pago:true, data_pagamento: r.data,
+      observacao:'[Fechamento pré-pago MR · '+r.forma+(r.desconto?' · desconto '+brl(r.desconto):'')+(r.obs?' · '+r.obs:'')+' · '+rcQuem()+']' }).select('id').maybeSingle();
+    if(m.error) throw m.error;
+    const u = await sb.from('prepago_fechamentos').update({ status:'pago', valor_recebido: tissN(r.valor), desconto: tissN(r.desconto), forma: r.forma, recebido_em: r.data, recibo_path: path, movimento_id: m.data && m.data.id, obs: r.obs||null }).eq('id', f.id);
+    if(u.error) throw u.error;
+    S.modal = null; aviso('✔ Recebido '+brl(r.valor)+' · '+(op.nome||'')+' '+ppMesBR(f.competencia)+' · lançado no Financeiro do IDAD.'); ppCarregar();
+  }catch(e){ aviso('Não registrou: '+(e.message||e),'erro'); } }
+let _ppDiv = null;
+function ppDivisao(){ const op = PP.op; if(!op) return;
+  _ppDiv = (PP.div||[]).filter(r=>r.operadora_id===op).map(r=>({ item_id:r.item_id||'', profissional_id:r.profissional_id||'', perc_medico:r.perc_medico }));
+  if(!_ppDiv.length) _ppDiv.push({ item_id:'', profissional_id:'', perc_medico:'' }); ppDivModal(); }
+function ppDivModal(){ const op = PP.op, ro = podeEditar() ? '' : ' disabled';
+  const its = S.tiss.itens.filter(i=>S.tiss.precos.some(p=>p.operadora_id===op && p.item_id===i.id) && i.tipo==='proc').sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||''));
+  const profs = S.tiss.profs.filter(p=>p.ativo).sort((a,b)=>a.nome.localeCompare(b.nome));
+  abrirModal('<h2 style="margin:0 0 4px">⚖ Divisão médico × hospital · '+esc(tissOp(op).nome||'')+'</h2>'+
+    '<div style="color:var(--fraco);font-size:13px;margin-bottom:10px">% do valor que fica com o médico; o resto é do hospital. Vale a regra mais específica: médico + procedimento › procedimento › médico › geral (todos).</div>'+
+    '<div style="overflow-x:auto"><table><thead><tr><th>Médico</th><th>Procedimento</th><th style="width:95px">% médico</th><th style="width:80px">% hosp.</th><th></th></tr></thead><tbody>'+
+    _ppDiv.map((r,i)=>'<tr><td><select style="min-width:150px" onchange="_ppDiv['+i+'].profissional_id=this.value"'+ro+'><option value="">Todos os médicos</option>'+profs.map(p=>'<option value="'+p.id+'"'+(r.profissional_id===p.id?' selected':'')+'>'+esc(p.nome)+'</option>').join('')+'</select></td>'+
+      '<td><select style="min-width:200px;max-width:240px" onchange="_ppDiv['+i+'].item_id=this.value"'+ro+'><option value="">Todos os procedimentos</option>'+its.map(t=>'<option value="'+t.id+'"'+(r.item_id===t.id?' selected':'')+'>'+esc(t.codigo+' · '+(t.descricao||''))+'</option>').join('')+'</select></td>'+
+      '<td><input type="number" style="width:80px" min="0" max="100" step="0.5" value="'+(r.perc_medico===''||r.perc_medico==null?'':r.perc_medico)+'" oninput="_ppDiv['+i+'].perc_medico=this.value;document.getElementById(\'ppdh'+i+'\').textContent=this.value===\'\'?\'—\':(100-Number(this.value))+\'%\'"'+ro+'></td>'+
+      '<td id="ppdh'+i+'">'+(r.perc_medico===''||r.perc_medico==null?'—':(100-Number(r.perc_medico))+'%')+'</td><td>'+(ro?'':'<button class="bt g mini" onclick="_ppDiv.splice('+i+',1);ppDivModal()">✕</button>')+'</td></tr>').join('')+'</tbody></table></div>'+
+    (ro?'':'<button class="bt g mini" style="margin-top:6px" onclick="_ppDiv.push({item_id:\'\',profissional_id:\'\',perc_medico:\'\'});ppDivModal()">+ regra</button>')+
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="bt g" onclick="fecharModal()">Fechar</button>'+(ro?'':'<button class="bt" onclick="ppDivSalvar()">Salvar</button>')+'</div>'); }
+async function ppDivSalvar(){ const op = PP.op, L = _ppDiv.filter(r=>r.perc_medico!=='' && r.perc_medico!=null);
+  if(L.some(r=>!(Number(r.perc_medico)>=0 && Number(r.perc_medico)<=100))) return aviso('Percentual entre 0 e 100.','erro');
+  const k = new Set(); for(const r of L){ const c = (r.item_id||'*')+'|'+(r.profissional_id||'*'); if(k.has(c)) return aviso('Há duas regras para o mesmo médico + procedimento.','erro'); k.add(c); }
+  const d = await sb.from('prepago_divisao').delete().eq('operadora_id', op); if(d.error) return aviso('Não salvou: '+d.error.message,'erro');
+  if(L.length){ const r = await sb.from('prepago_divisao').insert(L.map(x=>({ operadora_id:op, item_id:x.item_id||null, profissional_id:x.profissional_id||null, perc_medico:Number(x.perc_medico) }))); if(r.error) return aviso('Não salvou: '+r.error.message,'erro'); }
+  S.modal = null; aviso('✔ Divisão salva.'); ppCarregar(); }
+
 /* ---------- convênios e preços ---------- */
 function tissTelaConv(){
-  const ops = S.tiss.ops.slice().sort((a,b)=>(b.ativo-a.ativo) || a.nome.localeCompare(b.nome,'pt-BR'));
+  const ops = S.tiss.ops.filter(o=>!o.prepago).sort((a,b)=>(b.ativo-a.ativo) || a.nome.localeCompare(b.nome,'pt-BR'));
   let h = '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Convênio</th><th>ANS</th><th>Versão TISS</th><th>Faturar como (código do IDAD na operadora)</th><th>Preços</th><th>Último envio pelo Smart</th></tr></thead><tbody>'+
     ops.map(o=>{ const cts = S.tiss.contratos.filter(c=>c.operadora_id===o.id), np = S.tiss.precos.filter(p=>p.operadora_id===o.id).length;
       return '<tr style="cursor:pointer;'+(o.ativo?'':'opacity:.55')+'" onclick="tissConvAbrir(\''+o.id+'\')"><td><b>'+esc(o.nome)+'</b>'+(o.ativo?'':'<br><small>sem envio há mais de 1 ano</small>')+'</td><td>'+o.ans+'</td><td>'+esc(o.versao)+'</td>'+
@@ -8088,6 +8253,10 @@ function tissTelaConv(){
         '<td>'+np+'</td><td>'+dataBR(o.ultimo_envio)+'</td></tr>'; }).join('')+'</tbody></table></div>';
   h += '<div class="card" style="font-size:12.5px;color:var(--fraco)">Tudo isto veio dos '+'XML enviados pelo Smart (2025-2026): versão do TISS, código do IDAD em cada operadora, médicos, procedimentos, preços e o kit de materiais de cada exame. '+
     S.tiss.profs.filter(p=>p.ativo).length+' médicos ativos · '+S.tiss.itens.length+' códigos · '+S.tiss.precos.length+' preços · '+S.tiss.kits.length+' kits.</div>';
+  const pps = tissOpsPP();   // v164
+  if(pps.length) h += '<div class="secao" style="margin-top:14px"><b>PRÉ-PAGO</b><span>Convênios da casa · sem TISS · o paciente paga na recepção pela tabela do convênio</span></div>'+
+    '<div class="card" style="overflow-x:auto;padding:6px 10px"><table><thead><tr><th>Convênio</th><th>Preços</th><th>Origem</th></tr></thead><tbody>'+
+    pps.map(o=>'<tr style="cursor:pointer" onclick="tissConvAbrir(\''+o.id+'\')"><td><b>'+esc(o.nome)+'</b></td><td>'+S.tiss.precos.filter(p=>p.operadora_id===o.id).length+'</td><td style="font-size:12.5px;color:var(--fraco)">Tabela do Smart (26/11/2026)</td></tr>').join('')+'</tbody></table></div>';
   return h;
 }
 function tissConvAbrir(id){
@@ -8255,8 +8424,8 @@ function agDiaHtml(){
   });
   return h || '<div class="vazio">Nenhum médico atende neste dia. Ajuste em "Horários" ou escolha outro dia.</div>';
 }
-const AG_PAG = { avista:'Particular · à vista', cartao:'Particular · cartão de crédito' };
-function agConvRot(a){ return a.pagamento && a.pagamento!=='convenio' ? AG_PAG[a.pagamento] + (a.valor!=null?' · '+brl(+a.valor):'') : (tissOp(a.operadora_id).nome||'Convênio não informado'); }
+const AG_PAG = { avista:'Particular · à vista', cartao:'Particular · cartão de crédito', prepago:'Pré-pago' };
+function agConvRot(a){ return a.pagamento && a.pagamento!=='convenio' ? AG_PAG[a.pagamento] + (a.pagamento==='prepago' ? ' · '+(tissOp(a.operadora_id).nome||'') : '') + (a.valor!=null?' · '+brl(+a.valor):'') : (tissOp(a.operadora_id).nome||'Convênio não informado'); }
 function agCartao(a){
   const s = AG_ST[a.status]||AG_ST.agendado, op = agConvRot(a) + (a.pago ? ' · ✔ pago '+brl(+a.valor_pago||0) : '');
   const bt = (f, t, cls) => '<button class="bt '+(cls||'g')+' mini" onclick="event.stopPropagation();'+f+'">'+t+'</button>';
@@ -8268,7 +8437,7 @@ function agCartao(a){
   if(a.status==='atendido' && a.guia_id) acoes.push(bt('tissGuiaAbrir(\''+a.guia_id+'\')','Ver guia'));
   if(a.pago) acoes.push(bt('rcAbrirAgenda(\''+a.id+'\')','💰 Rastrear pagamento'));
   if(agFaltaPagar(a) && a.status!=='chegou' && a.status!=='confirmado' && a.status!=='agendado') acoes.push(bt('agReceber(\''+a.id+'\')','💰 Receber',''));
-  if(a.pagamento && a.pagamento!=='convenio' && !a.pago){ const i = acoes.findIndex(x=>x.indexOf('agAtender(')>=0); if(i>=0) acoes[i] = bt('agAtender(\''+a.id+'\')','💰 Receber e atender',''); }
+  if(a.pagamento && a.pagamento!=='convenio' && a.pagamento!=='prepago' && !a.pago){ const i = acoes.findIndex(x=>x.indexOf('agAtender(')>=0); if(i>=0) acoes[i] = bt('agAtender(\''+a.id+'\')','💰 Receber e atender',''); }
   return '<div onclick="agEditar(\''+a.id+'\')" style="cursor:pointer;background:'+s[2]+';border-left:4px solid '+s[1]+';border-radius:8px;padding:6px 9px;margin:3px 0">'+
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>'+esc(a.paciente_nome)+'</b>'+
     (a.encaixe?'<span style="font-size:11px;font-weight:800;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</span>':'')+
@@ -8339,7 +8508,8 @@ function agModal(){
     : S.tiss.itens.filter(i=>i.tipo==='proc' && (i.usos||0)>=20).sort((x,y)=>(y.usos||0)-(x.usos||0))).filter(i=>a.tipo==='consulta' ? ehCons(i) : !ehCons(i));
   if(!a.operadora_id){ const vist = new Set(); procs = procs.filter(i=>{ const k = (i.descricao||'').replace(/PACOTE|PCT|UNIMED|\s+/g,' ').trim(); if(vist.has(k)) return false; vist.add(k); return true; }); }
   if(a.tipo==='consulta' && !a.item_id && procs[0]) a.item_id = procs[0].id;
-  if(a.pagamento && a.pagamento!=='convenio' && a.item_id && a.valor==null){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===a.item_id); if(pp) a.valor = +pp.valor; }
+  if(a.pagamento==='prepago' && a.item_id && a.valor==null){ const pv = tissPreco(a.operadora_id, a.item_id, a.data); if(pv!=null) a.valor = pv; }
+  else if(a.pagamento && a.pagamento!=='convenio' && a.item_id && a.valor==null){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===a.item_id); if(pp) a.valor = +pp.valor; }
   let h = '<h2>'+(a.id?'Agendamento':'Novo agendamento')+(a.encaixe?' <small style="font-size:12px;background:#d97706;color:#fff;border-radius:5px;padding:1px 6px">ENCAIXE</small>':'')+'</h2>';
   if(!ro) h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 12px;padding:9px 12px;border:1px dashed var(--linha);border-radius:10px">'+
     '<button type="button" class="bt mini" onclick="document.getElementById(\'ag-docfoto\').click()">'+icoCamDoc()+'Tirar foto da carteirinha / documento</button>'+
@@ -8352,13 +8522,13 @@ function agModal(){
   h += lin(Sel('profissional_id','Médico', agMedicos().map(p=>[p.id,p.nome])), I('data','Data','date'), I('hora','Hora','time'), I('duracao','Duração (min)','number'));
   h += lin(Sel('tipo','Tipo', [['consulta','Consulta'],['exame','Exame'],['cirurgia','Cirurgia']]),
     '<label style="flex:1;min-width:140px">Convênio / pagamento<select onchange="agConvSel(this.value)"'+(ro?' disabled':'')+'>'+
-      [['','— escolha —'],['p:avista','💵 Particular · à vista (dinheiro, Pix ou débito)'],['p:cartao','💳 Particular · cartão de crédito']].concat(tissOpsAtivas().map(o=>[o.id,o.nome]))
-        .map(o=>'<option value="'+o[0]+'"'+(((a.pagamento&&a.pagamento!=='convenio') ? 'p:'+a.pagamento : (a.operadora_id||''))===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>',
+      [['','— escolha —'],['p:avista','💵 Particular · à vista (dinheiro, Pix ou débito)'],['p:cartao','💳 Particular · cartão de crédito']].concat(tissOpsPP().map(o=>['pp:'+o.id,'🎫 Pré-pago · '+o.nome]), tissOpsAtivas().map(o=>[o.id,o.nome]))
+        .map(o=>'<option value="'+o[0]+'"'+((a.pagamento==='prepago' ? 'pp:'+(a.operadora_id||'') : (a.pagamento&&a.pagamento!=='convenio') ? 'p:'+a.pagamento : (a.operadora_id||''))===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>',
     '<label style="flex:1;min-width:140px">Procedimento previsto<select onchange="agItemSel(this.value)"'+(ro?' disabled':'')+'>'+[['','—']].concat(procs.map(i=>[i.id, i.codigo+' · '+(i.descricao||'')])).map(o=>'<option value="'+o[0]+'"'+(String(a.item_id||'')===o[0]?' selected':'')+'>'+esc(o[1])+'</option>').join('')+'</select></label>');
-  if(a.pagamento && a.pagamento!=='convenio') h += lin('<label style="flex:1;min-width:140px">Valor particular (R$)<input type="number" step="0.01" value="'+(a.valor==null?'':a.valor)+'" onchange="_agEd.valor=this.value===\'\'?null:Number(this.value)"'+(ro?' disabled':'')+'></label>',
-    '<div style="flex:2;min-width:220px;font-size:12.5px;color:var(--fraco);margin-top:20px">Particular não gera guia de convênio. O pagamento entra no Financeiro do IDAD e é acompanhado em Dinheiro a caminho.</div>');
+  if(a.pagamento && a.pagamento!=='convenio') h += lin('<label style="flex:1;min-width:140px">'+(a.pagamento==='prepago'?'Valor pré-pago · '+esc(tissOp(a.operadora_id).nome||'')+' (R$)':'Valor particular (R$)')+'<input type="number" step="0.01" value="'+(a.valor==null?'':a.valor)+'" onchange="_agEd.valor=this.value===\'\'?null:Number(this.value)"'+(ro?' disabled':'')+'></label>',
+    '<div style="flex:2;min-width:220px;font-size:12.5px;color:var(--fraco);margin-top:20px">'+(a.pagamento==='prepago'?'Pré-pago: o paciente já vem autorizado com a guia do pré-pago. Nada é cobrado na recepção — o atendimento entra no Fechamento pré-pago do mês. ':'Particular não gera guia de convênio. O pagamento entra no Financeiro do IDAD e é acompanhado em Dinheiro a caminho.')+'</div>');
   h += lin(Sel('origem','Marcado por', Object.entries(AG_ORIG)), '<label style="flex:1;min-width:140px;display:flex;gap:6px;align-items:center;margin-top:18px"><input type="checkbox"'+(a.encaixe?' checked':'')+' onchange="_agEd.encaixe=this.checked" style="width:auto;margin:0"'+(ro?' disabled':'')+'> Encaixe</label>', I('obs','Observação'));
-  if(a.pagamento && a.pagamento!=='convenio' && !a.pago) h += agPagaNaHora(a)
+  if(a.pagamento && a.pagamento!=='convenio' && a.pagamento!=='prepago' && !a.pago) h += agPagaNaHora(a)
     ? '<div class="rc-prev">💰 <b>Paciente na recepção:</b> o pagamento é registrado agora, junto com o agendamento.</div>'
     : '<div class="rc-prev" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00">📱 Marcado por '+esc(AG_ORIG[a.origem]||'')+': o pagamento fica <b>a receber</b> e é cobrado na chegada (o sistema não deixa atender sem pagar).</div>';
   if(a.pago) h += '<div class="rc-prev">✔ Pago '+brl(+a.valor_pago||0)+' · '+esc(a.forma_pag||'')+'</div>';
@@ -8372,15 +8542,16 @@ function agModal(){
   abrirModal(h);
 }
 function agConvSel(v){ const a = _agEd;
-  if(v.indexOf('p:')===0){ a.pagamento = v.slice(2); a.operadora_id = ''; } else { a.pagamento = 'convenio'; a.operadora_id = v; a.valor = null; }
+  if(v.indexOf('pp:')===0){ a.pagamento = 'prepago'; a.operadora_id = v.slice(3); a.valor = null; } else if(v.indexOf('p:')===0){ a.pagamento = v.slice(2); a.operadora_id = ''; } else { a.pagamento = 'convenio'; a.operadora_id = v; a.valor = null; }
   a.item_id = ''; agModal(); }
 function agItemSel(v){ const a = _agEd; a.item_id = v;
-  if(a.pagamento && a.pagamento!=='convenio'){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===v); if(pp) a.valor = +pp.valor; }
+  if(a.pagamento==='prepago'){ const pv = tissPreco(a.operadora_id, v, a.data); if(pv!=null) a.valor = pv; }
+  else if(a.pagamento && a.pagamento!=='convenio'){ const pp = (S.ag.ppart||[]).find(x=>x.item_id===v); if(pp) a.valor = +pp.valor; }
   agModal(); }
 function agPac(nome){ _agEd.paciente_nome = nome; const p = S.ag.pacs.find(x=>x.nome===nome);
   _agEd.paciente_id = p ? p.id : null;
   if(p){ if(!_agEd.telefone) _agEd.telefone = p.celular||p.telefone||''; if(!_agEd.carteira) _agEd.carteira = p.carteirinha||'';
-    if(!_agEd.operadora_id && p.convenio){ const o = S.tiss.ops.find(o=>permNorm(o.nome)===permNorm(p.convenio) || permNorm(p.convenio).indexOf(permNorm(o.nome))>=0); if(o) _agEd.operadora_id = o.id; }
+    if(!_agEd.operadora_id && p.convenio){ const o = pacOpDoConv(p.convenio); if(o){ _agEd.operadora_id = o.id; if(o.prepago){ _agEd.pagamento = 'prepago'; _agEd.valor = null; } } }
     agModal(); } }
 async function agSalvar(atender){
   const a = _agEd;
@@ -8409,7 +8580,7 @@ async function agSalvar(atender){
   const r = a.id ? await sb.from('agenda').update(reg).eq('id', a.id).select().maybeSingle() : await sb.from('agenda').insert(reg).select().maybeSingle();
   if(r.error) return erro('Não salvou: '+r.error.message);
   if(r.data.data !== S.ag.dia) S.ag.dia = r.data.data;
-  if(reg.valor!=null && reg.item_id){ sb.from('particular_precos').upsert({ item_id: reg.item_id, valor: reg.valor, atualizado_em: new Date().toISOString() }).then(()=>{});
+  if(reg.valor!=null && reg.item_id && reg.pagamento!=='prepago'){ sb.from('particular_precos').upsert({ item_id: reg.item_id, valor: reg.valor, atualizado_em: new Date().toISOString() }).then(()=>{});
     const k = (S.ag.ppart = S.ag.ppart||[]).find(x=>x.item_id===reg.item_id); if(k) k.valor = reg.valor; else S.ag.ppart.push({ item_id: reg.item_id, valor: reg.valor }); }
   const i = S.ag.lista.findIndex(x=>x.id===r.data.id); if(i>=0) S.ag.lista[i] = r.data; else S.ag.lista.push(r.data);
   S.modal = null;
@@ -8444,6 +8615,7 @@ async function agGradeSalvar(pid){
 /* ---------- ATENDIMENTO EM UMA TELA: do horário para a guia ---------- */
 function agAtender(id){
   const a = S.ag.lista.find(x=>x.id===id); if(!a) return;
+  if(a.pagamento==='prepago'){ agStatus(id,'atendido'); return aviso('✔ '+a.paciente_nome+' atendido · pré-pago '+(tissOp(a.operadora_id).nome||'')+'. Confira a guia do pré-pago na OS (G. Oper.); entra no fechamento do mês.'); }
   if(a.pagamento && a.pagamento!=='convenio'){ if(a.pago){ agStatus(id,'atendido'); return aviso('✔ '+a.paciente_nome+' atendido (pagamento já registrado: '+brl(+a.valor_pago||0)+').'); } return agReceber(id); }
   if(!a.operadora_id) return aviso('Informe o convênio ou o pagamento particular no agendamento antes de atender.','erro');
   if(a.guia_id) return tissGuiaAbrir(a.guia_id);
@@ -8555,7 +8727,7 @@ function agReceber(id, agendando){
 /* v144: a janela de receber mostra quanto vai cair na conta, com a taxa da maquininha e as datas previstas */
 function agReceberModal(){
   const r = _agRec, a = S.ag.lista.find(x=>x.id===r.id), it = a.item_id ? tissIt(a.item_id) : null;
-  const formas = a.pagamento==='cartao' ? ['Cartão de crédito'] : ['Pix','Dinheiro','Cartão de débito'];
+  const formas = a.pagamento==='cartao' ? ['Cartão de crédito'] : a.pagamento==='prepago' ? ['Pix','Dinheiro','Cartão de débito','Cartão de crédito'] : ['Pix','Dinheiro','Cartão de débito'];
   const v = Math.round(Number(r.valor)*100)/100, pl = v>0 ? rcPlano(r.forma, v, r.parcelas, hojeISO()) : [];
   const liq = pl.reduce((s,x)=>s+x.liquido,0), tx = pl.length ? pl[0].taxa_pct : 0;
   const prev = !pl.length ? '' : r.forma==='Dinheiro' ? 'Fica no <b>Caixa recepção IDAD</b> até o depósito no banco.' :
@@ -8587,8 +8759,8 @@ async function agReceberSalvar(){
     if(r.lancar){
       for(const p of pl){
         const m = await sb.from('movimentos').insert({ tipo:'entrada', empresa_id: emp.id, origem_id: din && cx ? cx.id : null,
-          descricao: 'Particular · '+AG_TIPO[a.tipo]+(it?' ('+(it.descricao||'')+')':'')+' · '+a.paciente_nome+(pl.length>1?' · parcela '+p.parcela+'/'+p.parcelas:''),
-          fornecedor: a.paciente_nome, categoria: 'Atendimento particular', valor: p.liquido, data_movimento: hoje,
+          descricao: (a.pagamento==='prepago' ? 'Pré-pago '+(tissOp(a.operadora_id).nome||'')+' · ' : 'Particular · ')+AG_TIPO[a.tipo]+(it?' ('+(it.descricao||'')+')':'')+' · '+a.paciente_nome+(pl.length>1?' · parcela '+p.parcela+'/'+p.parcelas:''),
+          fornecedor: a.paciente_nome, categoria: a.pagamento==='prepago' ? 'Atendimento pré-pago' : 'Atendimento particular', valor: p.liquido, data_movimento: hoje,
           vencimento: p.previsto || hoje, pago: din, data_pagamento: din ? hoje : null,
           observacao: '[Agenda MR · '+agNome(a.profissional_id)+' · '+r.forma+(r.forma==='Cartão de crédito'?' '+p.parcelas+'x':'')+' · bruto '+brl(p.bruto)+(p.taxa_pct?' · taxa '+p.taxa_pct+'%':'')+']' }).select('id').maybeSingle();
         if(m.error) throw m.error; movs.push(m.data && m.data.id);
@@ -8609,14 +8781,14 @@ async function agReceberSalvar(){
 }
 
 /* ---------- v145 (Renato, 23/11/2026): particular marcado na recepção paga na hora; o que ficar sem pagar fica em vermelho ---------- */
-function agPagaNaHora(a){ return a && a.pagamento && a.pagamento!=='convenio' && !a.pago && (a.origem||'recepcao')==='recepcao'; }
+function agPagaNaHora(a){ return a && a.pagamento && a.pagamento!=='convenio' && a.pagamento!=='prepago' && !a.pago && (a.origem||'recepcao')==='recepcao'; }
 function agReceberFechar(){
   const r = _agRec, a = r && S.ag.lista.find(x=>x.id===r.id); fecharModal();
   if(a && !a.pago) aviso('⚠ '+a.paciente_nome+' ficou SEM PAGAMENTO registrado. Fica em vermelho na Agenda até receber.','erro');
 }
 /* particular que já devia estar pago: marcado na recepção, já chegou/foi atendido, ou o dia já passou */
 function agFaltaPagar(a){
-  if(!a || !a.pagamento || a.pagamento==='convenio' || a.pago || a.status==='cancelado' || a.status==='faltou') return false;
+  if(!a || !a.pagamento || a.pagamento==='convenio' || a.pagamento==='prepago' || a.pago || a.status==='cancelado' || a.status==='faltou') return false;
   return (a.origem||'recepcao')==='recepcao' || a.status==='chegou' || a.status==='atendido' || a.data < hojeISO();
 }
 
