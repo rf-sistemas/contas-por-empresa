@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v164">
+<meta name="rf-versao" content="v165">
 <meta name="rf-data" content="2026-11-26">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v164',
+  versao : 'v165',
   data   : '26/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -3876,7 +3876,7 @@ const CPE_TELAS = {
   finhub:{t:'Entrada e Saída', pai:'pessoais'}, finent:{t:'Entrada', pai:'finhub'}, finsai:{t:'Saída', pai:'finhub'}, findeb:{t:'Débitos', pai:'pessoais'}, fincred:{t:'Créditos', pai:'pessoais'}, finobr:{t:'Obrigatoriedade', pai:'pessoais'},
   empresas:{t:'Empresas', pai:'inicio'}, usuarios:{t:'Usuários', pai:'inicio'}, vini:{t:'Robô Vini', pai:'inicio'}, robos:{t:'Funcionários Cibernéticos', pai:'inicio'}, acessos:{t:'Acessos do Vini', pai:'inicio'},
   escalahub:{t:'NAFS', pai:'inicio'}, meus:{t:'Meus plantões', pai:'inicio'}, escala:{t:'Adicionar paciente', pai:'escalahub'}, escalas:{t:'Escalas', pai:'escalahub'},
-  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadimport:{t:'Importar do Smart', pai:'idadpac'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Call center', pai:'idad'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
+  producao:{t:'Financeiro', pai:'escalahub'}, saldo:{t:'Saldo terceirizado', pai:'terceirizados'}, terceirizados:{t:'Terceirizado', pai:'producao'}, prodgrupo:{t:'Produção', pai:'terceirizados'}, hospitais:{t:'Hospitais', pai:'escalahub'}, pessoais:{t:'Despesas pessoais', pai:'inicio'}, idad:{t:'Hospital IDAD', pai:'inicio'}, fichario:{t:'Fichário', pai:'inicio'}, idadpac:{t:'Cadastro do paciente', pai:'idad'}, idadimport:{t:'Importar do Smart', pai:'idadpac'}, idadfarm:{t:'Farmácia', pai:'idad'}, idadalmox:{t:'Almoxarifado', pai:'idad'}, idadobra:{t:'Obra do IDAD', pai:'idad'}, idadfixas:{t:'Despesas fixas', pai:'idadobra'}, idadconv:{t:'Convênios e procedimentos', pai:'idad'}, idadtiss:{t:'Faturamento TISS', pai:'idad'}, idadagenda:{t:'Agenda', pai:'idadpac'}, idadreceb:{t:'Dinheiro a caminho', pai:'idad'}, idadfin:{t:'Financeiro do IDAD', pai:'idad'}, idadconc:{t:'Conciliação', pai:'idadfin'}
 };
 function cpeTrilha(){
   if(S.tela==='inicio') return '<div style="height:8px"></div>';
@@ -4441,12 +4441,11 @@ function telaIdad(){
   h += '<div class="bxs">'+
     '<button type="button" class="bx" onclick="irPara(\'idadfin\')"><div class="ic">'+icoFinIdad()+'</div><div><b>Financeiro do IDAD</b><small>'+ifinResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconc\')"><div class="ic">'+icoConc()+'</div><div><b>Conciliação do IDAD</b><small>'+iconcResumo()+'</small></div><span class="seta">›</span></button>'+
-    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro do paciente</b><small>'+(S.idad.pacOk ? pacTotalTxt() : 'carregando…')+' · ficha, convênio e contato</small></div><span class="seta">›</span></button>'+
+    '<button type="button" class="bx" onclick="irPara(\'idadpac\')"><div class="ic">'+icoPaciente()+'</div><div><b>Cadastro do paciente</b><small>'+(S.idad.pacOk ? pacTotalTxt() : 'carregando…')+' · ficha, agenda, convênio e contato</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadfarm\')"><div class="ic">'+icoFarmacia()+'</div><div><b>Farmácia</b><small>'+estResumo('farmacia')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadalmox\')"><div class="ic">'+icoAlmox()+'</div><div><b>Almoxarifado</b><small>'+estResumo('almox')+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadobra\')"><div class="ic">'+icoObra()+'</div><div><b>Obra do IDAD</b><small>'+obraResumo()+'</small></div><span class="seta">›</span></button>'+
     '<button type="button" class="bx" onclick="irPara(\'idadconv\')"><div class="ic">'+icoConvenio()+'</div><div><b>Convênios e procedimentos</b><small>'+convResumo()+'</small></div><span class="seta">›</span></button>'+
-    (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadagenda\')"><div class="ic">'+icoCallCenter()+'</div><div><b>Call center <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+agResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (agPode() ? '<button type="button" class="bx" onclick="irPara(\'idadreceb\')"><div class="ic" style="font-size:30px">💰</div><div><b>Dinheiro a caminho <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+rcResumo()+'</small></div><span class="seta">›</span></button>' : '')+
     (tissPode() ? '<button type="button" class="bx" onclick="irPara(\'idadtiss\')"><div class="ic">'+icoTiss()+'</div><div><b>Faturamento TISS <span style="font-size:11px;background:#FFF4CC;color:#7a5a00;border-radius:6px;padding:1px 6px">teste</span></b><small>'+tissResumo()+'</small></div><span class="seta">›</span></button>' : '')+
   '</div>';
@@ -4586,7 +4585,7 @@ async function impPacientes(file){
       for(const l of ls) await linha(l); }
     resto += dec.decode(); if(resto) await linha(resto);
     if(lote.length) await impGravar(lote);
-    IMP.fim = true; IMP.msg = 'Pronto. Os pacientes já aparecem na busca do Cadastro do paciente, do Call center e das guias.';
+    IMP.fim = true; IMP.msg = 'Pronto. Os pacientes já aparecem na busca do Cadastro do paciente, da Agenda e das guias.';
   }catch(e){ IMP.msg = 'Parou: '+(e.message||e); }
   IMP.rodando = false;
   try{ const c = await sb.from('idad_pacientes').select('id',{count:'exact',head:true}); S.idad.pacTotal = c.count; }catch(e){}
@@ -4600,6 +4599,7 @@ function telaIdadPac(){
   h += '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">'+
     '<input id="pac-busca" placeholder="Buscar por nome, CPF, prontuário, carteirinha ou telefone" value="'+esc(S.idad.busca)+'" oninput="S.idad.busca=this.value;idadPacBuscar()" style="flex:1;min-width:220px">'+
     (podeEditar()? '<button class="bt" onclick="idadPacAbrir()">+ Novo paciente</button>' : '')+
+    (agPode()? '<button class="bt" onclick="irPara(\'idadagenda\')">📅 Agenda</button>' : '')+
     (podeUsuarios()? '<button class="bt g" onclick="irPara(\'idadimport\')">Importar do Smart</button>' : '')+'</div>';
   return h+'<div id="pac-lista">'+idadPacListaHtml()+'</div>';
 }
@@ -4812,7 +4812,8 @@ function pacAbasHtml(id){
   if(!id || !agPode()) return '';
   const t = (k, ico, rot, extra) => '<button type="button" onclick="pacTrocar(\''+k+'\',\''+id+'\')" style="background:none;border:0;border-bottom:3px solid '+(_pacTela===k?'#0a6cf0':'transparent')+';color:'+(_pacTela===k?'#0a6cf0':'var(--fraco)')+';font-weight:800;padding:8px 12px;cursor:pointer;font-size:14px">'+ico+' '+rot+(extra||'')+'</button>';
   return '<div id="pc-tabs" style="display:flex;gap:4px;border-bottom:1px solid var(--linha);margin:0 0 12px;flex-wrap:wrap">'+
-    t('ficha','🪪','1 · Ficha do paciente')+t('os','📋','2 · Lançamento (OS)',' <span style="font-size:11px;background:#e8f1ff;color:#0a6cf0;border-radius:6px;padding:1px 6px">F10</span>')+'</div>';
+    t('ficha','🪪','1 · Ficha do paciente')+t('os','📋','2 · Lançamento (OS)',' <span style="font-size:11px;background:#e8f1ff;color:#0a6cf0;border-radius:6px;padding:1px 6px">F10</span>')+
+    '<button type="button" onclick="pacAgendar(\''+id+'\')" style="background:none;border:0;border-bottom:3px solid transparent;color:var(--fraco);font-weight:800;padding:8px 12px;cursor:pointer;font-size:14px">📅 3 · Agendar consulta / exame</button></div>';
 }
 function pacTrocar(t, id){
   if(_pacTela==='ficha' && document.getElementById('pc-nome')){ pacLerTela(); const o = document.getElementById('pc-obs'); if(o) _pacReg.obs = o.value; }
@@ -5021,6 +5022,16 @@ function osDeposito(){ const e = _osEd; if(!e.id) return aviso('Grave a OS prime
 function pacOsGuia(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.guia_id) return tissGuiaAbrir(a.guia_id); agAtender(aid); }
 function pacOsPagar(aid){ const a = S.ag.lista.find(x=>x.id===aid); if(!a) return; if(a.pago) return rcAbrirAgenda(aid); agReceber(aid); }
 function pacOsEditar(aid){ if(!S.ag.carregado && !S.ag.carregando) agCarregar(); agEditar(aid); }
+/* v165 (Renato, 26/11/2026): quem mais marca é a RECEPÇÃO — agendar direto da ficha do paciente, para qualquer dia. */
+async function pacAgendar(id){
+  if(_pacTela==='ficha' && document.getElementById('pc-nome')){ pacLerTela(); const o = document.getElementById('pc-obs'); if(o) _pacReg.obs = o.value; }
+  if(!S.ag.carregado){ aviso('Carregando a agenda…'); await agCarregar(); }
+  const p = S.idad.pac.find(x=>x.id===id) || _pacReg || {};
+  S.ag.dia = hojeISO(); agNovo();
+  const op = pacOpDoConv(p.convenio);
+  Object.assign(_agEd, { paciente_id:id, paciente_nome:p.nome||'', telefone:p.celular||p.telefone||'', carteira:p.carteirinha||'', operadora_id: op?op.id:'', pagamento: op && op.prepago ? 'prepago' : (_agEd.pagamento||'convenio'), origem:'recepcao' });
+  agModal();
+}
 async function pacOsNova(id){
   if(!S.ag.carregado){ aviso('Carregando a agenda…'); await agCarregar(); }
   const p = S.idad.pac.find(x=>x.id===id) || _pacReg || {};
@@ -8372,7 +8383,7 @@ function agNome(pid){ const p = S.tiss.profs.find(x=>x.id===pid); return p ? p.n
 function telaIdadAgenda(){
   if(!agPode()) return '<div class="card">Você não tem acesso à Agenda.</div>';
   if(!S.ag.carregado && !S.ag.carregando) agCarregar();
-  let h = '<div class="secao"><b>CALL CENTER</b><span>Agendamento por médico · consulta, exame e cirurgia · encaixe e confirmação por WhatsApp</span></div>';
+  let h = '<div class="secao"><b>AGENDA</b><span>Recepção e call center · agendamento por médico · consulta, exame e cirurgia · encaixe e confirmação por WhatsApp</span></div>';
   h += '<div class="card" style="background:#FFF4CC;border-color:#f3d36b;color:#7a5a00;font-size:13.5px"><b>Modo teste.</b> A agenda do Smart continua valendo até a equipe aprovar.</div>';
   if(S.ag.erro) return h+'<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(S.ag.erro)+'</b></div>';
   if(!S.ag.carregado || !S.tiss.carregado) return h+'<div class="vazio">Carregando…</div>';
@@ -8902,7 +8913,7 @@ function telaIdadReceb(){
   const nG = rcGrupos(doMes).length, nPix = cam.filter(x=>x.forma==='Pix').length, nDeb = cam.filter(x=>x.forma==='Cartão de débito').length, nCr = cam.filter(x=>x.forma==='Cartão de crédito').length, nDep = cam.filter(x=>x.forma==='Dinheiro').length;
   const camTxt = [nPix?nPix+' Pix':'', nDeb?nDeb+' débito':'', nCr?nCr+' parcela'+(nCr>1?'s':''):'', nDep?nDep+' depósito'+(nDep>1?'s':''):''].filter(Boolean).join(' + ') || 'nada';
   h += '<div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>Mês</b><input type="month" value="'+mes+'" onchange="S.rc.mes=this.value;S.rc.carregado=false;render()" style="width:auto;margin:0">'+
-    '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📞 Call center</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
+    '<span style="flex:1"></span><button class="bt g mini" onclick="irPara(\'idadagenda\')">📅 Agenda</button><button class="bt g mini" onclick="rcCfgModal()">⚙ Taxas da maquininha</button></div>';
   const AP = S.rc.agPend, apAtr = AP.filter(agFaltaPagar);
   h += '<div class="card"><b style="display:block;margin-bottom:8px">Onde está o dinheiro</b><div class="rc-pipe">'+
     '<div class="rc-st s0"><div class="l">📅 Agendado · a receber</div><div class="n">'+brl(rc2(AP.reduce((s,a)=>s+(+a.valor||0),0)))+'</div><div class="q">'+AP.length+' agendado'+(AP.length===1?'':'s')+(apAtr.length?' · <b class="rc-er">'+apAtr.length+' sem pagar</b>':'')+'</div></div>'+
