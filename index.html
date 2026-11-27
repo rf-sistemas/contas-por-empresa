@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v174">
+<meta name="rf-versao" content="v175">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v174',
+  versao : 'v175',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -8043,7 +8043,7 @@ function tissGuiaModal(){
   const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
   const profOpt = sel => '<option value="">—</option>'+profs.map(p=>'<option value="'+p.id+'"'+(sel===p.id?' selected':'')+'>'+esc(p.nome)+' · CRM '+esc(p.numero)+(p.ativo?'':' (antigo)')+'</option>').join('');
   const pacs = (S.idad && S.idad.pac) || [];
-  const I = (k, rot, tipo, extra) => '<label style="flex:1;min-width:150px">'+rot+'<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'></label>';
+  const I = (k, rot, tipo, extra) => '<label style="flex:1;min-width:150px">'+rot+'<input id="tg-'+k+'"'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'" oninput="S.tiss.form.'+k+'=this.value" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'></label>';   // v175
   const Sel = (k, rot, ops, extra) => '<label style="flex:1;min-width:150px">'+rot+'<select onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k])===String(o[0])?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></label>';
   const lin = (...x) => '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+x.join('')+'</div>';
   let h = '<h2>'+(f.agendaId && !f.id ? 'Atendimento · ' : '')+(f.id?'Guia de ':'Nova guia de ')+TISS_TIPOS[f.tipo]+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
@@ -8110,8 +8110,8 @@ function tissGuiaConsultaModal(){
   const profs = S.tiss.profs.slice().sort((a,b)=>(b.ativo-a.ativo)||a.nome.localeCompare(b.nome));
   const pacs = (S.idad && S.idad.pac) || [];
   const B = (n, rot, corpo, w) => '<div class="gcb" style="flex:'+(w||1)+';min-width:'+Math.max(90, Math.round((w||1)*70))+'px"><span>'+n+' - '+rot+'</span>'+corpo+'</div>';
-  const In = (k, tipo, extra, ph) => '<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'"'+(ph?' placeholder="'+ph+'"':'')+' onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+dis+'>';
-  const Se = (k, ops, extra, off) => '<select onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro||off?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k]||'')===String(o[0])?' selected':'')+'>'+(o[0]?o[0]+' - ':'')+o[1]+'</option>').join('')+'</select>';
+  const In = (k, tipo, extra, ph) => '<input id="tg-'+k+'"'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(f[k]||'')+'"'+(ph?' placeholder="'+ph+'"':'')+' oninput="S.tiss.form.'+k+'=this.value" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+dis+'>';   // v175: id + oninput — o texto não some quando a tela se atualiza
+  const Se = (k, ops, extra, off) => '<select id="tg-'+k+'" onchange="S.tiss.form.'+k+'=this.value'+(extra||'')+'"'+(ro||off?' disabled':'')+'>'+ops.map(o=>'<option value="'+o[0]+'"'+(String(f[k]||'')===String(o[0])?' selected':'')+'>'+(o[0]?o[0]+' - ':'')+o[1]+'</option>').join('')+'</select>';
   const V = t => '<div class="v auto">'+(t?esc(t):'&nbsp;')+'</div>';
   let h = '<style>.modal{max-width:1120px}'+tissGcCss()+'</style>';
   h += '<h2 style="margin:0 0 6px">'+(f.agendaId && !f.id ? 'Atendimento · ' : '')+'Guia de Consulta'+(f.status?' <small style="font-size:13px;color:'+(TISS_ST[f.status]||['',''])[1]+'">'+(TISS_ST[f.status]||[''])[0]+'</small>':'')+'</h2>';
@@ -8120,7 +8120,7 @@ function tissGuiaConsultaModal(){
     '<label style="flex:2;min-width:220px">Faturar como<select onchange="S.tiss.form.ctId=this.value;tissGuiaModal()"'+dis+'>'+cts.map(c=>'<option value="'+c.id+'"'+(f.ctId===c.id?' selected':'')+'>'+esc(c.rotulo)+(c.ativo?'':' (sem envio há 1 ano)')+'</option>').join('')+'</select></label></div>';
   h += '<div class="gc"><div class="gch"><div class="op">'+esc(d.op.nome||'Convênio')+'</div><div class="tt">GUIA DE CONSULTA<small>Padrão TISS'+(d.op.versao?' '+esc(d.op.versao):'')+'</small></div>'+
     '<div class="ng">2 - Nº Guia no Prestador:<input value="'+esc(f.numeroGuia||'')+'" placeholder="automático" onchange="S.tiss.form.numeroGuia=this.value"'+dis+'></div></div>';
-  h += '<div class="gcl">'+B(1,'Registro ANS',V(d.ans),1)+B(3,'Número da Guia Atribuído pela Operadora',In('numeroGuiaOperadora'),3)+'</div>';
+  h += '<div class="gcl">'+B(1,'Registro ANS',V(d.ans),1)+B(3,'Número da Guia Atribuído pela Operadora',In('numeroGuiaOperadora'),2)+'<div class="gcb" style="flex:1.4;min-width:120px"><span>Número Autorização</span>'+In('numeroAutorizacao')+'</div>'+'</div>';   // v175: campo da guia da Unimed
   h += '<div class="gcs">Dados do Beneficiário</div>';
   h += '<div class="gcl">'+B(4,'Número da carteira',In('carteira'),3)+B(5,'Validade da Carteira',In('validadeCart','date'),1.4)+B(6,'Atendimento a RN (Sim ou Não)',Se('rn',[['N','Não'],['S','Sim']]),1.2)+'</div>';
   h += '<div class="gcl">'+B(7,'Nome','<input list="tg-pacs" value="'+esc(f.paciente||'')+'" oninput="pacSugerir(this,\'tg-pacs\')" onchange="tissFormPac(this.value)"'+dis+'><datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',1)+'</div>';
@@ -8168,7 +8168,7 @@ function tissGcImprimir(){
     '.b{border:1px solid #000;border-radius:4px;padding:2px 6px 3px;min-height:34px}.b span{display:block;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.b b{display:block;font-size:14px;font-weight:400;margin-top:2px;white-space:nowrap;overflow:hidden}.b.a{min-height:58px}'+
     '.s{background:#ccc;font-weight:800;font-size:11.5px;padding:2px 6px;margin:6px 0 5px}.r{font-size:9.5px;margin-top:6px}</style></head><body><div class="g">'+
     '<div class="h"><div class="o">'+esc(d.op.nome||'')+'</div><div class="t">GUIA DE CONSULTA<small>'+esc(d.op.versao||'')+'</small></div><div class="n">2 - Nº Guia no Prestador: '+esc(f.numeroGuia||'')+'</div></div>'+
-    L(B(1,'Registro ANS',d.ans,1),B(3,'Número da Guia Atribuído pela Operadora',f.numeroGuiaOperadora,3))+S2('Dados do Beneficiário')+
+    L(B(1,'Registro ANS',d.ans,1),B(3,'Número da Guia Atribuído pela Operadora',f.numeroGuiaOperadora,2),'<td colspan="1"><div class="b"><span>Número Autorização</span><b>'+(f.numeroAutorizacao?esc(String(f.numeroAutorizacao)):'&nbsp;')+'</b></div></td>')+S2('Dados do Beneficiário')+
     L(B(4,'Número da carteira',f.carteira,3),B(5,'Validade da Carteira',f.validadeCart?dataBR(f.validadeCart):'',2),B(6,'Atendimento a RN (Sim ou Não)',f.rn||'N',1))+
     L(B(7,'Nome',String(f.paciente||'').toUpperCase(),1))+L(B(26,'Nome Social',String(f.nomeSocial||'').toUpperCase(),1))+S2('Dados do Contratado')+
     L(B(9,'Código na Operadora',d.codOp,2),B(10,'Nome do Contratado',d.contratado,4),B(11,'Código CNES',d.cnes,1))+
