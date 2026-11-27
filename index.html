@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v173">
+<meta name="rf-versao" content="v174">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v173',
+  versao : 'v174',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -5039,7 +5039,8 @@ function pacOsHtml(id){
   if(_pacOS.carregando || _pacOS.pid!==id) return '<div class="vazio">Carregando os lançamentos do paciente…</div>';
   if(_pacOS.erro) return '<div class="card"><b style="color:var(--vermelho)">Não carregou: '+esc(_pacOS.erro)+'</b></div>';
   if(!_osEd || (_osEd._pid!==id)){ const a = _pacOS.lista.find(x=>x.id===_pacOS.sel); _osEd = a ? osDeAgenda(a, p) : osNovaEd(p); _osEd._pid = id; }
-  const e = _osEd, ro = e.status==='atendido' && e.guia_id ? ' disabled' : '';
+  const e = _osEd, gOS = e.guia_id ? S.tiss.guias.find(x=>x.id===e.guia_id) : null;
+  const ro = e.status==='atendido' && e.guia_id && !(gOS && gOS.status==='aberta') ? ' disabled' : '';   // v174: com a guia ainda ABERTA (fora de lote) a OS continua editável
   const In = (k, w, tipo, extra) => '<input'+(tipo?' type="'+tipo+'"':'')+' value="'+esc(e[k]==null?'':e[k])+'" style="width:'+w+'px" onchange="_osEd.'+k+'=this.value'+(extra||'')+'"'+ro+'>';
   const Se = (k, ops, w, extra) => '<select style="width:'+w+'px" onchange="_osEd.'+k+'=this.value'+(extra||'')+'"'+ro+'>'+ops.map(o=>{ const v = Array.isArray(o)?o[0]:o, t = Array.isArray(o)?o[1]:o; return '<option value="'+esc(v)+'"'+(String(e[k]||'')===String(v)?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+'</select>';
   const F = (rot, campo) => '<span class="osf"><span class="osl">'+rot+'</span>'+campo+'</span>';
@@ -8087,7 +8088,7 @@ function tissGcDados(f){ // tudo o que aparece no papel, já resolvido
   const op = tissOp(f.opId), ct = tissCt(f.ctId), pr = ct.tiss_prestadores || {}, prof = S.tiss.profs.find(p=>p.id===f.profId) || {};
   const x = f.procs[0] || {}, it = tissIt(x.itemId);
   const cod = ct.executante==='cnpj' ? mascaraCNPJ(ct.cnpj||pr.cnpj||'') : (ct.codigo_operadora||'');
-  return { op, ct, pr, prof, it, valor: x.valor, ans: op.ans||'', codOp: cod, contratado: String(pr.nome||'').toUpperCase(), cnes: ct.cnes||pr.cnes||'',
+  return { op, ct, pr, prof, it, valor: x.valor, ans: op.ans||'', codOp: cod, contratado: tissCtNome(ct), cnes: ct.cnes||pr.cnes||'',
     conselho: prof.id ? (prof.conselho||'06') : '', numero: prof.numero||'', uf: prof.id ? (TISS_UF_IBGE[prof.uf||'29']||prof.uf||'') : '', cbo: prof.cbo||'' };
 }
 function tissGcCss(){ return '.gc{background:#fff;color:#111;border:1.5px solid #333;border-radius:6px;padding:10px 12px;font-family:Arial,Helvetica,sans-serif}'+
@@ -8125,7 +8126,7 @@ function tissGuiaConsultaModal(){
   h += '<div class="gcl">'+B(7,'Nome','<input list="tg-pacs" value="'+esc(f.paciente||'')+'" oninput="pacSugerir(this,\'tg-pacs\')" onchange="tissFormPac(this.value)"'+dis+'><datalist id="tg-pacs">'+pacs.map(p=>'<option value="'+esc(p.nome)+'">').join('')+'</datalist>',1)+'</div>';
   h += '<div class="gcl">'+B(26,'Nome Social',In('nomeSocial'),1)+'</div>';
   h += '<div class="gcs">Dados do Contratado</div>';
-  h += '<div class="gcl">'+B(9,'Código na Operadora',V(d.codOp),2)+B(10,'Nome do Contratado',V(d.contratado),4)+B(11,'Código CNES',V(d.cnes),1.2)+'</div>';
+  h += '<div class="gcl">'+B(9,'Código na Operadora',V(d.codOp),2)+B(10,'Nome do Contratado', d.contratado||!d.codOp ? V(d.contratado) : '<div class="v auto" style="color:#c81e1e;font-weight:700;cursor:pointer" onclick="tissCtPedirNome(S.tiss.form.ctId,true)">FALTA O NOME DO CONTRATADO — toque para informar</div>',4)+B(11,'Código CNES',V(d.cnes),1.2)+'</div>';
   h += '<div class="gcl">'+B(12,'Nome do Profissional Executante','<select onchange="S.tiss.form.profId=this.value;tissGuiaModal()"'+dis+'><option value="">—</option>'+profs.map(p=>'<option value="'+p.id+'"'+(f.profId===p.id?' selected':'')+'>'+esc(p.nome)+(p.ativo?'':' (antigo)')+'</option>').join('')+'</select>',4)+
     B(13,'Conselho Profissional',V(d.conselho),1)+B(14,'Número no Conselho',V(d.numero),1.3)+B(15,'UF',V(d.uf),.7)+B(16,'Código CBO',V(d.cbo),1)+'</div>';
   h += '<div class="gcs">Dados do Atendimento / Procedimento Realizado</div>';
@@ -8264,6 +8265,17 @@ function tissModelo(f, numeroGuia){
     dataSolicitacao: f.data, carater: f.carater||'1', indicacaoClinica: f.indicacao||undefined, contratado, cnes,
     tipoAtendimento: f.tipoAtend||'23', indicacaoAcidente: f.acidente||'9', regimeAtendimento: f.regime||'01', procedimentos: procs, despesas: desps });
 }
+/* v174 (Renato, 27/11/2026) — REGRA OBRIGATÓRIA: todo código na operadora tem o nome do contratado (campo 10) ligado a ele.
+   O nome fica no próprio código (tiss_op_prestador.nome_contratado); sem ele, vale o nome do prestador ligado ao código. */
+function tissCtNome(ct){ ct = ct || {}; return String(ct.nome_contratado || (ct.tiss_prestadores||{}).nome || '').toUpperCase(); }
+async function tissCtPedirNome(ctId, redesenha){
+  const ct = tissCt(ctId); if(!ct.id) return false;
+  const t = prompt('O código '+(ct.codigo_operadora||ct.cnpj||'')+' ('+(ct.rotulo||'')+') está sem o NOME DO CONTRATADO (campo 10 da guia).\nDigite o nome exatamente como sai na guia da operadora:', '');
+  if(t==null || !t.trim()) return false;
+  const nome = t.trim().toUpperCase(), r = await sb.from('tiss_op_prestador').update({ nome_contratado:nome }).eq('id', ct.id).select('id');
+  if(r.error || !(r.data||[]).length){ alert('Não gravou o nome: '+(r.error ? r.error.message : 'sem permissão para alterar o convênio.')); return false; }
+  ct.nome_contratado = nome; if(redesenha && typeof tissGuiaModal==='function') tissGuiaModal(); return true;
+}
 function tissValidar(f){
   if(!f.opId || !f.ctId) return 'Escolha o convênio.';
   if(!String(f.paciente||'').trim()) return 'Informe o paciente.';
@@ -8276,6 +8288,7 @@ function tissValidar(f){
   return null;
 }
 async function tissGuiaSalvar(){
+  { const ct = tissCt(S.tiss.form.ctId); if(ct.id && ct.codigo_operadora && !tissCtNome(ct)){ if(!(await tissCtPedirNome(ct.id, true))) return alert('A guia não foi gravada: o código '+ct.codigo_operadora+' precisa ter o nome do contratado (campo 10).'); } }   // v174
   const f = S.tiss.form, erro = tissValidar(f); if(erro) return aviso(erro,'erro');
   try{
     let num = String(f.numeroGuia||'').trim();
