@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v175">
+<meta name="rf-versao" content="v176">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -193,6 +193,7 @@
 
   .aviso{background:var(--av-bg);border:1px solid var(--av-bd);color:var(--av-tx);padding:9px 11px;border-radius:9px;font-size:12.5px;margin-bottom:10px}
   .erro{background:var(--er-bg);border:1px solid var(--er-bd);color:var(--er-tx);padding:9px 11px;border-radius:9px;font-size:12.5px;margin-bottom:10px}
+  .cpe-toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:95;max-width:min(680px,92vw);font-size:15px;font-weight:700;padding:12px 16px;box-shadow:0 8px 28px rgba(0,0,0,.28);cursor:pointer}
   .ok{background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok-tx);padding:9px 11px;border-radius:9px;font-size:12.5px;margin-bottom:10px}
   .vazio{color:var(--fraco);text-align:center;padding:26px;font-size:13px}
 
@@ -248,7 +249,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v175',
+  versao : 'v176',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -599,6 +600,7 @@ function renderBase(){
     '<div class="wrap">'+
       cpeTrilha()+
       (S.msg? '<div class="'+S.msgTipo+'">'+esc(S.msg)+'</div>' : '')+
+      (S.msg && S.modal ? '<div class="'+S.msgTipo+' cpe-toast" onclick="S.msg=null;render()">'+esc(S.msg)+'</div>' : '')+   // v176: com janela aberta, o aviso aparece POR CIMA dela (antes ficava escondido atrás)
       corpo+
     '</div>'+
     (S.modal || '');
