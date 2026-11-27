@@ -8,8 +8,8 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v167">
-<meta name="rf-data" content="2026-11-26">
+<meta name="rf-versao" content="v168">
+<meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
 <!-- APP INSTALÁVEL (v43): Android instala pelo Chrome; iPhone pelo Safari → Compartilhar → "Adicionar à Tela de Início" -->
@@ -248,8 +248,8 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v167',
-  data   : '26/11/2026',
+  versao : 'v168',
+  data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
 };
@@ -413,7 +413,7 @@ function podeUsuarios(){ return ['mestre','dono'].indexOf(papel())>=0; }
 /* v81 (Renato/Vinicius, 12/11/2026): nível ADM_Nivel 1 (papel 'adm1') — só consulta: Início › NAFS › Financeiro › Terceirizados.
    Sem CNPJs, sem saldo, sem escala para editar. O banco trava igual (cpe_ve_fin, cpe_ve_grupo, cpe_ve_empresa). */
 function ehAdm1(){ return papel()==='adm1'; }
-function papelNome(x){ return x==='adm1' ? 'ADM_Nivel 1' : x; }
+function papelNome(x){ return x==='adm1' ? 'ADM_Nivel 1' : x==='fin_idad' ? 'Financeiro IDAD' : x; }
 function grupoResumo(g){ const v = CPE_TELAS_GRUPO.filter(t=>veSub(g,t[0]) && (t[0]!=='hospitais' || podeEditar())).map(t=>t[2]);
   return v.length===CPE_TELAS_GRUPO.length || !v.length ? 'Adicionar paciente e escalas por hospital e por anestesista' : v.join(' · '); }
 function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
@@ -422,7 +422,7 @@ function podeApagar(){ return ['mestre','dono'].indexOf(papel())>=0; }
    O banco também trava (RLS em esc_locais/esc_dias por hospital). Mestre vê tudo sempre. */
 const CPE_ABAS = [
   ['FINANCEIRO', [['painel','🏢','CNPJs'],['fila','📌','Apontar depois'],['origens','💳','Cartões e contas'],['nomes','🏷️','Nomes'],['pessoais','👤','Despesas pessoais']]],
-  ['HOSPITAL IDAD', [['idad','🏥','Hospital IDAD']]],
+  ['HOSPITAL IDAD', [['idad','🏥','Hospital IDAD'],['tiss','🧾','Faturamento TISS'],['agenda','📅','Agenda']]],
   ['FICHÁRIO', [['fichario','🗂️','Fichário']]],
   ['CADASTROS',  [['empresas','🏛️','Empresas']]]
 ];
@@ -437,7 +437,14 @@ const SUB_GRUPO = ['escala','escalas','producao','saldo','terceirizados','hospit
 const SUB_RESERVADA = ['producao','saldo','terceirizados'];
 function permChavesGrupo(g){ const r = [g]; CPE_TELAS_GRUPO.forEach(t=>{ r.push(g+':'+t[0]); (t[3]||[]).forEach(x=>r.push(g+':'+x[0])); }); return r; }
 function permTodasChaves(){ return CPE_ABAS.reduce((a,x)=>a.concat(x[1].map(y=>y[0])),[]).concat(CPE_GRUPOS.reduce((a,g)=>a.concat(permChavesGrupo(g[0])),[])); }
-function permReservada(k){ return k===ABA_PRIVADA || (k.indexOf(':')>0 && SUB_RESERVADA.indexOf(k.split(':')[1])>=0); }
+/* v168 (Renato, 27/11/2026): parâmetros do FATURAMENTO do IDAD nas permissões — 'tiss' (Faturamento TISS, Relatórios e repasse,
+   Pré-pago, Agenda e Dinheiro a caminho) e 'agenda' (só Agenda e Dinheiro a caminho). Reservados: só valem marcados um a um
+   (nem o "todas as abas" nem o dono ganham sozinhos). O banco já trava por essas chaves (cpe_ve_tiss / cpe_ve_agenda).
+   Perfil pronto FINANCEIRO IDAD = Hospital IDAD + Faturamento TISS + Agenda, só o CNPJ do IDAD, papel operador. */
+const IDAD_RES = ['tiss','agenda'];
+const PERFIL_FIN_IDAD = ['idad','tiss','agenda'];
+function ehPerfilFinIdad(a){ return Array.isArray(a) && a.length===PERFIL_FIN_IDAD.length && PERFIL_FIN_IDAD.every(k=>a.indexOf(k)>=0); }
+function permReservada(k){ return k===ABA_PRIVADA || IDAD_RES.indexOf(k)>=0 || (k.indexOf(':')>0 && SUB_RESERVADA.indexOf(k.split(':')[1])>=0); }
 function permNorm(t){ return String(t||'').trim().toLowerCase(); }
 /* v72 (Renato, 09/11/2026): DESPESAS PESSOAIS do Vinicius — aba privada. Mestre e dono veem sempre; os demais logins
    só se a aba estiver marcada EXPLICITAMENTE nas permissões (abas = null NÃO libera). O banco trava igual (cpe_ve_pessoais). */
@@ -2325,7 +2332,7 @@ var _perm = null;   // { id, abas:[]|null, hosp:[]|null, emp:[] , listaHosp:[] }
 function permResumo(p){
   if(p.papel==='mestre') return '<span style="color:var(--fraco)">tudo</span>';
   if(p.papel==='anestesista') return '<span style="color:var(--fraco)">só a escala dele</span>';
-  const a = !Array.isArray(p.abas) ? (p.papel==='adm1' ? 'NAFS › Financeiro › Terceirizados' : 'todas as abas') : permResumoAbas(p.abas);
+  const a = !Array.isArray(p.abas) ? (p.papel==='adm1' ? 'NAFS › Financeiro › Terceirizados' : 'todas as abas') : ehPerfilFinIdad(p.abas) ? '<b>Perfil Financeiro IDAD</b> (Hospital IDAD · Faturamento TISS · Agenda)' : permResumoAbas(p.abas);
   const h = Array.isArray(p.hospitais) && p.hospitais.length ? p.hospitais.length+' hospita'+(p.hospitais.length===1?'l':'is') : 'todos os hospitais';
   const ne = (S.permEmp||{})[p.id]; const e = ne && ne.length ? ne.length+' CNPJ'+(ne.length===1?'':'s') : 'todos os CNPJs';
   return a+'<br>'+h+'<br>'+e;
@@ -2353,7 +2360,7 @@ async function permCarregarListas(){
 async function abrirPerm(id){
   if(!S.permHosp){ try{ await permCarregarListas(); }catch(e){ return aviso('Não carregou a lista de hospitais: '+e.message,'erro'); } }
   const p = S.perfis.find(x=>x.id===id) || {};
-  _perm = { id, area: !!pesArea(id), abas: (p.papel==='adm1' && Array.isArray(p.abas) && p.abas.length===2 && p.abas.indexOf('producao')>=0) ? ['nafs','nafs:producao','nafs:terceirizados'] : Array.isArray(p.abas) ? permConverter(p.abas) : (p.papel==='adm1' ? ['nafs','nafs:producao','nafs:terceirizados'] : permTodasChaves().filter(k=>!permReservada(k) || p.papel==='dono')),
+  _perm = { id, area: !!pesArea(id), abas: (p.papel==='adm1' && Array.isArray(p.abas) && p.abas.length===2 && p.abas.indexOf('producao')>=0) ? ['nafs','nafs:producao','nafs:terceirizados'] : Array.isArray(p.abas) ? permConverter(p.abas) : (p.papel==='adm1' ? ['nafs','nafs:producao','nafs:terceirizados'] : permTodasChaves().filter(k=>!permReservada(k) || (p.papel==='dono' && IDAD_RES.indexOf(k)<0))),
             hosp: Array.isArray(p.hospitais) ? p.hospitais.slice() : [], emp: ((S.permEmp||{})[id]||[]).slice(), busca:'' };
   permDesenhar();
 }
@@ -2385,8 +2392,16 @@ function permBlocoGrupo(g, papelAlvo){
 function permTog(tipo, v){
   if(tipo==='abas' && v===ABA_PRIVADA){ _perm.area = !_perm.area; return permDesenhar(); }   // v96
   const arr = _perm[tipo]; const i = tipo==='hosp' ? arr.map(permNorm).indexOf(permNorm(v)) : arr.indexOf(v);
-  if(i>=0) arr.splice(i,1); else arr.push(v); permDesenhar();
+  if(i>=0) arr.splice(i,1); else arr.push(v);
+  if(tipo==='abas'){   // v168: Faturamento/Agenda ficam dentro do Hospital IDAD
+    if(IDAD_RES.indexOf(v)>=0 && i<0 && arr.indexOf('idad')<0) arr.push('idad');
+    if(v==='idad' && i>=0) _perm.abas = arr.filter(k=>IDAD_RES.indexOf(k)<0);
+  }
+  permDesenhar();
 }
+function permAplicarFinIdad(){   // v168: perfil pronto Financeiro IDAD
+  const e = idadEmpresa(); _perm.abas = PERFIL_FIN_IDAD.slice(); _perm.area = false; _perm.hosp = []; _perm.emp = e ? [e.id] : [];
+  aviso(e ? 'Perfil Financeiro IDAD marcado. Confira e toque em Salvar permissões.' : 'Perfil marcado, mas o CNPJ do IDAD não está em Empresas.', e ? 'ok' : 'erro'); permDesenhar(); }
 function permTodos(tipo){ if(tipo==='abas') _perm.abas = permTodasChaves().filter(k=>!permReservada(k) || _perm.abas.indexOf(k)>=0); else _perm[tipo] = []; permDesenhar(); }
 function permNenhum(tipo){ _perm[tipo] = []; permDesenhar(); }
 function permChk(on, rot, acao, sub){
@@ -2398,10 +2413,13 @@ function permDesenhar(){
   const busca = permNorm(P.busca);
   const hs = (S.permHosp||[]).filter(n=>!busca || permNorm(n).indexOf(busca)>=0);
   let h = '<h2>🔒 Permissões</h2><div style="color:var(--fraco);margin-bottom:10px">'+esc(p.nome||p.email||'')+' · <b>'+esc(papelNome(p.papel||''))+'</b></div>'+
+    (p.papel==='operador' || p.papel==='leitura' ? '<div class="psec" style="border-color:#00b8d9"><div class="pti"><b>PERFIL PRONTO</b>'+(ehPerfilFinIdad(P.abas)?'<span class="ptag">em uso</span>':'')+'</div>'+
+      '<button type="button" class="bt" style="background:linear-gradient(90deg,#13b981,#00b8d9,#0a6cf0)" onclick="permAplicarFinIdad()">🧾 Financeiro IDAD</button>'+
+      '<div style="font-size:12px;color:var(--fraco);margin-top:6px">Marca: Hospital IDAD + Faturamento TISS + Agenda, e só o CNPJ do IDAD. Depois é só salvar.</div></div>' : '')+
     '<div class="psec"><div class="pti"><b>1. ABAS QUE ELE VÊ</b><span><a href="#" onclick="permTodos(\'abas\');return false">marcar todas</a> · <a href="#" onclick="permNenhum(\'abas\');return false">limpar</a></span></div>'+
     CPE_ABAS.slice(0,1).map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(x[0]===ABA_PRIVADA ? P.area : P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')", x[0]===ABA_PRIVADA?'área própria — só ele vê (e quem ele liberar)':'')).join('')+'</div>').join('')+
     '<div class="pgr">ESCALAS — marque o grupo e escolha as telas de cada um</div>'+CPE_GRUPOS.map(g=>permBlocoGrupo(g, p.papel)).join('')+
-    CPE_ABAS.slice(1).map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')")).join('')+'</div>').join('')+
+    CPE_ABAS.slice(1).map(g=>'<div class="pgr">'+g[0]+'</div><div class="pgrid">'+g[1].map(x=>permChk(P.abas.indexOf(x[0])>=0, x[1]+' '+x[2], "permTog('abas','"+x[0]+"')", x[0]==='tiss' ? 'faturamento: guias, pré-pago, relatórios e repasse, agenda' : x[0]==='agenda' ? 'só agenda e dinheiro a caminho' : '')).join('')+'</div>').join('')+
     '</div>'+
     '<div class="psec"><div class="pti"><b>2. HOSPITAIS QUE ELE VÊ</b><span>'+(todasH?'<span class="ptag">todos</span>':'<span class="ptag">'+P.hosp.length+' marcado'+(P.hosp.length===1?'':'s')+'</span> · <a href="#" onclick="permTodos(\'hosp\');return false">liberar todos</a>')+'</span></div>'+
     '<div style="font-size:12px;color:var(--fraco);margin-bottom:6px">Nenhum marcado = vê <b>todos</b>. Marque um ou vários para ele ver <b>só esses</b> na escala, no Financeiro e no cadastro de hospitais.</div>'+
@@ -2448,7 +2466,7 @@ async function permSalvar(){
 
 /* --- usuários --- */
 function abrirUsuario(){
-  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','mestre'] : ['operador','leitura','anestesista','adm1'];
+  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','fin_idad','mestre'] : ['operador','leitura','anestesista','adm1','fin_idad'];
   if(!S.anesTodos){ escAnesTodos().then(abrirUsuario).catch(()=>{}); return; }
   abrirModal('<h2>Novo usuário</h2>'+
     '<label>Nome</label><input id="us-nome">'+
@@ -2509,13 +2527,24 @@ async function salvarUsuario(){
     if(ra.error || !ra.data) return aviso('Não cadastrou o anestesista: '+(ra.error ? ra.error.message : 'sem retorno'),'erro');
     anesId = ra.data.id; S.anesTodos = null; if(S.esc) S.esc.carregado = false;
   }
-  const r = await chamarCriarUsuario({ acao:'criar', nome:val('us-nome').trim(), email, senha, papel:val('us-papel'), empresas, anestesista_id: anesId||null });
+  const finIdad = val('us-papel')==='fin_idad';   // v168: perfil pronto — cria como operador e já grava as permissões
+  const eIdad = finIdad ? idadEmpresa() : null;
+  if(finIdad && !eIdad) return aviso('O CNPJ do IDAD não está cadastrado em Empresas.','erro');
+  const r = await chamarCriarUsuario({ acao:'criar', nome:val('us-nome').trim(), email, senha, papel: finIdad ? 'operador' : val('us-papel'), empresas, anestesista_id: anesId||null });
   if(r.erro) return aviso('Não criou: '+r.erro,'erro');
   const { data:ps } = await sb.from('perfis').select('*').order('papel');
   S.perfis = ps||S.perfis;
   S.modal=null;
   aviso('Usuário criado. Senha: '+senha+' — agora escolha as permissões dele.','ok');
   const novo = S.perfis.find(x=>String(x.email||'').toLowerCase()===email);   // v69: já abre as permissões do novo login
+  if(novo && finIdad){
+    const u = await sb.from('perfis').update({ abas: PERFIL_FIN_IDAD.slice(), hospitais: null }).eq('id', novo.id);
+    await sb.from('perfil_empresas').delete().eq('perfil_id', novo.id);
+    const ie = await sb.from('perfil_empresas').insert({ perfil_id: novo.id, empresa_id: eIdad.id });
+    if(u.error || ie.error) return aviso('Usuário criado, mas não gravou o perfil Financeiro IDAD: '+((u.error||ie.error).message),'erro');
+    const { data:ps2 } = await sb.from('perfis').select('*').order('papel'); S.perfis = ps2||S.perfis;
+    S.permHosp = null; abrirPerm(novo.id); aviso('Usuário Financeiro IDAD criado. Senha: '+senha,'ok'); return;
+  }
   if(novo && ['operador','leitura','dono'].indexOf(novo.papel)>=0){ S.permHosp = null; abrirPerm(novo.id); }
 }
 function abrirNivel(id){
