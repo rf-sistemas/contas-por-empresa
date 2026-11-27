@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v172">
+<meta name="rf-versao" content="v173">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v172',
+  versao : 'v173',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -5054,7 +5054,7 @@ function pacOsHtml(id){
   h += '<div class="oshd">Ordem de Serviços '+(e.os_numero?'nº '+e.os_numero:'(nova)')+(e.status?' · '+esc((AG_ST[e.status]||[''])[0]):'')+(e.guia_id?' · guia gerada':'')+'</div><div class="osbox" style="border-radius:0 0 10px 10px">';
   h += R(F('OS:', '<input disabled value="'+(e.os_numero||'nova')+'" style="width:90px">'), F('Data:', In('data',150,'date')+In('hora',100,'time')), F('Urg.:', Se('urg',[['N','N'],['S','S']],60)), F('Atend.:', Se('atend',OS_ATEND,150)),
     F('G. Oper.:', In('goper',170)));
-  h += R(F('Conv.:', Se('conv',convs,240,';osConvMudou()')), '<button type="button" class="bt g mini" onclick="osInfoConv()">Info…</button>', F('Plano:', In('plano',170).replace('<input','<input list="os-planos" placeholder="escolha ou digite" onfocus="osPlanosCarregar()"')+'<datalist id="os-planos">'+osPlanosOpcoes()+'</datalist>'), F('Origem:', In('origem',140)));
+  h += R(F('Conv.:', Se('conv',convs,240,';osConvMudou()')), '<button type="button" class="bt g mini" onclick="osInfoConv()">Info…</button>', F('Plano:', '<select id="os-plano" style="width:230px" onchange="osPlanoMudou(this.value)"'+ro+'>'+osPlanosOpcoes(e.plano)+'</select>'), F('Origem:', In('origem',140)));
   h += R(F('Setor:', In('setor',160)), F('Guia:', '<input disabled value="'+esc(e.guia||'')+'" style="width:120px" placeholder="na geração">'), F('Guia Principal:', In('guiaPrinc',120)),
     F('Méd.:', '<input disabled value="'+esc(prof.numero||'')+'" style="width:70px">'+Se('profId',profs,240,';pacDesenhar(_pacReg.id)')), F('Solic.:', In('solic',150,'date')));
   h += R(F('Obs.:', '<input value="'+esc(e.obs||'')+'" style="width:520px;max-width:100%" onchange="_osEd.obs=this.value"'+ro+'>'));
@@ -5205,10 +5205,16 @@ async function pacOsNova(id){
 }
 /* v172 (Renato, 27/11/2026): Plano com lista para escolher — os planos do convênio do paciente (vindos do Smart) */
 var _osPlanos = {};
-function osPlanosOpcoes(){ const c = (_pacReg && _pacReg.convenio) || ''; return (_osPlanos[c]||[]).map(x=>'<option value="'+esc(x.plano)+'">').join(''); }
+/* v173: o Plano vira LISTA de escolha (select) — no tablet a sugestão escondia as outras opções */
+function osPlanosOpcoes(atual){ const c = (_pacReg && _pacReg.convenio) || ''; if(!_osPlanos[c]) setTimeout(osPlanosCarregar, 0);
+  const L = (_osPlanos[c]||[]).map(x=>x.plano); if(atual && L.indexOf(atual)<0) L.unshift(atual);
+  return '<option value="">'+(_osPlanos[c] ? '— escolha —' : 'carregando…')+'</option>'+L.map(v=>'<option'+(v===atual?' selected':'')+'>'+esc(v)+'</option>').join('')+'<option value="__outro">Outro (digitar)…</option>'; }
 async function osPlanosCarregar(){ const c = (_pacReg && _pacReg.convenio) || ''; if(!c || _osPlanos[c]) return;
-  _osPlanos[c] = []; try{ const r = await sb.rpc('idad_planos', { conv:c }); if(!r.error) _osPlanos[c] = r.data||[]; }catch(e){}
-  const d = document.getElementById('os-planos'); if(d) d.innerHTML = osPlanosOpcoes(); }
+  try{ const r = await sb.rpc('idad_planos', { conv:c }); _osPlanos[c] = (!r.error && r.data) || []; }catch(e){ _osPlanos[c] = []; }
+  const d = document.getElementById('os-plano'); if(d && _osEd) d.innerHTML = osPlanosOpcoes(_osEd.plano); }
+function osPlanoMudou(v){ if(v==='__outro'){ const t = prompt('Nome do plano:', _osEd.plano||''); if(t!=null && t.trim()) _osEd.plano = t.trim().toUpperCase();
+    const d = document.getElementById('os-plano'); if(d) d.innerHTML = osPlanosOpcoes(_osEd.plano); return; }
+  _osEd.plano = v; }
 /* v172 (Renato, 27/11/2026): F8 abre "Imprimir Ordem de Serviço", igual ao Smart */
 function osImprimirAbrir(){
   if(!_osEd || !_pacReg) return; const e = _osEd, p = _pacReg; osImprimirFechar();
