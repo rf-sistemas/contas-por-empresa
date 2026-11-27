@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v169">
+<meta name="rf-versao" content="v170">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v169',
+  versao : 'v170',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4524,7 +4524,8 @@ function pacFiltroOr(t){
 }
 async function pacBuscarDB(t, lim){
   const f = pacFiltroOr(t); if(!f) return [];
-  try{ const r = await sb.from('idad_pacientes').select('*').or(f).order('nome').limit(lim||60); return r.error ? [] : (r.data||[]); }catch(e){ return []; }
+  S.idad.buscaErro = null;   // v170: erro na busca não pode virar "nenhum paciente encontrado"
+  try{ const r = await sb.from('idad_pacientes').select('*').or(f).order('nome').limit(lim||60); if(r.error){ S.idad.buscaErro = r.error.message||'erro'; return []; } return r.data||[]; }catch(e){ S.idad.buscaErro = e.message||String(e); return []; }
 }
 function pacGuardar(lista){
   (lista||[]).forEach(p=>{ [S.idad && S.idad.pac, S.ag && S.ag.pacs].forEach(arr=>{ if(!Array.isArray(arr)) return;
@@ -4715,6 +4716,7 @@ function idadPacListaHtml(){
   if(t && t.length < 3) return '<div class="vazio">Digite pelo menos 3 letras ou números para buscar.</div>';
   if(S.idad.pacBuscando) return '<div class="vazio">Buscando em '+pacTotalTxt()+'…</div>';
   const l = t ? (S.idad.pacRes||[]).map(id=>S.idad.pac.find(p=>p.id===id)).filter(Boolean) : S.idad.pac.slice(0,50);
+  if(!l.length && S.idad.buscaErro) return '<div class="vazio" style="color:var(--vermelho)">A busca não respondeu ('+esc(S.idad.buscaErro)+'). Tente de novo — se repetir, avise o suporte.</div>';
   if(!l.length) return '<div class="vazio">Nenhum paciente encontrado com “'+esc(t)+'”.</div>';
   const topo = t ? '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">'+(l.length>=80?'Mostrando os 80 primeiros — refine a busca.':l.length+' encontrado'+(l.length===1?'':'s')+'.')+'</div>'
                  : '<div style="font-size:12.5px;color:var(--fraco);margin:2px 4px 8px">Mexidos por último. São '+pacTotalTxt()+' na base — digite para buscar.</div>';
@@ -4798,8 +4800,8 @@ function pacCampo(c, p, ro){
   if(t==='check') return '<label class="pxf pxc"><input type="checkbox" id="pc-'+k+'"'+ro+(v?' checked':'')+'> '+rot+'</label>';
   if(t==='proprio') return '<button type="button" class="bt g mini pxb" onclick="pacProprio()"'+ro+'>Próprio</button>';
   if(t==='idade') return '<span class="pxf"><input id="pc-idade" disabled style="width:'+w+'px;text-align:center" value="'+(p.nascimento?idadeDe(p.nascimento)+' anos':'')+'"></span>';
-  if(t==='reg') return '<span class="pxf">'+lb+'<input disabled style="width:'+w+'px" value="'+(p.prontuario||'novo')+'"></span>';
-  if(t==='pront') return '<span class="pxf">'+lb+'<input disabled title="Número automático, em ordem (01, 02, 03…)" style="width:'+w+'px" value="'+esc(p.pront||'automático')+'"></span>';   // v149: nasce sozinho no banco
+  if(t==='reg') return '<span class="pxf">'+lb+'<input id="pc-regnum" disabled title="'+(p.prontuario?'Número do registro':'Próximo número — fica gravado ao Salvar')+'" style="width:'+w+'px;font-weight:700;'+(p.prontuario?'':'color:#0a6cf0')+'" value="'+(p.prontuario||(_pacProx&&_pacProx.reg)||'gerando…')+'"></span>';   // v170
+  if(t==='pront') return '<span class="pxf">'+lb+'<input id="pc-prontnum" disabled title="Número automático, em ordem (01, 02, 03…)" style="width:'+w+'px;font-weight:700;'+(p.pront?'':'color:#0a6cf0')+'" value="'+esc(p.pront||(_pacProx&&_pacProx.pront)||'gerando…')+'"></span>';   // v170: mostra o número já na ficha nova   // v149: nasce sozinho no banco
   let inp;
   if(t==='select') inp = '<select id="pc-'+k+'"'+ro+' style="'+cz+'width:'+w+'px"><option value=""></option>'+ops.map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
   else {
@@ -4807,7 +4809,7 @@ function pacCampo(c, p, ro){
       t==='cpf' ? ' inputmode="numeric" oninput="this.value=mascaraCPF(this.value)"' : t==='tel' ? ' inputmode="tel" oninput="this.value=mascaraTel(this.value)"' :
       t==='cep' ? ' inputmode="numeric" oninput="this.value=mascaraCEP(this.value)" onblur="pacBuscaCEP(this.value)"' : t==='conv' ? ' list="pc-convs"' : '';
     const vv = v==null ? '' : t==='cpf' ? mascaraCPF(v) : t==='tel' ? mascaraTel(v) : t==='cep' ? mascaraCEP(v) : v;
-    inp = '<input id="pc-'+k+'"'+ro+ex+(k==='nome'?' onchange="pacNomeMudou(this.value)"':'')+' style="'+cz+'width:'+w+'px" value="'+esc(vv)+'">';
+    inp = '<input id="pc-'+k+'"'+ro+ex+(k==='nome'?' onchange="pacNomeMudou(this.value)"':'')+(k==='cpf'?' onblur="pacCpfSaiu(this.value)"':'')+' style="'+cz+'width:'+w+'px" value="'+esc(vv)+'">';
   }
   return '<span class="pxf">'+lb+inp+'</span>';
 }
@@ -4815,10 +4817,36 @@ var _pacAba = null, _pacReg = null;
 function idadPacAbrir(id){
   const p = id ? Object.assign({}, S.idad.pac.find(x=>x.id===id)) : { data_registro: hojeISO(), pais:'Brasil', cidade:'Feira de Santana', uf:'BA', rg_uf:'BA', rg_orgao:'SSP', zona:'Urbana' };
   _pacReg = p; _pacAba = null; _pacTela = 'ficha'; _osEd = null; _osMenu = 'itens'; if(_pacOS.pid!==id) _pacOS = { pid:null, lista:[], sel:null }; pacDesenhar(id);
+  if(!id) pacProximoNumero();
 }
+/* v170 (Renato, 27/11/2026): a ficha nova já mostra o número do Reg. e do Pront. (previsão; o número definitivo nasce no banco ao Salvar) */
+var _pacProx = null;
+async function pacProximoNumero(){
+  _pacProx = null;
+  try{ const r = await sb.rpc('idad_proximo_registro'); if(!r.error && r.data) _pacProx = r.data; }catch(e){}
+  const a = document.getElementById('pc-regnum'); if(a) a.value = (_pacProx&&_pacProx.reg) || 'ao salvar';
+  const b = document.getElementById('pc-prontnum'); if(b) b.value = (_pacProx&&_pacProx.pront) || 'ao salvar';
+}
+/* v170: o aviso de erro da ficha aparece DENTRO da janela (antes ficava atrás dela e a recepção não via) */
+function pacMsg(html, tipo){ const e = document.getElementById('pc-salvast'); if(!e){ aviso(String(html).replace(/<[^>]+>/g,''), tipo); return; }
+  e.innerHTML = html; e.style.display = html ? 'block' : 'none';
+  e.style.background = tipo==='erro' ? '#fde8e8' : '#e6f8f1'; e.style.borderColor = tipo==='erro' ? '#f3b4b4' : '#a7e3c4'; e.style.color = tipo==='erro' ? '#9b1c1c' : '#065f46';
+  e.scrollIntoView({ block:'nearest', behavior:'smooth' }); }
+/* v170: CPF que já está na base — avisa na hora e oferece abrir a ficha que já existe */
+async function pacCpfJaExiste(cpf, idAtual){
+  cpf = soDig(cpf); if(cpf.length!==11) return null;
+  let x = S.idad.pac.find(p=>p.id!==idAtual && soDig(p.cpf)===cpf);
+  if(!x){ try{ const r = await sb.from('idad_pacientes').select('*').eq('cpf', cpf).limit(1); if(!r.error && r.data && r.data[0]){ x = r.data[0]; pacGuardar([x]); } }catch(e){} }
+  return x && x.id!==idAtual ? x : null;
+}
+function pacMsgDuplicado(x){
+  pacMsg('Este CPF já está cadastrado: <b>'+esc(x.nome||'')+'</b> — Reg. '+(x.prontuario||'—')+(x.nascimento?' · nasc. '+dataBR(x.nascimento):'')+(x.convenio?' · '+esc(x.convenio):'')+
+    '.<br><button type="button" class="bt mini" style="margin-top:8px" onclick="idadPacAbrir(\''+x.id+'\')">Abrir a ficha deste paciente</button>', 'erro');
+}
+async function pacCpfSaiu(v){ if(val('pc-id')) return; const x = await pacCpfJaExiste(v, null); if(x) pacMsgDuplicado(x); }
 function pacDesenhar(id){
   setTimeout(pacCores, 0);
-  if(id && _pacTela==='os' && agPode()){ const p = _pacReg; return abrirModal('<style>.modal{max-width:1180px}</style><h2>'+esc(p.nome||'')+' <small style="font-size:13px;color:var(--fraco)">Reg. '+(p.prontuario||'')+(p.convenio?' · '+esc(p.convenio)+(p.carteirinha?' · cart. '+esc(p.carteirinha):''):'')+'</small></h2>'+pacAbasHtml(id)+pacOsHtml(id)+'<div style="display:flex;gap:8px;margin-top:16px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>'); }
+  if(id && _pacTela==='os' && agPode()){ const p = _pacReg; return abrirModal('<style>.modal{max-width:1180px}</style><div style="display:flex;align-items:flex-start;gap:10px"><h2 style="flex:1;margin-top:0">'+esc(p.nome||'')+' <small style="font-size:13px;color:var(--fraco)">Reg. '+(p.prontuario||'')+(p.convenio?' · '+esc(p.convenio)+(p.carteirinha?' · cart. '+esc(p.carteirinha):''):'')+'</small></h2>'+pacBotaoX()+'</div>'+pacAbasHtml(id)+pacOsHtml(id)+'<div style="display:flex;gap:8px;margin-top:16px"><button class="bt g" onclick="fecharModal()">Fechar</button></div>'); }
   const p = _pacReg, ro = podeEditar() ? '' : ' disabled';
   const linha = l => l==='linha' ? '<div class="pxsep"></div>' : '<div class="pxr">'+l.map(c=>pacCampo(c,p,ro)).join('')+'</div>';
   abrirModal('<style>.modal{max-width:1180px}.pxr{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin:0 0 8px}'+
@@ -4827,7 +4855,7 @@ function pacDesenhar(id){
     '.pxsep{border-top:1px solid var(--linha);margin:10px 0 12px}.pxbt{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}'+
     '.pxbt button.on{background:var(--ouro);color:#fff;border-color:var(--ouro)}.pxaba{border:1px solid var(--linha);border-radius:10px;padding:12px;margin-top:10px}'+
     '@media(max-width:620px){.pxf{flex-wrap:wrap}.pxf input,.pxf select{width:100%!important}}</style>'+
-    '<h2>Atendimento ao Paciente'+(id?' · Reg. '+(p.prontuario||''):' · novo')+'</h2>'+
+    '<div style="display:flex;align-items:flex-start;gap:10px"><h2 style="flex:1;margin-top:0">Atendimento ao Paciente'+(id?' · Reg. '+(p.prontuario||''):' · novo')+'</h2>'+pacBotaoX()+'</div>'+
     pacAbasHtml(id)+
     (podeEditar() ? pacBarraDoc() : '')+
     '<input type="hidden" id="pc-id" value="'+(id||'')+'"><datalist id="pc-convs">'+pacConvenios().map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist>'+
@@ -4835,8 +4863,9 @@ function pacDesenhar(id){
     '<div class="pxr" style="align-items:flex-start"><span class="pxl" style="padding-top:8px">Obs.:</span><textarea id="pc-obs"'+ro+' rows="2" style="flex:1;min-width:240px;margin:0">'+esc(p.obs||'')+'</textarea></div>'+
     '<div class="pxbt">'+PAC_BOTOES.map(b=>'<button type="button" class="bt g mini'+(_pacAba===b[0]?' on':'')+'" onclick="pacAba(\''+b[0]+'\',\''+(id||'')+'\')">'+b[1]+'</button>').join('')+'</div>'+
     (_pacAba ? '<div class="pxaba">'+(PAC_ABAS[_pacAba] ? PAC_ABAS[_pacAba][1].map(linha).join('') : '<div style="color:var(--fraco);font-size:13.5px">'+PAC_BOTOES.find(b=>b[0]===_pacAba)[1]+' — em construção no Sistema MR.</div>')+'</div>' : '')+
+    '<div id="pc-salvast" style="display:none;margin-top:14px;padding:10px 12px;border:1px solid;border-radius:10px;font-size:13.5px"></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">'+
-      (podeEditar()?'<button class="bt" onclick="idadPacSalvar()">Salvar</button>':'')+
+      (podeEditar()?'<button class="bt" id="pc-salvar" onclick="idadPacSalvar()">Salvar</button>':'')+
       '<button class="bt g" onclick="fecharModal()">'+(podeEditar()?'Cancelar':'Fechar')+'</button></div>');
   const n = document.getElementById('pc-nascimento'); if(n) n.addEventListener('change', ()=>{ const a = idadeDe(n.value); document.getElementById('pc-idade').value = a!=null && n.value ? a+' anos' : ''; });
 }
@@ -4849,6 +4878,7 @@ function icoCamDoc(){
     '<path d="M8.5 4.5h7l1.4 2.2H20a2 2 0 0 1 2 2v9.8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.7a2 2 0 0 1 2-2h3.1z" fill="url(#gCamD)"/>'+
     '<circle cx="12" cy="13.3" r="4.2" fill="#fff"/><circle cx="12" cy="13.3" r="2.4" fill="url(#gCamD)"/></svg>';
 }
+function pacBotaoX(){ return '<button type="button" onclick="fecharModal()" title="Fechar" aria-label="Fechar" style="flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--linha);background:var(--carta);color:var(--texto);font-size:22px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center">&times;</button>'; }   // v170
 function pacBarraDoc(){
   return '<div class="pxdoc" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:2px 0 14px;padding:10px 12px;border:1px dashed var(--linha);border-radius:10px">'+
     '<button type="button" class="bt mini" onclick="document.getElementById(\'pc-docfoto\').click()">'+icoCamDoc()+'Tirar foto do documento</button>'+
@@ -5162,19 +5192,26 @@ async function idadPacSalvar(){
   const id = val('pc-id'), reg = {};
   pacTodosCampos().forEach(([k,rot,t])=>{ if(k[0]!=='_' && t!=='reg' && t!=='pront') reg[k] = _pacReg[k]===undefined ? null : _pacReg[k]; });
   reg.obs = _pacReg.obs||null;
-  if(!reg.nome) return aviso('Informe o nome do paciente.','erro');
-  { const f = pacFaltando(); if(f.length){ pacCores(); return aviso('Preencha os campos obrigatórios (em amarelo): '+f.join(', ')+'.','erro'); } }
-  if(reg.cpf && !validaCPF(reg.cpf)) return aviso('CPF do paciente inválido — confira os dígitos.','erro');
-  if(reg.titular_cpf && !validaCPF(reg.titular_cpf)) return aviso('CPF do titular inválido.','erro');
-  if(reg.cpf && S.idad.pac.some(x=>x.id!==id && soDig(x.cpf)===reg.cpf)) return aviso('Já existe paciente com este CPF.','erro');
+  if(!reg.nome) return pacMsg('Informe o nome do paciente.','erro');
+  { const f = pacFaltando(); if(f.length){ pacCores(); return pacMsg('Faltam os campos obrigatórios (em amarelo): <b>'+esc(f.join(', '))+'</b>.','erro'); } }
+  if(reg.cpf && !validaCPF(reg.cpf)) return pacMsg('CPF do paciente inválido — confira os dígitos.','erro');
+  if(reg.titular_cpf && !validaCPF(reg.titular_cpf)) return pacMsg('CPF do titular inválido — confira os dígitos.','erro');
+  const bt = document.getElementById('pc-salvar'); if(bt){ bt.disabled = true; bt.textContent = 'Salvando…'; }
+  const solta = ()=>{ const b = document.getElementById('pc-salvar'); if(b){ b.disabled = false; b.textContent = 'Salvar'; } };
+  if(reg.cpf){ const x = await pacCpfJaExiste(reg.cpf, id||null); if(x){ solta(); return pacMsgDuplicado(x); } }
   reg.titular_proprio = !reg.titular || (reg.titular===reg.nome);
   reg.atualizado_em = new Date().toISOString();
   const r = id ? await sb.from('idad_pacientes').update(reg).eq('id',id).select().maybeSingle()
                : await sb.from('idad_pacientes').insert(reg).select().maybeSingle();
-  if(r.error) return aviso(/cpf/i.test(r.error.message) ? 'Já existe paciente com este CPF na base (busque pelo CPF).' : 'Não gravou: '+r.error.message,'erro');
+  if(r.error){ solta();
+    if(/cpf/i.test(r.error.message||'') || r.error.code==='23505'){ const x = await pacCpfJaExiste(reg.cpf, id||null); if(x) return pacMsgDuplicado(x); }
+    return pacMsg('Não gravou: '+esc(r.error.message||String(r.error)),'erro'); }
+  if(!r.data){ solta(); return pacMsg('Não gravou — este login não tem permissão para cadastrar paciente no IDAD.','erro'); }
   if(id){ const i=S.idad.pac.findIndex(x=>x.id===id); if(i>=0) S.idad.pac[i]=r.data; } else { S.idad.pac.unshift(r.data); S.idad.pacTotal = (S.idad.pacTotal||0)+1; if(Array.isArray(S.idad.doDia) && S.idad.doDia.indexOf(r.data.id)<0) S.idad.doDia.unshift(r.data.id); }
   pacGuardar([r.data]);
-  S.modal=null; aviso(id?'Paciente atualizado.':'Paciente cadastrado — prontuário nº '+r.data.prontuario+'.','ok');
+  if(id){ S.modal=null; return aviso('Paciente atualizado.','ok'); }
+  idadPacAbrir(r.data.id);   // v170: reabre a ficha já gravada, com o Reg. e o Pront. definitivos
+  pacMsg('✔ Paciente cadastrado — Reg. <b>'+r.data.prontuario+'</b> · Pront. <b>'+esc(r.data.pront||'')+'</b>.','ok');
 }
 
 /* ===== v94 (Renato, 16/11/2026): FARMÁCIA e ALMOXARIFADO do Hospital IDAD — a caixa "Plantões no IDAD" virou Farmácia.
