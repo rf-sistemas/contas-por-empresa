@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v170">
+<meta name="rf-versao" content="v171">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v170',
+  versao : 'v171',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -4561,6 +4561,10 @@ function telaIdadImport(){
     '<input type="file" id="imp-arq" accept=".rpt,.txt,.tsv,.csv" hidden onchange="impPacientes(this.files[0])">'+
     '<span style="color:var(--fraco);font-size:13px">Hoje na base: <b>'+pacTotalTxt()+'</b></span></div>'+
     '<div id="imp-st" style="margin-top:12px">'+impStatusHtml()+'</div></div>';
+  h += '<div class="card"><b>Completar o Plano dos pacientes</b><div style="font-size:13px;color:var(--fraco);margin:4px 0 10px">Arquivo <b>planos_smart.txt</b> (na pasta Documentos). Preenche só o Plano que está vazio — o que a recepção já digitou não é trocado.</div>'+
+    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="bt" '+(IMPP.rodando?'disabled':'')+' onclick="document.getElementById(\'imp-pln\').click()">Escolher o arquivo planos_smart.txt</button>'+
+    '<input type="file" id="imp-pln" accept=".txt" hidden onchange="impPlanos(this.files[0])"></div>'+
+    '<div id="imp-pst" style="margin-top:10px;font-size:13.5px">'+impPlanosHtml()+'</div></div>';
   return h;
 }
 function impStatusHtml(){
@@ -4576,6 +4580,33 @@ function impStatusHtml(){
       '<div>Sem nome (ignorados)<br><b style="font-size:18px">'+n(IMP.semNome)+'</b></div>'+
       '<div>Com erro<br><b style="font-size:18px;color:'+(IMP.erros?'var(--vermelho)':'inherit')+'">'+n(IMP.erros)+'</b></div></div>'+
     (IMP.msg?'<div style="margin-top:8px;font-size:13px;color:var(--fraco)">'+esc(IMP.msg)+'</div>':'');
+}
+/* v171 (Renato, 27/11/2026): o Plano não veio na primeira carga. Arquivo planos_smart.txt: uma linha por plano, "NOME|regs" com os
+   Reg. em diferença base 36 separados por ponto. Grava pela função idad_carga_plano (só mestre; só preenche plano vazio). */
+const IMPP = { rodando:false, total:0, feitos:0, gravados:0, erro:'', fim:false };
+function impPlanosHtml(){ if(!IMPP.total && !IMPP.erro) return '';
+  const n = x => Number(x).toLocaleString('pt-BR'), pct = IMPP.total ? Math.round(IMPP.feitos/IMPP.total*100) : 0;
+  return '<div style="height:10px;background:#e8eef3;border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#13b981,#00b8d9,#0a6cf0)"></div></div>'+
+    (IMPP.fim?'<b style="color:#0e9f6e">Concluído.</b> ':IMPP.rodando?'Gravando… '+pct+'% · ':'')+'Lidos '+n(IMPP.total)+' · plano preenchido em <b>'+n(IMPP.gravados)+'</b> pacientes'+
+    (IMPP.erro?'<div style="color:var(--vermelho);margin-top:4px">'+esc(IMPP.erro)+'</div>':''); }
+function impPlanosAtu(){ const e = document.getElementById('imp-pst'); if(e) e.innerHTML = impPlanosHtml(); }
+async function impPlanos(file){
+  if(!file || IMPP.rodando) return;
+  Object.assign(IMPP, { rodando:true, total:0, feitos:0, gravados:0, erro:'', fim:false }); render();
+  try{
+    const txt = await file.text(), L = [];
+    txt.split(/\r?\n/).forEach(l=>{ const i = l.lastIndexOf('|'); if(i<1) return; const nome = l.slice(0,i).trim(); let r = 0;
+      l.slice(i+1).split('.').forEach(d=>{ if(!d) return; r += parseInt(d,36); L.push([r, nome]); }); });
+    if(!L.length) throw new Error('Este não é o arquivo planos_smart.txt.');
+    IMPP.total = L.length; impPlanosAtu();
+    for(let i=0;i<L.length;i+=1000){
+      const q = await sb.rpc('idad_carga_plano', { p: L.slice(i,i+1000) });
+      if(q.error) throw new Error('Parou no lote '+(i/1000+1)+': '+q.error.message);
+      IMPP.gravados += q.data||0; IMPP.feitos = Math.min(L.length, i+1000); impPlanosAtu();
+    }
+    IMPP.fim = true;
+  }catch(e){ IMPP.erro = e.message||String(e); }
+  IMPP.rodando = false; impPlanosAtu(); render();
 }
 function impAtualiza(){ const e = document.getElementById('imp-st'); if(e) e.innerHTML = impStatusHtml(); }
 function impReg(r){
