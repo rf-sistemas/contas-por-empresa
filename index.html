@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v168">
+<meta name="rf-versao" content="v169">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v168',
+  versao : 'v169',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -2550,9 +2550,10 @@ async function salvarUsuario(){
 function abrirNivel(id){
   if(!S.anesTodos){ escAnesTodos().then(()=>abrirNivel(id)).catch(()=>{}); return; }
   const p = S.perfis.find(x=>x.id===id) || {};
-  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','mestre'] : ['operador','leitura','anestesista','adm1'];
+  const papeis = papel()==='mestre' ? ['dono','operador','leitura','anestesista','adm1','fin_idad','mestre'] : ['operador','leitura','anestesista','adm1','fin_idad'];
+  const atual = (p.papel==='operador' && ehPerfilFinIdad(p.abas)) ? 'fin_idad' : p.papel;   // v169
   abrirModal('<h2>Nível de acesso</h2><div style="color:var(--fraco);margin-bottom:8px">'+esc(p.nome||p.email||'')+'</div>'+
-    '<label>Papel</label><select id="nv-papel" onchange="document.getElementById(\'nv-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(x=>'<option value="'+x+'"'+(p.papel===x?' selected':'')+'>'+papelNome(x)+'</option>').join('')+'</select>'+
+    '<label>Papel</label><select id="nv-papel" onchange="document.getElementById(\'nv-anes-box\').style.display=this.value===\'anestesista\'?\'\':\'none\'">'+papeis.map(x=>'<option value="'+x+'"'+(atual===x?' selected':'')+'>'+papelNome(x)+'</option>').join('')+'</select>'+
     '<div id="nv-anes-box" style="'+(p.papel==='anestesista'?'':'display:none')+'"><label>Qual anestesista é este login</label><select id="nv-anes"><option value="">— escolha —</option>'+
       S.anesTodos.filter(a=>a.ativo!==false || a.id===p.anestesista_id).map(a=>'<option value="'+a.id+'"'+(p.anestesista_id===a.id?' selected':'')+'>'+esc(a.nome)+' · '+a.grupo+'</option>').join('')+'</select></div>'+
     '<div style="display:flex;gap:8px;margin-top:16px"><button class="bt" onclick="salvarNivel(\''+id+'\')">Salvar</button><button class="bt g" onclick="fecharModal()">Cancelar</button></div>');
@@ -2560,8 +2561,17 @@ function abrirNivel(id){
 async function salvarNivel(id){
   const pp = val('nv-papel'), an = val('nv-anes');
   if(pp==='anestesista' && !an) return aviso('Escolha qual anestesista é este login.','erro');
-  const r = await chamarCriarUsuario({ acao:'papel', id, papel: pp, anestesista_id: an||null });
+  const finIdad = pp==='fin_idad', eIdad = finIdad ? idadEmpresa() : null;   // v169: nível Financeiro IDAD = operador + perfil pronto
+  if(finIdad && !eIdad) return aviso('O CNPJ do IDAD não está cadastrado em Empresas.','erro');
+  const r = await chamarCriarUsuario({ acao:'papel', id, papel: finIdad ? 'operador' : pp, anestesista_id: an||null });
   if(r.erro) return aviso('Falhou: '+r.erro,'erro');
+  if(finIdad){
+    const u = await sb.from('perfis').update({ abas: PERFIL_FIN_IDAD.slice(), hospitais: null }).eq('id', id);
+    const d = await sb.from('perfil_empresas').delete().eq('perfil_id', id);
+    const ie = await sb.from('perfil_empresas').insert({ perfil_id: id, empresa_id: eIdad.id });
+    if(u.error || d.error || ie.error) return aviso('Nível trocado, mas não gravou o perfil Financeiro IDAD: '+((u.error||d.error||ie.error).message),'erro');
+    S.permEmp = S.permEmp || {}; S.permEmp[id] = [eIdad.id];
+  }
   const { data:ps } = await sb.from('perfis').select('*').order('papel'); S.perfis = ps||S.perfis;
   S.modal = null; aviso('Nível alterado.','ok');
 }
