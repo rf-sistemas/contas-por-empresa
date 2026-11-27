@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v176">
+<meta name="rf-versao" content="v177">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -249,7 +249,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v176',
+  versao : 'v177',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -332,7 +332,7 @@ async function iniciar(){
   const tokA = new URLSearchParams(location.search).get('a');
   if(tokA){ S.anesTok = tokA; S.av = { mes: hojeISO().slice(0,7), dados:null }; render(); anesCarregar(); return; }
   const { data } = await sb.auth.getSession();
-  if(data && data.session){ S.user = data.session.user; await carregarTudo(); syncLigar(); }
+  if(data && data.session){ S.user = data.session.user; if(await mfaChecar()){ await carregarTudo(); syncLigar(); } }
   render();
 }
 
@@ -359,6 +359,7 @@ async function entrar(){
   S.carregando = false;
   if(error) return aviso('Não entrou: '+error.message,'erro');
   S.user = data.user;
+  if(!(await mfaChecar())){ render(); return; }   // v177 (P0): verificação em duas etapas para mestre e dono
   await carregarTudo();
   render();
   syncLigar();
@@ -539,6 +540,7 @@ function renderBase(){
   const app = document.getElementById('app');
   if(S.anesTok){ app.innerHTML = telaAnesValidar(); return; }
   if(!S.user){ app.innerHTML = telaLogin(); return; }
+  if(S.mfa){ app.innerHTML = telaMfa(); return; }   // v177
 
   let corpo = '';
   if(ehAnes() && ['meus','escala'].indexOf(S.tela)<0) S.tela = 'escala';
@@ -616,6 +618,58 @@ function irPara(t){ if((t==='idadagenda'||t==='idadreceb') && !agPode()){ aviso(
   S.pesDono=null; S.pesCat=''; }   // v100: ao entrar, mostra as áreas de todos (não fica preso na última aberta)
   S.tela=t; S.msg=null; render(); }
 
+/* ===== v177 (Renato, P0 segurança 27/11/2026): VERIFICAÇÃO EM DUAS ETAPAS obrigatória para MESTRE e DONO =====
+   Depois da senha, o mestre/dono digita o código de 6 números do aplicativo autenticador (Google Authenticator,
+   Microsoft Authenticator ou Authy). Na primeira vez o sistema mostra o QR para cadastrar o celular.
+   Perdeu o celular? A RF Sistemas confere a identidade e remove o cadastro antigo (procedimento registrado em seg_evidencias). */
+async function mfaChecar(){
+  try{
+    const { data:pp } = await sb.rpc('cpe_meu_papel');
+    if(['mestre','dono'].indexOf(pp)<0) return true;
+    const { data:a } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if(a && a.currentLevel==='aal2') return true;
+    const { data:f } = await sb.auth.mfa.listFactors();
+    const ok = ((f && f.totp) || []).find(x=>x.status==='verified');
+    if(ok){ S.mfa = { fase:'desafio', factorId: ok.id }; return false; }
+    for(const x of ((f && f.all) || []).filter(x=>x.status!=='verified')) await sb.auth.mfa.unenroll({ factorId:x.id });
+    const { data:e, error } = await sb.auth.mfa.enroll({ factorType:'totp', friendlyName:'Sistema MR '+hojeISO() });
+    if(error) throw error;
+    S.mfa = { fase:'cadastro', factorId:e.id, qr:e.totp.qr_code, segredo:e.totp.secret };
+  }catch(e){ S.mfa = { fase:'erro', msg: (e && e.message) || String(e) }; }
+  return false;
+}
+async function mfaConfirmar(){
+  const cod = (val('mfa-cod')||'').replace(/\D/g,'');
+  if(cod.length!==6) return aviso('Digite os 6 números que aparecem no aplicativo.','erro');
+  S.carregando = true; render();
+  const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:S.mfa.factorId, code:cod });
+  S.carregando = false;
+  if(error){ render(); return aviso('Código não confere. Confira a hora do celular e digite o código atual.','erro'); }
+  S.mfa = null; S.msg = null;
+  await carregarTudo(); render(); syncLigar();
+}
+function telaMfa(){
+  const m = S.mfa, cad = m.fase==='cadastro';
+  const topo = '<div style="margin-bottom:14px;display:flex;justify-content:center">'+marcaSVG(64)+'</div>'+
+    '<h2 style="margin:0 0 2px;letter-spacing:.5px">SISTEMA MR</h2>'+
+    '<div style="color:var(--fraco);font-size:12px;letter-spacing:2px;margin-bottom:18px">VERIFICAÇÃO EM DUAS ETAPAS</div>'+
+    (S.msg? '<div class="'+S.msgTipo+'">'+esc(S.msg)+'</div>' : '');
+  if(m.fase==='erro') return '<div class="login">'+topo+'<div class="card"><div class="aviso">Não foi possível abrir a verificação: '+esc(m.msg)+'</div>'+
+    '<button class="bt g" style="width:100%;margin-top:12px" onclick="S.mfa=null;sair()">Voltar</button></div></div>';
+  return '<div class="login">'+topo+'<div class="card">'+
+    (cad ? '<h3 style="margin-top:0">Proteja seu acesso</h3>'+
+      '<div style="font-size:13.5px;color:var(--fraco);margin-bottom:10px">Seu login tem acesso total. A partir de agora, além da senha, '+
+      'o sistema pede um código do seu celular.<br><b>1.</b> Instale <b>Google Authenticator</b> ou <b>Microsoft Authenticator</b>.<br>'+
+      '<b>2.</b> No aplicativo, toque em <b>+</b> e leia o QR abaixo.<br><b>3.</b> Digite o código de 6 números.</div>'+
+      '<div style="display:flex;justify-content:center;background:#fff;border-radius:10px;padding:10px;margin-bottom:8px"><img src="'+m.qr+'" alt="QR" style="width:190px;height:190px"></div>'+
+      '<div style="font-size:11.5px;color:var(--fraco);word-break:break-all;margin-bottom:10px">Sem câmera? Digite esta chave no aplicativo: <b>'+esc(m.segredo)+'</b></div>'
+    : '<h3 style="margin-top:0">Código do aplicativo</h3><div style="font-size:13.5px;color:var(--fraco);margin-bottom:10px">Abra o autenticador no seu celular e digite o código de 6 números do <b>Sistema MR</b>.</div>')+
+    '<label>Código</label><input id="mfa-cod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="font-size:22px;letter-spacing:6px;text-align:center" onkeydown="if(event.key===\'Enter\')mfaConfirmar()">'+
+    '<div style="margin-top:14px"><button class="bt" style="width:100%" onclick="mfaConfirmar()" '+(S.carregando?'disabled':'')+'>'+(S.carregando?'Conferindo…':'Confirmar')+'</button></div>'+
+    '<div style="margin-top:10px;text-align:center"><a href="#" onclick="S.mfa=null;sair();return false" style="color:var(--fraco);font-size:12.5px">Sair</a></div>'+
+    '<div style="font-size:11.5px;color:var(--fraco);margin-top:10px">Perdeu o celular? Fale com a RF Sistemas — conferimos sua identidade e liberamos um novo cadastro.</div>'+
+  '</div><div style="color:var(--fraco);font-size:11px">'+SISTEMA.codigo+' '+SISTEMA.versao+'</div></div>';
+}
 function telaLogin(){
   return '<div class="login">'+
     '<div style="margin-bottom:14px;display:flex;justify-content:center">'+marcaSVG(64)+'</div>'+
@@ -2593,7 +2647,7 @@ async function acaoUsuario(acao, id, extra){
 }
 
 /* expõe o que o HTML chama */
-Object.assign(window, { irGrupo });
+Object.assign(window, { irGrupo, mfaConfirmar });
 Object.assign(window, {
   entrar, sair, salvarChave, trocarTema, definirNome, limparNome, irPara, abrirCaixa, abrirLancamento, salvarMovimento, editarMov,
   alternarPago, excluirMov, lerDocumento, verAnexo, fecharModal,
