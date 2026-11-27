@@ -8,7 +8,7 @@
 <!-- IDENTIFICAÇÃO DO SISTEMA (padrão RF Sistemas) -->
 <meta name="rf-sistema" content="CPE">
 <meta name="rf-sistema-nome" content="Sistema MR">
-<meta name="rf-versao" content="v171">
+<meta name="rf-versao" content="v172">
 <meta name="rf-data" content="2026-11-27">
 <meta name="rf-cliente" content="Vinicius">
 
@@ -248,7 +248,7 @@
 const SISTEMA = {
   codigo : 'CPE',
   nome   : 'Sistema MR',
-  versao : 'v171',
+  versao : 'v172',
   data   : '27/11/2026',
   cliente: 'Vinicius',
   casa   : 'RF Sistemas'
@@ -5021,7 +5021,7 @@ function osItensDe(a){ const g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_
 function osDeAgenda(a, p){ const o = a.os || {}, g = a.guia_id ? S.tiss.guias.find(x=>x.id===a.guia_id) : null, gf = g && g.dados && g.dados.form || {};
   return { id:a.id, os_numero:a.os_numero, status:a.status, guia_id:a.guia_id, pago:a.pago, data:a.data, hora:agHM(a.hora),
     urg:o.urg||'N', atend:o.atend||'Assistencial', goper:o.goper||gf.numeroGuiaOperadora||'', ppFech: a.pp_fechamento_id||null, conv: a.pagamento==='prepago' ? 'pp:'+(a.operadora_id||'') : a.pagamento && a.pagamento!=='convenio' ? 'p:'+a.pagamento : (a.operadora_id||''),
-    plano:o.plano!=null?o.plano:(p.plano||''), origem:o.origem||'', setor:o.setor||'RECEPÇÃO IDAD', guia:g?g.numero_guia_prestador:(o.guia||''), guiaPrinc:o.guiaPrinc||'',
+    plano:o.plano||p.plano||'', origem:o.origem||'', setor:o.setor||'RECEPÇÃO IDAD', guia:g?g.numero_guia_prestador:(o.guia||''), guiaPrinc:o.guiaPrinc||'',
     profId:a.profissional_id||'', solic:o.solic||a.data, obs:a.obs||'', cpf:o.cpf!=null?o.cpf:(p.cpf||''), matric:a.carteira||p.carteirinha||'', cid:o.cid!=null?o.cid:(p.cid||''), cidDesc:o.cidDesc||'',
     tipo:a.tipo||'consulta', tempo:o.tempo||'', tempoUn:o.tempoUn||'D', indClin:o.indClin||'', acidente:o.acidente||'9', obsTiss:o.obsTiss||'', entrega:o.entrega||'', lotacao:o.lotacao!=null?o.lotacao:(p.lotacao||''),
     externo:o.externo||'', tpAtd:o.tpAtd||(a.tipo==='consulta'?'04':'23'), saida:o.saida||'', regime:o.regime||'01', saudeOcup:o.saudeOcup||'', cobertura:o.cobertura||'',
@@ -5054,7 +5054,7 @@ function pacOsHtml(id){
   h += '<div class="oshd">Ordem de Serviços '+(e.os_numero?'nº '+e.os_numero:'(nova)')+(e.status?' · '+esc((AG_ST[e.status]||[''])[0]):'')+(e.guia_id?' · guia gerada':'')+'</div><div class="osbox" style="border-radius:0 0 10px 10px">';
   h += R(F('OS:', '<input disabled value="'+(e.os_numero||'nova')+'" style="width:90px">'), F('Data:', In('data',150,'date')+In('hora',100,'time')), F('Urg.:', Se('urg',[['N','N'],['S','S']],60)), F('Atend.:', Se('atend',OS_ATEND,150)),
     F('G. Oper.:', In('goper',170)));
-  h += R(F('Conv.:', Se('conv',convs,240,';osConvMudou()')), '<button type="button" class="bt g mini" onclick="osInfoConv()">Info…</button>', F('Plano:', In('plano',170)), F('Origem:', In('origem',140)));
+  h += R(F('Conv.:', Se('conv',convs,240,';osConvMudou()')), '<button type="button" class="bt g mini" onclick="osInfoConv()">Info…</button>', F('Plano:', In('plano',170).replace('<input','<input list="os-planos" placeholder="escolha ou digite" onfocus="osPlanosCarregar()"')+'<datalist id="os-planos">'+osPlanosOpcoes()+'</datalist>'), F('Origem:', In('origem',140)));
   h += R(F('Setor:', In('setor',160)), F('Guia:', '<input disabled value="'+esc(e.guia||'')+'" style="width:120px" placeholder="na geração">'), F('Guia Principal:', In('guiaPrinc',120)),
     F('Méd.:', '<input disabled value="'+esc(prof.numero||'')+'" style="width:70px">'+Se('profId',profs,240,';pacDesenhar(_pacReg.id)')), F('Solic.:', In('solic',150,'date')));
   h += R(F('Obs.:', '<input value="'+esc(e.obs||'')+'" style="width:520px;max-width:100%" onchange="_osEd.obs=this.value"'+ro+'>'));
@@ -5075,7 +5075,7 @@ function pacOsHtml(id){
     '<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="bt g mini" onclick="aviso(\'Trat. Ambulatorial — em construção no Sistema MR.\')">Trat. Ambulatorial</button>'+
       '<button class="bt g mini" onclick="osDeposito()">Depósito</button><button class="bt g mini" onclick="_osMenu=\'ocor\';pacDesenhar(\''+id+'\')">Registro de Ocorrências</button></span>'+
     '<span style="display:flex;gap:6px;flex-wrap:wrap">'+(e.id?'<button class="bt g" onclick="_osEd=osNovaEd(_pacReg);_osEd._pid=\''+id+'\';_osMenu=\'itens\';pacDesenhar(\''+id+'\')">+ Nova OS</button>':'')+
-      (ro?'':'<button class="bt g" onclick="osGravar()">Gravar OS</button>')+
+      (ro?'':'<button class="bt g" onclick="osGravar()">Gravar OS</button>')+'<button class="bt g" onclick="osImprimirAbrir()">🖨 Imprimir (F8)</button>'+
       (convBalcao(e.conv) || convPP(e.conv) ? '' : '<button class="bt" onclick="osGuia()">'+(e.guia_id?'Ver guia TISS':'Gravar e gerar guia TISS')+'</button>')+
       (convBalcao(e.conv) && !e.pago ? '<button class="bt" onclick="osDeposito()">💰 Receber</button>' : '')+'</span></div>';
   return h;
@@ -5203,6 +5203,80 @@ async function pacOsNova(id){
   Object.assign(_agEd, { paciente_id:id, paciente_nome:p.nome||'', telefone:p.celular||p.telefone||'', carteira:p.carteirinha||'', operadora_id: op?op.id:'', pagamento: op && op.prepago ? 'prepago' : (_agEd.pagamento||'convenio'), hora, data: hojeISO(), encaixe:true, origem:'recepcao' });
   _pacOS.pid = null; agModal();
 }
+/* v172 (Renato, 27/11/2026): Plano com lista para escolher — os planos do convênio do paciente (vindos do Smart) */
+var _osPlanos = {};
+function osPlanosOpcoes(){ const c = (_pacReg && _pacReg.convenio) || ''; return (_osPlanos[c]||[]).map(x=>'<option value="'+esc(x.plano)+'">').join(''); }
+async function osPlanosCarregar(){ const c = (_pacReg && _pacReg.convenio) || ''; if(!c || _osPlanos[c]) return;
+  _osPlanos[c] = []; try{ const r = await sb.rpc('idad_planos', { conv:c }); if(!r.error) _osPlanos[c] = r.data||[]; }catch(e){}
+  const d = document.getElementById('os-planos'); if(d) d.innerHTML = osPlanosOpcoes(); }
+/* v172 (Renato, 27/11/2026): F8 abre "Imprimir Ordem de Serviço", igual ao Smart */
+function osImprimirAbrir(){
+  if(!_osEd || !_pacReg) return; const e = _osEd, p = _pacReg; osImprimirFechar();
+  const dt = (e.data||hojeISO())+'T'+(e.hora||'00:00');
+  const C = (rot, v, w) => '<label style="display:flex;align-items:center;gap:6px;margin:0"><span style="font-size:12.5px;font-weight:800;min-width:78px;text-align:right">'+rot+'</span><input disabled value="'+esc(v||'')+'" style="width:'+w+'px;margin:0;padding:5px 7px"></label>';
+  const d = document.createElement('div'); d.id = 'os-imp'; d.className = 'modalbg'; d.style.zIndex = 80; d.onclick = ev=>{ if(ev.target===d) osImprimirFechar(); };
+  d.innerHTML = '<div class="modal" style="max-width:860px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><h2 style="flex:1;margin:0;font-size:17px">Imprimir Ordem de Serviço'+(e.os_numero?' nº '+e.os_numero:'')+'</h2>'+pacBotaoX().replace('fecharModal()','osImprimirFechar()')+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:8px 18px">'+
+      '<div style="display:flex;gap:14px">'+C('Registro:', p.prontuario, 110)+C('Sexo:', p.sexo, 40).replace('min-width:78px','min-width:0')+'</div>'+C('Nome:', p.nome, 300)+
+      C('Dt Nasc:', p.nascimento?dataBR(p.nascimento):'', 120)+C('Fone:', mascaraTel(p.celular||p.telefone||''), 160)+
+      C('Matrícula:', e.matric||p.carteirinha, 200)+C('Titular:', p.titular||p.nome, 300)+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:12px">'+
+      '<label style="display:flex;align-items:center;gap:6px;margin:0"><span style="font-size:12.5px;font-weight:800">Cópia:</span><input id="oi-copias" type="number" min="1" max="9" value="1" style="width:70px;margin:0;padding:5px 7px"></label>'+
+      '<label style="display:flex;align-items:center;gap:6px;margin:0"><span style="font-size:12.5px;font-weight:800">Páginas:</span><input id="oi-pag" placeholder="todas" style="width:90px;margin:0;padding:5px 7px"></label>'+
+      '<label style="display:flex;align-items:center;gap:6px;margin:0"><span style="font-size:12.5px;font-weight:800">Resultado:</span><input id="oi-res" type="datetime-local" value="'+esc(dt)+'" style="margin:0;padding:5px 7px"></label>'+
+      '<button type="button" class="bt g mini" onclick="osEtiquetas()">Qtde. de Etiquetas</button></div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px">'+
+      '<label style="display:flex;align-items:center;gap:6px;margin:0"><span style="font-size:12.5px;font-weight:800">CID:</span><input id="oi-cid" value="'+esc(e.cid||p.cid||'')+'" style="width:110px;margin:0;padding:5px 7px"></label>'+
+      '<label style="display:flex;align-items:center;gap:6px;margin:0;flex:1;min-width:260px"><span style="font-size:12.5px;font-weight:800">Obs.:</span><input id="oi-obs" style="flex:1;margin:0;padding:5px 7px"></label></div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:12px;font-size:13.5px;font-weight:700">'+
+      '<label style="margin:0;cursor:pointer"><input type="checkbox" id="oi-recibo" style="width:auto"> Imprimir Recibo</label>'+
+      '<label style="margin:0;cursor:pointer"><input type="checkbox" id="oi-datas" checked style="width:auto"> Imprimir Datas</label>'+
+      '<label style="margin:0;cursor:pointer"><input type="checkbox" id="oi-abramge" style="width:auto"> Formato ABRAMGE</label></div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin-top:16px">'+
+      '<span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="bt g" onclick="aviso(\'Relatório de internação — em construção no Sistema MR.\')">Relat. Intern…</button>'+
+        (convBalcao(e.conv)||convPP(e.conv) ? '' : '<button type="button" class="bt g" onclick="osImprimirFechar();osGuia()">Guia TISS…</button>')+'</span>'+
+      '<span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="bt" onclick="osImprimir()">OK</button><button type="button" class="bt g" onclick="osImprimirFechar()">Cancelar</button><button type="button" class="bt g" onclick="osImprimir()">Impressora</button></span></div></div>';
+  document.body.appendChild(d);
+}
+function osImprimirFechar(){ const d = document.getElementById('os-imp'); if(d) d.remove(); }
+function osPrintHtml(titulo, css, corpo){ let fr = document.getElementById('os-print'); if(fr) fr.remove();
+  fr = document.createElement('iframe'); fr.id = 'os-print'; fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(fr);
+  const doc = fr.contentWindow.document; doc.open(); doc.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(titulo)+'</title><style>'+css+'</style></head><body>'+corpo+'</body></html>'); doc.close();
+  setTimeout(()=>{ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(x){} }, 300); }
+function osImprimir(){
+  const e = _osEd, p = _pacReg, g = id => document.getElementById(id);
+  const copias = Math.max(1, Math.min(9, parseInt((g('oi-copias')||{}).value,10)||1)), datas = (g('oi-datas')||{}).checked, recibo = (g('oi-recibo')||{}).checked;
+  const res = (g('oi-res')||{}).value||'', cid = (g('oi-cid')||{}).value||'', obs = (g('oi-obs')||{}).value||'';
+  const prof = S.tiss.profs.find(x=>x.id===e.profId)||{}, conv = convBalcao(e.conv) ? 'PARTICULAR' : (tissOp(convOpId(e.conv)).nome||p.convenio||'');
+  const itens = (e.itens||[]).filter(x=>x.itemId).map(x=>{ const it = tissIt(x.itemId)||{}; return { cod:it.codigo||'', desc:it.descricao||'', qtd:+x.qtd||1, valor:tissN((+x.valor||0)*(+x.qtd||1)) }; });
+  const tot = itens.reduce((a,x)=>a+x.valor,0);
+  const L = (r,v) => '<td><span>'+r+'</span><b>'+esc(v==null?'':String(v))+'</b></td>';
+  const uma = '<div class="pg"><div class="hd"><div><b>HOSPITAL IDAD</b><small>Sistema MR</small></div><div class="t">ORDEM DE SERVIÇO'+(e.os_numero?' Nº '+e.os_numero:'')+'</div><div class="d">'+(datas?dataBR(e.data)+' '+esc(e.hora||''):'')+'</div></div>'+
+    '<table class="f"><tr>'+L('Registro',p.prontuario)+L('Nome',p.nome)+L('Sexo',p.sexo)+L('Dt Nasc',p.nascimento?dataBR(p.nascimento):'')+'</tr>'+
+    '<tr>'+L('Convênio',conv)+L('Plano',e.plano)+L('Matrícula',e.matric||p.carteirinha)+L('Fone',mascaraTel(p.celular||p.telefone||''))+'</tr>'+
+    '<tr>'+L('Titular',p.titular||p.nome)+L('Médico',prof.nome||'')+L('CID',cid)+L('Resultado',datas&&res?dataBR(res.slice(0,10))+' '+res.slice(11,16):'')+'</tr></table>'+
+    '<table class="it"><thead><tr><th>Código</th><th>Descrição</th><th>Qtd</th>'+(recibo?'<th style="text-align:right">Valor</th>':'')+'</tr></thead><tbody>'+
+      (itens.length?itens.map(x=>'<tr><td>'+esc(x.cod)+'</td><td>'+esc(x.desc)+'</td><td>'+x.qtd+'</td>'+(recibo?'<td style="text-align:right">'+brl(x.valor)+'</td>':'')+'</tr>').join(''):'<tr><td colspan="4">—</td></tr>')+'</tbody>'+
+      (recibo?'<tfoot><tr><td colspan="3" style="text-align:right"><b>Total</b></td><td style="text-align:right"><b>'+brl(tot)+'</b></td></tr></tfoot>':'')+'</table>'+
+    (obs||e.obs?'<div class="ob"><span>Obs.</span>'+esc(obs||e.obs)+'</div>':'')+
+    (recibo?'<div class="rc">Recebi de <b>'+esc(p.nome||'')+'</b> a importância de <b>'+brl(tot)+'</b> referente aos serviços acima.</div>':'')+
+    '<div class="as"><div>Assinatura do paciente / responsável</div><div>Recepção IDAD</div></div>'+
+    '<div class="rd">Sistema MR // OS '+(e.os_numero||'')+' // '+dataBR(hojeISO())+' // '+esc((S.perfil&&(S.perfil.nome||S.perfil.email))||'')+' // RECEPÇÃO IDAD</div></div>';
+  const css = '@page{size:A4;margin:12mm}body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0}.pg{page-break-after:always}.pg:last-child{page-break-after:auto}'+
+    '.hd{display:flex;align-items:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}.hd>div{flex:1}.hd small{display:block;font-size:10px}.hd .t{text-align:center;font-weight:800;font-size:18px}.hd .d{text-align:right;font-size:12px}'+
+    '.f{width:100%;border-collapse:separate;border-spacing:4px}.f td{border:1px solid #000;border-radius:4px;padding:2px 6px;vertical-align:top}.f span{display:block;font-size:9px}.f b{font-size:12.5px;font-weight:400}'+
+    '.it{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}.it th{background:#ddd;text-align:left;padding:4px;border:1px solid #000}.it td{padding:4px;border:1px solid #000}'+
+    '.ob{margin-top:8px;font-size:12px;border:1px solid #000;padding:4px 6px}.ob span{display:block;font-size:9px}.rc{margin-top:12px;font-size:12.5px}'+
+    '.as{display:flex;gap:40px;margin-top:46px}.as div{flex:1;border-top:1px solid #000;text-align:center;font-size:11px;padding-top:3px}.rd{font-size:9px;margin-top:10px}';
+  osPrintHtml('Ordem de Serviço '+(e.os_numero||''), css, Array(copias).fill(uma).join(''));
+}
+function osEtiquetas(){
+  const q = parseInt(prompt('Quantas etiquetas?', '1'),10); if(!q || q<1) return;
+  const e = _osEd, p = _pacReg, conv = convBalcao(e.conv) ? 'PARTICULAR' : (tissOp(convOpId(e.conv)).nome||p.convenio||'');
+  const et = '<div class="et"><b>'+esc(p.nome||'')+'</b><span>Reg. '+(p.prontuario||'')+(p.nascimento?' · Nasc. '+dataBR(p.nascimento):'')+'</span><span>'+esc(conv)+(e.os_numero?' · OS '+e.os_numero:'')+'</span><span>'+dataBR(e.data||hojeISO())+'</span></div>';
+  osPrintHtml('Etiquetas', '@page{margin:6mm}body{font-family:Arial,sans-serif;margin:0;display:flex;flex-wrap:wrap;gap:3mm}.et{width:62mm;height:28mm;border:1px dashed #999;padding:2mm 3mm;box-sizing:border-box;overflow:hidden;font-size:9.5pt}.et b{display:block;font-size:10pt}.et span{display:block}', Array(Math.min(q,60)).fill(et).join(''));
+}
+document.addEventListener('keydown', e=>{ if(e.key!=='F8' || !document.getElementById('pc-tabs') || _pacTela!=='os' || !_osEd) return; e.preventDefault(); osImprimirAbrir(); });
 document.addEventListener('keydown', e=>{ // F10 troca Ficha ⇄ Lançamento, como no Smart
   if(e.key!=='F10' || !document.getElementById('pc-tabs') || !_pacReg || !_pacReg.id) return;
   e.preventDefault(); pacTrocar(_pacTela==='ficha'?'os':'ficha', _pacReg.id);
